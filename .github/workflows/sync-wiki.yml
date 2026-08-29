@@ -1,0 +1,80 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "wiki/**"
+      - ".github/workflows/sync-wiki.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Publish canonical Wiki source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate canonical pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f wiki/Home.md
+          test -f wiki/_Sidebar.md
+          test -f wiki/_Footer.md
+          test "$(find wiki -maxdepth 1 -type f -name '*.md' | wc -l)" -ge 3
+
+      - name: Clone GitHub Wiki
+        id: wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          WIKI_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          if ! git ls-remote "$WIKI_URL" >/dev/null 2>&1; then
+            echo "::notice::GitHub Wiki is not initialized yet. Create its first page, then rerun this workflow."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          git clone \
+            "$WIKI_URL" \
+            .wiki
+
+      - name: Replace generated Wiki content
+        if: steps.wiki.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .wiki -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a wiki/. .wiki/
+
+      - name: Publish Wiki commit
+        if: steps.wiki.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Wiki is already current."
+            exit 0
+          fi
+
+          git commit -m "docs: sync wiki from ${GITHUB_SHA}"
+          git push origin HEAD:master
