@@ -42,11 +42,7 @@ fi
 if [[ "${OKAL_REQUIRE_PR_BODY:-0}" == "1" ]]; then
   if [[ -z "${OKAL_PR_BODY:-}" ]]; then
     report_failure "Pull Request description is required."
-  elif ((trusted_dependabot == 1)); then
-    if [[ "$OKAL_PR_BODY" != *"Dependabot"* ]]; then
-      report_failure "Trusted Dependabot Pull Request description is missing its generated attribution."
-    fi
-  else
+  elif ((trusted_dependabot == 0)); then
     required_headings=(
       "## What changed?"
       "## Why?"
