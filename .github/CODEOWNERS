@@ -1,0 +1,10 @@
+# Default ownership until domain teams are added.
+* @0PeterAdel
+
+# High-risk and governance surfaces.
+/.github/ @0PeterAdel
+/AGENTS.md @0PeterAdel
+/GOVERNANCE.md @0PeterAdel
+/SECURITY.md @0PeterAdel
+/docs/ @0PeterAdel
+/wiki/ @0PeterAdel

@@ -1,0 +1,64 @@
+name: Governance
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  repository-policy:
+    name: Repository policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OKAL_BRANCH_NAME: ${{ github.head_ref }}
+      OKAL_PR_TITLE: ${{ github.event.pull_request.title }}
+      OKAL_PR_BODY: ${{ github.event.pull_request.body }}
+      OKAL_REQUIRE_PR_BODY: "1"
+      OKAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      OKAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Check out the Pull Request
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate repository policy
+        shell: bash
+        run: bash scripts/validate-governance.sh
+
+      - name: Validate shell scripts
+        shell: bash
+        run: shellcheck scripts/*.sh
+
+  markdown:
+    name: Markdown
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the Pull Request
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Lint Markdown
+        shell: bash
+        run: npx --yes markdownlint-cli2@0.18.1

@@ -2,15 +2,24 @@
 
 Okal welcomes focused contributions that preserve the kernel's authority, replaceable boundaries, and evidence model.
 
+The [ShiftCore Team Handbook](https://platform.shiftcore.workers.dev/docs/handbook)
+is the source of truth for Git, Pull Request, review, and merge behavior. Every
+change follows `Task → Branch → Commit → Push → Pull Request → Review → Fix
+comments → Approval → Merge`. Direct pushes to `main` are prohibited.
+
 ## Working model
 
-- Keep `main` releasable.
+- Keep `main` releasable and protected.
 - Use short-lived branches and small, reviewable pull requests.
 - Open a draft PR early for architectural or security-sensitive work.
 - Prefer vertical increments that include contracts, behavior, tests, telemetry, and docs.
 - Do not merge generated artifacts whose source is missing.
 
-Conventional Commit prefixes are recommended: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, and `security`.
+Conventional Commit prefixes are required: `feat`, `fix`, `docs`, `style`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`, and `security`.
+
+Branches use `type/short-task-name`. Commits use `type(scope): short message`.
+Pull Request titles use `type: short description`, or `[JIRA-ID] type: short
+description` after Jira is active.
 
 ## Issue readiness
 
@@ -38,7 +47,12 @@ An implementation issue should state the user outcome, scope and non-goals, acce
 | Dependency or skill | supply chain and license |
 | UI/voice accessibility | product and accessibility |
 
-Until CODEOWNERS is established, maintainers assign these roles explicitly.
+CODEOWNERS provides the initial maintainer review, and maintainers assign
+additional domain reviewers as the team grows.
+
+Review comments use `Must change:`, `Suggestion:`, `Question:`, or `Nit:`. The
+PR author merges only after eligible approval, resolved conversations, passing
+checks, and conflict resolution.
 
 ## Pull request evidence
 
@@ -76,4 +90,3 @@ Do not publish exploitable vulnerabilities in a public issue. Use the repository
 ## Community standard
 
 Discussion must be specific, respectful, and evidence-led. Generated contributions are acceptable only when the contributor understands, tests, and takes responsibility for the result.
-

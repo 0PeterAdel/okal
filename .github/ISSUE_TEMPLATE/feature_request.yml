@@ -1,0 +1,55 @@
+name: Feature proposal
+description: Propose a capability by its user outcome, boundaries, and evidence.
+title: "feat: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which user problem is not adequately solved today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable behavior, not a preferred dependency.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope and non-goals
+      description: Define a small first increment and what remains out of scope.
+    validations:
+      required: true
+  - type: textarea
+    id: architecture
+    attributes:
+      label: Architecture alignment
+      description: Link relevant Wiki pages or ADRs and identify affected trust boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Acceptance and evaluation
+      description: How will we prove usefulness, safety, reliability, and resource fit?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include the simplest baseline and the option to defer.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Proposal checks
+      options:
+        - label: This proposal is not a request to bypass the kernel, policy, approvals, or receipts.
+          required: true
+        - label: License, security, privacy, cost, and hardware impact were considered.
+          required: true

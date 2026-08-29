@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: ShiftCore Team Handbook
+    url: https://platform.shiftcore.workers.dev/docs/handbook
+    about: Read the required Git, Pull Request, review, security, and collaboration rules.
+  - name: Okal Wiki
+    url: https://github.com/0PeterAdel/okal/wiki
+    about: Review architecture, MVP scope, risks, and the implementation backlog.
+  - name: Security policy
+    url: https://github.com/0PeterAdel/okal/security/policy
+    about: Report vulnerabilities privately; do not publish exploitable details in an issue.
