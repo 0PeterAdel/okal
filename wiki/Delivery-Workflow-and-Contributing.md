@@ -5,7 +5,8 @@ Okal welcomes focused contributions that preserve the kernel's authority, replac
 The [ShiftCore Team Handbook](https://platform.shiftcore.workers.dev/docs/handbook)
 is the source of truth for Git, Pull Request, review, and merge behavior. Every
 change follows `Task → Branch → Commit → Push → Pull Request → Review → Fix
-comments → Approval → Merge`. Direct pushes to `main` are prohibited.
+comments → Approval or documented Solo review → Merge`. Direct pushes to
+`main` are prohibited.
 
 ## Working model
 
@@ -52,7 +53,16 @@ additional domain reviewers as the team grows.
 
 Review comments use `Must change:`, `Suggestion:`, `Question:`, or `Nit:`. The
 PR author merges only after eligible approval, resolved conversations, passing
-checks, and conflict resolution.
+checks, and conflict resolution. While Okal has one eligible human maintainer,
+the bounded [Solo Maintainer exception](https://github.com/0PeterAdel/okal/blob/main/GOVERNANCE.md#solo-maintainer-mode)
+replaces independent approval with a recorded non-approval self-review. It does
+not relax any other merge gate and expires when a second eligible maintainer
+receives write access.
+
+Dependabot-generated metadata is accepted only when GitHub authenticates the
+author as `dependabot[bot]` and the branch uses the `dependabot/` namespace.
+Dependency content, security, license, tests, and required checks still receive
+normal review; major updates are not auto-merged.
 
 ## Pull request evidence
 

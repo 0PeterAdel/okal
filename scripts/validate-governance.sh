@@ -9,25 +9,43 @@ types='feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert|security'
 branch_pattern="^(${types})/([A-Z][A-Z0-9]+-[0-9]+-)?[a-z0-9]+(-[a-z0-9]+)*$"
 commit_pattern="^(${types})(\([a-z0-9][a-z0-9-]*\))?: [a-z0-9].+"
 pr_pattern="^(\[[A-Z][A-Z0-9]+-[0-9]+\] )?(${types}): [a-z0-9].+"
+dependabot_branch_pattern='^dependabot/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)+$'
+dependabot_pr_pattern='^build\(deps(-dev)?\): (bump|update) .+'
 
 report_failure() {
   echo "ERROR: $*" >&2
   failures=$((failures + 1))
 }
 
+trusted_dependabot=0
+if [[ "${OKAL_PR_AUTHOR:-}" == "dependabot[bot]" ]] &&
+  [[ "${OKAL_BRANCH_NAME:-}" =~ $dependabot_branch_pattern ]]; then
+  trusted_dependabot=1
+fi
+
 if [[ -n "${OKAL_BRANCH_NAME:-}" ]] &&
+  ((trusted_dependabot == 0)) &&
   [[ ! "$OKAL_BRANCH_NAME" =~ $branch_pattern ]]; then
   report_failure "Branch '$OKAL_BRANCH_NAME' must use type/short-task-name or type/JIRA-ID-short-task-name."
 fi
 
-if [[ -n "${OKAL_PR_TITLE:-}" ]] &&
-  [[ ! "$OKAL_PR_TITLE" =~ $pr_pattern ]]; then
-  report_failure "PR title '$OKAL_PR_TITLE' must use 'type: short description' or '[JIRA-ID] type: short description'."
+if [[ -n "${OKAL_PR_TITLE:-}" ]]; then
+  if ((trusted_dependabot == 1)); then
+    if [[ ! "$OKAL_PR_TITLE" =~ $dependabot_pr_pattern ]]; then
+      report_failure "Trusted Dependabot PR title '$OKAL_PR_TITLE' must describe a build(deps) bump or update."
+    fi
+  elif [[ ! "$OKAL_PR_TITLE" =~ $pr_pattern ]]; then
+    report_failure "PR title '$OKAL_PR_TITLE' must use 'type: short description' or '[JIRA-ID] type: short description'."
+  fi
 fi
 
 if [[ "${OKAL_REQUIRE_PR_BODY:-0}" == "1" ]]; then
   if [[ -z "${OKAL_PR_BODY:-}" ]]; then
     report_failure "Pull Request description is required."
+  elif ((trusted_dependabot == 1)); then
+    if [[ "$OKAL_PR_BODY" != *"Dependabot"* ]]; then
+      report_failure "Trusted Dependabot Pull Request description is missing its generated attribution."
+    fi
   else
     required_headings=(
       "## What changed?"

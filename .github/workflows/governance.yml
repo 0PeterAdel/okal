@@ -26,6 +26,7 @@ jobs:
     env:
       OKAL_BRANCH_NAME: ${{ github.head_ref }}
       OKAL_PR_TITLE: ${{ github.event.pull_request.title }}
+      OKAL_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
       OKAL_PR_BODY: ${{ github.event.pull_request.body }}
       OKAL_REQUIRE_PR_BODY: "1"
       OKAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -40,6 +41,10 @@ jobs:
       - name: Validate repository policy
         shell: bash
         run: bash scripts/validate-governance.sh
+
+      - name: Test governance metadata rules
+        shell: bash
+        run: bash scripts/test-governance-metadata.sh
 
       - name: Validate shell scripts
         shell: bash

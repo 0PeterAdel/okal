@@ -5,7 +5,7 @@ Every change, including documentation and CI changes, follows this lifecycle:
 
 ```text
 Task → Branch → Commit → Push → Pull Request → Review → Fix comments
-→ Approval → Merge → Documentation update
+→ Approval or documented Solo review → Merge → Documentation update
 ```
 
 ## Before starting
@@ -84,6 +84,13 @@ Request at least one eligible reviewer. Important security, architecture,
 identity, data, model-routing, or deployment changes require a reviewer able to
 judge that area.
 
+While the repository has only one eligible human maintainer, follow the
+temporary [Solo Maintainer mode](GOVERNANCE.md#solo-maintainer-mode). The author
+cannot approve their own PR; instead, record a non-approval self-review with
+findings, evidence, risks, and the merge decision. This changes only the
+approval requirement. Pull Requests, checks, conversations, and every other
+merge gate remain mandatory.
+
 Use these review prefixes:
 
 - `Must change:` blocks merge.
@@ -96,9 +103,10 @@ is handled. Review the work, never the person.
 
 ## Merge rules
 
-The PR author merges after approval. Do not merge when:
+The PR author merges after independent approval or the active documented Solo
+Maintainer self-review. Do not merge when:
 
-- approval is missing;
+- the applicable independent approval or Solo self-review record is missing;
 - a required check is failing;
 - a conversation is unresolved;
 - the branch has conflicts;
@@ -111,7 +119,8 @@ Delete the task branch after merge when it is no longer needed.
 
 A contribution is done when its acceptance criteria pass, tests and checks are
 green, risks and limitations are documented, required docs are current, review
-comments are resolved, an eligible reviewer approves, and the PR is merged.
+comments are resolved, the applicable approval or Solo self-review is recorded,
+and the PR is merged.
 
 See [Repository Governance](GOVERNANCE.md), [Security Policy](SECURITY.md), and
 the [Okal Wiki](https://github.com/0PeterAdel/okal/wiki).

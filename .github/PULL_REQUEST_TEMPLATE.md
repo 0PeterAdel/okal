@@ -33,4 +33,4 @@ Closes #
 - [ ] Tests, checks, and relevant evaluations pass.
 - [ ] Documentation, contracts, migrations, and runbooks are updated if needed.
 - [ ] I documented important risks, limitations, and follow-up work.
-- [ ] I am ready for review and will not merge before eligible approval.
+- [ ] I will not merge before independent approval or the active documented Solo Maintainer self-review.
