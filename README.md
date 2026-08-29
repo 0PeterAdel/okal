@@ -44,6 +44,14 @@ The `wiki/` directory is the canonical source for the GitHub Wiki. Changes are
 reviewed in the main repository and synchronized by
 `.github/workflows/sync-wiki.yml`.
 
+## Contributing
+
+Okal follows the [ShiftCore Team Handbook](https://platform.shiftcore.workers.dev/docs/handbook).
+Never push directly to `main`; every change must use a task branch, a clear
+commit, a Pull Request, review, and approval. Read
+[CONTRIBUTING.md](CONTRIBUTING.md), [Repository Governance](GOVERNANCE.md), and
+the [Security Policy](SECURITY.md) before starting work.
+
 ## License
 
 Okal is licensed under the repository's MIT License. Upstream software, models,
