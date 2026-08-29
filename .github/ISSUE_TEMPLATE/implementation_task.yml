@@ -1,0 +1,75 @@
+name: Implementation task
+description: Define one reviewable engineering task with explicit acceptance criteria.
+title: "chore: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Follow the ShiftCore workflow: Task → Branch → Commit → Pull Request → Review → Approval → Merge.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What observable outcome should this task produce?
+      placeholder: A user or contributor can...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this needed, and which Wiki requirement or ADR governs it?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List the work included in this task.
+      placeholder: |
+        - Add...
+        - Verify...
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: State what this task intentionally does not include.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use verifiable conditions.
+      placeholder: |
+        - [ ] Given..., when..., then...
+        - [ ] Tests and documentation pass...
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Highest risk class
+      options:
+        - R0 — read-only or documentation
+        - R1 — reversible local change
+        - R2 — consequential external change
+        - R3 — destructive, privileged, or highly sensitive
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and evidence
+      description: Link blocking tasks and state the tests, evaluation, or receipts required.
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Readiness
+      options:
+        - label: The task is focused enough for one Pull Request.
+          required: true
+        - label: Security, privacy, compatibility, resource, and license impact were considered.
+          required: true
