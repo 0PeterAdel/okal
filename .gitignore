@@ -1,0 +1,62 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+htmlcov/
+.coverage
+.coverage.*
+
+# Node and web
+node_modules/
+.next/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Runtime and local data
+artifacts/
+data/
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.bak
+
+# Models and large generated assets
+models/
+checkpoints/
+*.ckpt
+*.gguf
+*.safetensors
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Temporary files
+.cache/
+tmp/
+temp/
+*.tmp
