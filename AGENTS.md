@@ -12,8 +12,11 @@ of truth for Git and review behavior.
 4. Keep changes focused and commits small.
 5. Use `type(scope): short message` for every commit.
 6. Push only the task branch and open a Pull Request into `main`.
-7. Request an eligible reviewer and address every review comment.
-8. Merge only after approval, resolved conversations, and passing checks.
+7. Request an eligible reviewer and address every review comment. If the
+   documented Solo Maintainer mode is active, record the required non-approval
+   self-review instead.
+8. Merge only after the applicable approval or Solo self-review, resolved
+   conversations, and passing checks.
 
 Never commit or push directly to `main`. Never merge a Pull Request merely to
 finish an automated task.
@@ -44,8 +47,10 @@ author.
   the Wiki.
 - Run `bash scripts/validate-governance.sh` before requesting review when the
   script is present.
-- Treat failing CI, unresolved comments, conflicts, or missing approval as hard
-  merge blockers.
+- Treat failing CI, unresolved comments, conflicts, or a missing applicable
+  approval or Solo self-review as hard merge blockers.
+- Do not imitate trusted automation. Generated metadata is accepted only when
+  GitHub authenticates the exact automation account documented in governance.
 
 ## Source-of-truth order
 
