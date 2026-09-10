@@ -1,0 +1,6 @@
+-- Okal local voice ---------------------------------------------------------
+-- First press starts local capture. Second press stops capture and routes it.
+-- No recorder process exists while Okal is idle.
+if o.cmd_present("okal") then
+  o.bind("SUPER + SHIFT + O", "Toggle Okal voice", "okal voice toggle")
+end
