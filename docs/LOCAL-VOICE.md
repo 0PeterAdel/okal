@@ -35,6 +35,12 @@ The reference hardware is an i7-14650HX, 16 GB RAM, and RTX 4060 Mobile 8 GB.
 Voice has priority over background GPU work. Latency and peak RAM/VRAM remain
 release evidence to measure on that machine; they are not inferred from model size.
 
+The first slice launches `whisper-cli` only after capture ends, so STT consumes
+no RAM or VRAM while idle. This trades some model cold-start latency for the lowest
+idle footprint. If the target-machine evidence misses the interaction budget, the
+same adapter boundary can move to a loopback-only resident `whisper-server` in a
+follow-up without changing the voice or routing contracts.
+
 ## Development
 
 Requirements: Python 3.12+, Bash, and standard-library `unittest`.
@@ -64,6 +70,10 @@ okal voice doctor
 `371b5a7561823ab2bb32142d2751e35e7534727b` (release v1.9.3) and verifies the
 multilingual model's published SHA-1 before installation. Production release
 intake will additionally record an artifact SHA-256 and SBOM.
+
+The setup script selects CUDA automatically when `nvcc` exists and otherwise
+builds the portable CPU backend. Set `OKAL_WHISPER_BACKEND=cuda` to require GPU
+acceleration or `OKAL_WHISPER_BACKEND=cpu` to force the smaller build path.
 
 The installer:
 
