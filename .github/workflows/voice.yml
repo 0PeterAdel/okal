@@ -52,4 +52,4 @@ jobs:
 
       - name: Validate voice shell scripts
         shell: bash
-        run: shellcheck scripts/install-local-voice.sh scripts/uninstall-local-voice.sh scripts/setup-whisper-cpp.sh scripts/setup-local-voice-stack.sh scripts/convert-egyptian-whisper-to-ct2.sh
+        run: shellcheck scripts/install-local-voice.sh scripts/uninstall-local-voice.sh scripts/setup-whisper-cpp.sh scripts/setup-local-voice-stack.sh scripts/convert-egyptian-whisper-to-ct2.sh scripts/record-voice-lab.sh
