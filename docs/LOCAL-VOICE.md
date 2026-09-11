@@ -7,7 +7,11 @@ again to transcribe and route. The Omarchy overlay is visual-only and click-thro
 ## Local pipeline
 
 ```text
-PipeWire capture → whisper.cpp STT → strict Ollama route → local TTS
+PipeWire capture
+  → faster-whisper / CTranslate2 (Egyptian Arabic + English code-switching)
+  → strict Ollama route (qwen3:0.6b, classification only)
+  → SILMA TTS v1 (authorized local reference voice)
+  → Piper / espeak-ng fallback
                                       ↓
                          classification-only route event
 ```
@@ -18,28 +22,100 @@ approvals. A future Control Kernel will consume the route event under policy.
 
 ## Selected local profile
 
-| Concern | Initial choice | Reason |
+| Concern | Current choice | Reason |
 |---|---|---|
 | Capture | PipeWire `pw-record` | Native to Omarchy; process absence proves idle capture is off |
-| STT | whisper.cpp `large-v3-turbo-q5_0` | Multilingual, quantized, strong Arabic/English, 547 MiB model |
-| Router | Ollama `qwen3:0.6b`, non-thinking | Tiny multilingual classifier; strict JSON; no tools |
-| TTS | Piper external process | Fast local neural TTS; voice weights reviewed separately |
-| TTS fallback | `espeak-ng` | Very small and fast, but intentionally lower quality |
+| STT | `faster-whisper` + Egyptian/code-switching Whisper | Optimized for Egyptian Arabic mixed with English; CUDA FP16 by default |
+| STT fallback | whisper.cpp `large-v3-turbo-q5_0` | Existing portable fallback while the specialized model is prepared |
+| Router | Ollama `qwen3:0.6b`, non-thinking | Tiny local classifier; strict JSON; no tools |
+| TTS | SILMA TTS v1 | 150M bilingual Arabic/English local model; voice cloning requires consent |
+| TTS fallback | Piper → `espeak-ng` | Local fallback chain; lower quality is explicit |
 | UI | Omarchy Shell panel | Native themed overlay; no input interception |
+
+SILMA TTS v1 is an open 150M Arabic/English model. Its code is MIT and its
+weights are Apache-2.0. It uses a short reference recording for voice cloning;
+Okal requires the user to supply an authorized recording and its exact transcript.
+We do not ship a real person's voice or a celebrity imitation.
 
 The overlay is an original Okal implementation whose visual interaction is
 informed by the MIT-licensed `wombatoperator/omarchy-voice` orb. Its required
 copyright and license notice is preserved in `THIRD_PARTY_NOTICES.md`.
 
 The reference hardware is an i7-14650HX, 16 GB RAM, and RTX 4060 Mobile 8 GB.
-Voice has priority over background GPU work. Latency and peak RAM/VRAM remain
-release evidence to measure on that machine; they are not inferred from model size.
+Voice has priority over background GPU work. Latency and peak RAM/VRAM are release
+evidence to measure on that machine; they are not inferred from model size.
 
-The first slice launches `whisper-cli` only after capture ends, so STT consumes
-no RAM or VRAM while idle. This trades some model cold-start latency for the lowest
-idle footprint. If the target-machine evidence misses the interaction budget, the
-same adapter boundary can move to a loopback-only resident `whisper-server` in a
-follow-up without changing the voice or routing contracts.
+## Install the new local stack
+
+From the repository root:
+
+```bash
+bash scripts/setup-local-voice-stack.sh
+```
+
+The setup creates an isolated `.venv-okal-voice` and installs the optional local
+STT, TTS, and benchmark dependencies. It does not configure a hosted API.
+
+For the specialized Whisper model, the preferred deployment is a CTranslate2
+model directory:
+
+```bash
+bash scripts/convert-egyptian-whisper-to-ct2.sh
+export OKAL_STT_MODEL_DIR="$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2"
+export OKAL_STT_DEVICE=cuda
+export OKAL_STT_COMPUTE_TYPE=float16
+```
+
+For lower VRAM pressure, use:
+
+```bash
+export OKAL_STT_COMPUTE_TYPE=int8_float16
+```
+
+The existing whisper.cpp provider remains available with:
+
+```bash
+export OKAL_STT_BACKEND=whisper.cpp
+```
+
+## SILMA voice setup
+
+SILMA's local package is optional and must be installed in the isolated voice
+environment. The voice is intentionally reference-based so we can choose a
+pleasant, consistent voice without redistributing somebody else's voice.
+
+Record a short clean reference in a quiet room, with permission from the speaker,
+then configure:
+
+```bash
+export OKAL_SILMA_ENABLED=1
+export OKAL_SILMA_REF_AUDIO="$HOME/.local/share/okal/voice/ref.wav"
+export OKAL_SILMA_REF_TEXT='exact words spoken in the reference recording'
+```
+
+If SILMA is unavailable, Okal falls back to a reviewed Piper voice when configured,
+then `espeak-ng`. A fallback is reported as such; it is not counted as the target
+voice-quality result.
+
+## Voice Lab
+
+The Voice Lab deliberately uses 12 short utterances covering Egyptian Arabic,
+English, and code-switching. It does not fabricate quality numbers: you provide
+recordings named after the cases and the lab records actual transcription,
+language, latency, and WER when `jiwer` is installed.
+
+```bash
+mkdir -p voice-lab-audio
+# Record these exact filenames with the same person who will use Okal:
+# ar_01.wav ... ar_05.wav, en_01.wav ... en_03.wav, mix_01.wav ... mix_04.wav
+
+source .venv-okal-voice/bin/activate
+okal-voice-lab voice-lab-audio --output voice-lab-results.json
+```
+
+The 12 references are embedded in `apps/voice/src/okal_voice/voice_lab.py`.
+A missing recording is reported as a missing case rather than a zero-quality score.
+The benchmark is the release gate for choosing the primary STT backend.
 
 ## Development
 
@@ -50,69 +126,24 @@ make check
 PYTHONPATH=apps/voice/src python3 -m okal_voice.cli voice doctor
 ```
 
-The tests use fake providers and never record audio, call a model, or access the
-network.
+The unit tests use fake providers and never record audio, call a model, or access
+the network. Real model and hardware evidence belongs to the Voice Lab and the
+Omarchy acceptance run.
 
 ## Omarchy setup
 
-Install the native prerequisites appropriate for the current Omarchy release:
-PipeWire tools, CMake/build tools, CUDA toolkit, Ollama, and either Piper or
-`espeak-ng`. Then install the pinned STT provider:
+Install native prerequisites appropriate for the current Omarchy release:
+PipeWire tools, CMake/build tools, CUDA toolkit, Ollama, and `ffmpeg`.
+Then:
 
 ```bash
-bash scripts/setup-whisper-cpp.sh
+bash scripts/setup-local-voice-stack.sh
 ollama pull qwen3:0.6b
-bash scripts/install-local-voice.sh
 okal voice doctor
 ```
 
-`setup-whisper-cpp.sh` checks out verified commit
-`371b5a7561823ab2bb32142d2751e35e7534727b` (release v1.9.3) and verifies the
-multilingual model's published SHA-1 before installation. Production release
-intake will additionally record an artifact SHA-256 and SBOM.
-
-The setup script selects CUDA automatically when `nvcc` exists and otherwise
-builds the portable CPU backend. Set `OKAL_WHISPER_BACKEND=cuda` to require GPU
-acceleration or `OKAL_WHISPER_BACKEND=cpu` to force the smaller build path.
-
-The installer:
-
-1. Copies the Python application under the user's XDG data directory.
-2. Installs `~/.local/bin/okal`.
-3. Installs and starts a hardened systemd user service.
-4. Installs the `okal.voice` Omarchy Shell panel.
-5. Backs up and extends `~/.config/hypr/bindings.lua`.
-
-No root service, secret, paid account, or external API is needed.
-
-## Commands
-
-```bash
-okal voice toggle
-okal voice cancel
-okal voice status
-okal voice say "مساء الخير يا أوكال"
-okal voice doctor
-journalctl --user -u okal-voice -f
-```
-
-Typed `say` uses the same local router and TTS without activating the microphone.
-
-## Piper voices
-
-Piper supports Arabic (`ar_JO`) and English voices. Its engine is GPL-3.0 and
-runs as an optional external process; it is not imported into the permissive
-Okal core. Every voice has its own `MODEL_CARD` and may have different terms.
-Do not redistribute a voice until its model card is reviewed and recorded.
-After review, configure paths through the user service environment:
-
-```ini
-Environment=OKAL_PIPER_AR_MODEL=/absolute/path/to/ar_JO-voice.onnx
-Environment=OKAL_PIPER_EN_MODEL=/absolute/path/to/en_US-voice.onnx
-```
-
-Without reviewed Piper weights, Okal uses local `espeak-ng` and keeps the text
-visible if speech output is unavailable.
+The existing installer still handles the native user service, orb, binding,
+and rollback. No root service, secret, paid account, or external API is needed.
 
 ## Privacy and failure behavior
 
