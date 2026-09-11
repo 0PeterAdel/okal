@@ -45,6 +45,15 @@ The reference hardware is an i7-14650HX, 16 GB RAM, and RTX 4060 Mobile 8 GB.
 Voice has priority over background GPU work. Latency and peak RAM/VRAM are release
 evidence to measure on that machine; they are not inferred from model size.
 
+## Python compatibility
+
+The local voice environment supports **CPython 3.12 or 3.13**. Python 3.14 is
+intentionally rejected for the current SILMA dependency chain: SILMA TTS 1.0.5
+depends on `nemo_text_processing==1.1.0`, and that release requires the older
+`pynini==2.1.6.post1` line. That Pynini release has Linux wheels through Python
+3.13, but not Python 3.14. Using Python 3.14 therefore makes pip fall back to a
+source build and fail when OpenFst headers such as `fst/util.h` are unavailable.
+
 ## Install the new local stack
 
 From the repository root:
@@ -53,8 +62,16 @@ From the repository root:
 bash scripts/setup-local-voice-stack.sh
 ```
 
-The setup creates an isolated `.venv-okal-voice` and installs the optional local
-STT, TTS, and benchmark dependencies. It does not configure a hosted API.
+The setup creates an isolated `.venv-okal-voice` with Python 3.12 or 3.13 and
+installs the optional local STT, TTS, and benchmark dependencies. It does not
+configure a hosted API. If your system is managed by mise and neither supported
+Python is installed, use:
+
+```bash
+mise install python@3.13
+mise use -g python@3.13
+bash scripts/setup-local-voice-stack.sh
+```
 
 For the specialized Whisper model, the preferred deployment is a CTranslate2
 model directory:
@@ -119,7 +136,7 @@ The benchmark is the release gate for choosing the primary STT backend.
 
 ## Development
 
-Requirements: Python 3.12+, Bash, and standard-library `unittest`.
+Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.
 
 ```bash
 make check
