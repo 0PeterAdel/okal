@@ -23,6 +23,10 @@ if [[ -z "${PYTHON_BIN}" ]]; then
   done
 fi
 
+if [[ -z "${PYTHON_BIN}" ]] && command -v mise >/dev/null 2>&1; then
+  PYTHON_BIN="$(mise exec python@3.13 -- python -c 'import sys; print(sys.executable)')"
+fi
+
 if [[ -z "${PYTHON_BIN}" ]]; then
   cat >&2 <<'EOF'
 No supported Python interpreter found for the local voice stack.
@@ -32,11 +36,20 @@ That Pynini release has wheels through Python 3.13, but not Python 3.14.
 Install Python 3.13 (recommended) or 3.12, then rerun this script.
 
 On mise-managed Omarchy systems:
-  mise install python@3.13
-  mise use -g python@3.13
+  mise exec python@3.13 -- python --version
+  bash scripts/setup-local-voice-stack.sh
 EOF
   exit 1
 fi
+
+version="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+case "${version}" in
+  3.12|3.13) ;;
+  *)
+    echo "Unsupported Python ${version}; use CPython 3.12 or 3.13." >&2
+    exit 1
+    ;;
+esac
 
 "${PYTHON_BIN}" -m venv --upgrade-deps .venv-okal-voice
 source .venv-okal-voice/bin/activate
@@ -46,7 +59,7 @@ mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/okal/models/whisper"
 
 cat <<EOF
 
-Using Python: ${PYTHON_BIN}
+Using Python: ${PYTHON_BIN} (${version})
 
 Next steps:
   1. Install ffmpeg if missing: sudo pacman -S --needed ffmpeg
