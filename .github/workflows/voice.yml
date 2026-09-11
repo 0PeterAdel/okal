@@ -8,9 +8,7 @@ on:
       - "apps/voice/**"
       - "docs/LOCAL-VOICE.md"
       - "THIRD_PARTY_NOTICES.md"
-      - "scripts/install-local-voice.sh"
-      - "scripts/uninstall-local-voice.sh"
-      - "scripts/setup-whisper-cpp.sh"
+      - "scripts/*.sh"
       - "pyproject.toml"
       - "Makefile"
       - ".github/workflows/voice.yml"
@@ -21,9 +19,7 @@ on:
       - "apps/voice/**"
       - "docs/LOCAL-VOICE.md"
       - "THIRD_PARTY_NOTICES.md"
-      - "scripts/install-local-voice.sh"
-      - "scripts/uninstall-local-voice.sh"
-      - "scripts/setup-whisper-cpp.sh"
+      - "scripts/*.sh"
       - "pyproject.toml"
       - "Makefile"
       - ".github/workflows/voice.yml"
@@ -56,4 +52,4 @@ jobs:
 
       - name: Validate voice shell scripts
         shell: bash
-        run: shellcheck scripts/install-local-voice.sh scripts/uninstall-local-voice.sh scripts/setup-whisper-cpp.sh
+        run: shellcheck scripts/install-local-voice.sh scripts/uninstall-local-voice.sh scripts/setup-whisper-cpp.sh scripts/setup-local-voice-stack.sh scripts/convert-egyptian-whisper-to-ct2.sh
