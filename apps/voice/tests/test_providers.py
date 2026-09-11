@@ -5,7 +5,7 @@ from unittest import mock
 
 from okal_voice.config import VoiceConfig
 from okal_voice.contracts import RouteKind
-from okal_voice.providers import OllamaRouter, ProviderError
+from okal_voice.providers import OllamaRouter, ProviderError, WhisperCpp, build_stt
 
 
 class Response(AbstractContextManager):
@@ -48,6 +48,16 @@ class RouterTests(unittest.TestCase):
         with self.assertRaises(ProviderError):
             OllamaRouter(VoiceConfig(), opener=opener).route("   ")
         opener.assert_not_called()
+
+
+class SttSelectionTests(unittest.TestCase):
+    def test_default_backend_is_faster_whisper(self):
+        stt = build_stt(VoiceConfig())
+        self.assertEqual(type(stt).__name__, "FasterWhisper")
+
+    def test_whisper_cpp_is_explicit_fallback(self):
+        stt = build_stt(VoiceConfig(stt_backend="whisper.cpp"))
+        self.assertIsInstance(stt, WhisperCpp)
 
 
 if __name__ == "__main__":
