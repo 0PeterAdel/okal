@@ -1,0 +1,55 @@
+name: Voice
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/voice/**"
+      - "docs/LOCAL-VOICE.md"
+      - "THIRD_PARTY_NOTICES.md"
+      - "scripts/*.sh"
+      - "pyproject.toml"
+      - "Makefile"
+      - ".github/workflows/voice.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/voice/**"
+      - "docs/LOCAL-VOICE.md"
+      - "THIRD_PARTY_NOTICES.md"
+      - "scripts/*.sh"
+      - "pyproject.toml"
+      - "Makefile"
+      - ".github/workflows/voice.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  local-voice:
+    name: Local voice
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python
+        shell: bash
+        run: make compile
+
+      - name: Run local voice tests
+        shell: bash
+        run: make test
+
+      - name: Validate voice shell scripts
+        shell: bash
+        run: shellcheck scripts/install-local-voice.sh scripts/uninstall-local-voice.sh scripts/setup-whisper-cpp.sh scripts/setup-local-voice-stack.sh scripts/convert-egyptian-whisper-to-ct2.sh scripts/record-voice-lab.sh
