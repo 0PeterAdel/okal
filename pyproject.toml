@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "okal-local-voice"
-version = "0.0.1"
+version = "0.0.2"
 description = "Local-only Omarchy voice entry point for Okal"
 readme = "docs/LOCAL-VOICE.md"
 requires-python = ">=3.12"
@@ -12,8 +12,14 @@ license = "MIT"
 authors = [{ name = "Okal contributors" }]
 dependencies = []
 
+[project.optional-dependencies]
+stt = ["faster-whisper>=1.2,<2"]
+tts = ["silma-tts>=1.0,<2"]
+lab = ["jiwer>=3,<4", "psutil>=6,<8"]
+
 [project.scripts]
 okal = "okal_voice.cli:main"
+okal-voice-lab = "okal_voice.voice_lab:main"
 
 [tool.setuptools]
 package-dir = { "" = "apps/voice/src" }
