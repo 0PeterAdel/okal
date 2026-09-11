@@ -13,7 +13,7 @@ from typing import Protocol
 from .capture import CaptureError, PipeWireCapture
 from .config import VoiceConfig
 from .contracts import RouteDecision, VoicePhase, VoiceSnapshot
-from .providers import LocalTts, OllamaRouter, ProviderError, WhisperCpp
+from .providers import LocalTts, OllamaRouter, ProviderError, build_stt
 from .runtime import StateStore
 
 
@@ -30,20 +30,11 @@ class Tts(Protocol):
 
 
 class VoiceService:
-    def __init__(
-        self,
-        config: VoiceConfig | None = None,
-        store: StateStore | None = None,
-        *,
-        capture: PipeWireCapture | None = None,
-        stt: Stt | None = None,
-        router: Router | None = None,
-        tts: Tts | None = None,
-    ):
+    def __init__(self, config: VoiceConfig | None = None, store: StateStore | None = None, *, capture=None, stt: Stt | None = None, router: Router | None = None, tts: Tts | None = None):
         self.config = config or VoiceConfig.from_env()
         self.store = store or StateStore()
         self.capture = capture or PipeWireCapture(self.store, sample_rate=self.config.sample_rate)
-        self.stt = stt or WhisperCpp(self.config)
+        self.stt = stt or build_stt(self.config)
         self.router = router or OllamaRouter(self.config)
         self.tts = tts or LocalTts(self.config)
         self.phase = VoicePhase.IDLE
@@ -62,8 +53,7 @@ class VoiceService:
         if command == "status":
             return {"ok": True, "state": self.store.read().as_dict()}
         if command == "say":
-            text = str(request.get("text", "")).strip()
-            return self.say(text)
+            return self.say(str(request.get("text", "")).strip())
         if command == "quit":
             self.cancel()
             return {"ok": True, "message": "stopping", "stop": True}
@@ -150,67 +140,31 @@ class VoiceService:
         decision = self.router.route(transcript)
         if self._cancel.is_set():
             return
-        route_event = {
+        self.store.append_route({
             "schema_version": "okal.voice.route.v1",
             "session_id": self.session_id,
             "transcript": transcript,
             "decision": decision.as_dict(),
             "created_at": time.time(),
             "authority": "classification-only",
-        }
-        self.store.append_route(route_event)
+        })
         display = decision.reply or decision.summary
         if decision.route.value == "blocked":
-            self._publish(
-                VoicePhase.BLOCKED,
-                text=display,
-                language=decision.language,
-                route=decision.route.value,
-            )
+            self._publish(VoicePhase.BLOCKED, text=display, language=decision.language, route=decision.route.value)
             return
-        self._publish(
-            VoicePhase.SPEAKING,
-            text=display,
-            language=decision.language,
-            route=decision.route.value,
-        )
+        self._publish(VoicePhase.SPEAKING, text=display, language=decision.language, route=decision.route.value)
         try:
             self.tts.speak(display, decision.language)
         except ProviderError as exc:
-            self._publish(
-                VoicePhase.ERROR,
-                text=f"{display} — TTS unavailable: {exc}",
-                language=decision.language,
-                route=decision.route.value,
-            )
+            self._publish(VoicePhase.ERROR, text=f"{display} — TTS unavailable: {exc}", language=decision.language, route=decision.route.value)
             return
         if not self._cancel.is_set():
-            self._publish(
-                VoicePhase.IDLE,
-                text=display,
-                language=decision.language,
-                route=decision.route.value,
-            )
+            self._publish(VoicePhase.IDLE, text=display, language=decision.language, route=decision.route.value)
 
-    def _publish(
-        self,
-        phase: VoicePhase,
-        *,
-        text: str = "",
-        language: str = "unknown",
-        route: str = "",
-    ) -> None:
+    def _publish(self, phase: VoicePhase, *, text: str = "", language: str = "unknown", route: str = "") -> None:
         with self._lock:
             self.phase = phase
-            self.store.publish(
-                VoiceSnapshot.new(
-                    phase,
-                    session_id=self.session_id,
-                    text=text,
-                    language=language,
-                    route=route,
-                )
-            )
+            self.store.publish(VoiceSnapshot.new(phase, session_id=self.session_id, text=text, language=language, route=route))
 
 
 class _ControlHandler(socketserver.StreamRequestHandler):
