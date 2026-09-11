@@ -26,10 +26,21 @@ def validate_loopback_endpoint(endpoint: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class VoiceConfig:
+    stt_backend: str = "faster-whisper"
+    stt_model: str = "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching"
+    stt_model_dir: Path | None = None
+    stt_device: str = "cuda"
+    stt_compute_type: str = "float16"
+    stt_beam_size: int = 3
+    stt_vad_filter: bool = True
     whisper_bin: str = "whisper-cli"
     whisper_model: Path = _data_home() / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin"
     ollama_endpoint: str = "http://127.0.0.1:11434"
     router_model: str = "qwen3:0.6b"
+    silma_enabled: bool = True
+    silma_ref_audio: Path | None = None
+    silma_ref_text: str | None = None
+    silma_speed: float = 1.0
     piper_bin: str = "piper"
     piper_ar_model: Path | None = None
     piper_en_model: Path | None = None
@@ -45,6 +56,16 @@ class VoiceConfig:
             os.environ.get("OKAL_OLLAMA_ENDPOINT", "http://127.0.0.1:11434")
         )
         return cls(
+            stt_backend=os.environ.get("OKAL_STT_BACKEND", "faster-whisper"),
+            stt_model=os.environ.get(
+                "OKAL_STT_MODEL",
+                "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching",
+            ),
+            stt_model_dir=_optional_path("OKAL_STT_MODEL_DIR"),
+            stt_device=os.environ.get("OKAL_STT_DEVICE", "cuda"),
+            stt_compute_type=os.environ.get("OKAL_STT_COMPUTE_TYPE", "float16"),
+            stt_beam_size=int(os.environ.get("OKAL_STT_BEAM_SIZE", "3")),
+            stt_vad_filter=os.environ.get("OKAL_STT_VAD", "1") not in {"0", "false", "no"},
             whisper_bin=os.environ.get("OKAL_WHISPER_BIN", "whisper-cli"),
             whisper_model=Path(
                 os.environ.get(
@@ -54,6 +75,10 @@ class VoiceConfig:
             ),
             ollama_endpoint=endpoint,
             router_model=os.environ.get("OKAL_ROUTER_MODEL", "qwen3:0.6b"),
+            silma_enabled=os.environ.get("OKAL_SILMA_ENABLED", "1") not in {"0", "false", "no"},
+            silma_ref_audio=_optional_path("OKAL_SILMA_REF_AUDIO"),
+            silma_ref_text=os.environ.get("OKAL_SILMA_REF_TEXT") or None,
+            silma_speed=float(os.environ.get("OKAL_SILMA_SPEED", "1.0")),
             piper_bin=os.environ.get("OKAL_PIPER_BIN", "piper"),
             piper_ar_model=_optional_path("OKAL_PIPER_AR_MODEL"),
             piper_en_model=_optional_path("OKAL_PIPER_EN_MODEL"),
