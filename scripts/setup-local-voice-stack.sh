@@ -7,6 +7,12 @@ set -euo pipefail
 # Pynini 2.1.6.post1 wheel for Python 3.14, so the voice environment is pinned
 # to CPython 3.12 or 3.13 until that dependency chain moves forward.
 
+case "${1:-}" in
+  --stt-only) EXTRAS="stt,lab,convert" ;;
+  "") EXTRAS="stt,tts,lab,convert" ;;
+  *) echo "Usage: bash scripts/setup-local-voice-stack.sh [--stt-only]" >&2; exit 2 ;;
+esac
+
 PYTHON_BIN="${OKAL_VOICE_PYTHON:-}"
 if [[ -z "${PYTHON_BIN}" ]]; then
   for candidate in python3.13 python3.12 python3; do
@@ -52,13 +58,30 @@ case "${version}" in
 esac
 
 "${PYTHON_BIN}" -m venv --upgrade-deps .venv-okal-voice
-.venv-okal-voice/bin/python -m pip install -e '.[stt,tts,lab]'
+.venv-okal-voice/bin/python -m pip install -e ".[${EXTRAS}]"
 
 mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/okal/models/whisper"
+
+if [[ "$EXTRAS" == "stt,lab,convert" ]]; then
+  cat <<EOF
+
+Using Python: ${PYTHON_BIN} (${version})
+Installed extras: ${EXTRAS}
+
+Run the STT Voice Lab:
+  bash scripts/convert-egyptian-whisper-to-ct2.sh
+  export OKAL_STT_MODEL_DIR=\$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2
+  export OKAL_STT_COMPUTE_TYPE=int8_float16
+  source .venv-okal-voice/bin/activate
+  okal-voice-lab voice-lab-audio --output voice-lab-results.json
+EOF
+  exit 0
+fi
 
 cat <<EOF
 
 Using Python: ${PYTHON_BIN} (${version})
+Installed extras: ${EXTRAS}
 
 Next steps:
   1. Install ffmpeg if missing: sudo pacman -S --needed ffmpeg
@@ -66,11 +89,11 @@ Next steps:
   3. Set CUDA STT defaults:
        export OKAL_STT_BACKEND=faster-whisper
        export OKAL_STT_DEVICE=cuda
-       export OKAL_STT_COMPUTE_TYPE=float16
-  4. For the Egyptian/code-switching model, either let faster-whisper download it
-     from its configured Hugging Face source or provide a converted CTranslate2
-     directory with OKAL_STT_MODEL_DIR.
-  5. For SILMA, install the package above and provide an authorized 5-10 second
+       export OKAL_STT_COMPUTE_TYPE=int8_float16
+  4. Convert the Egyptian/code-switching model to CTranslate2:
+       bash scripts/convert-egyptian-whisper-to-ct2.sh
+       export OKAL_STT_MODEL_DIR=\$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2
+  5. For SILMA (full installation only), provide an authorized 5-10 second
      reference recording plus transcript:
        export OKAL_SILMA_REF_AUDIO=\$HOME/.local/share/okal/voice/ref.wav
        export OKAL_SILMA_REF_TEXT='...exact words spoken in ref.wav...'

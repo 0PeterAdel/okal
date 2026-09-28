@@ -64,14 +64,32 @@ bash scripts/setup-local-voice-stack.sh
 
 The setup creates an isolated `.venv-okal-voice` with Python 3.12 or 3.13 and
 installs the optional local STT, TTS, and benchmark dependencies. It does not
-configure a hosted API. If your system is managed by mise and neither supported
-Python is installed, use:
+configure a hosted API.
+
+If your system is managed by mise and neither supported Python is installed, use:
 
 ```bash
 mise install python@3.13
 mise use -g python@3.13
 bash scripts/setup-local-voice-stack.sh
 ```
+
+For the STT benchmark alone, install the smaller STT/conversion profile first:
+
+```bash
+bash scripts/setup-local-voice-stack.sh --stt-only
+bash scripts/convert-egyptian-whisper-to-ct2.sh
+export OKAL_STT_MODEL_DIR="$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2"
+export OKAL_STT_DEVICE=cuda
+export OKAL_STT_COMPUTE_TYPE=int8_float16
+source .venv-okal-voice/bin/activate
+okal-voice-lab voice-lab-audio --output voice-lab-results.json
+```
+
+The model repository provides `processor_config.json` with a nested 128-bin
+feature extractor instead of `preprocessor_config.json`. The converter writes
+the required flat feature extractor configuration and checks it against the
+model's mel-bin count before converting.
 
 For the specialized Whisper model, the preferred deployment is a CTranslate2
 model directory:
@@ -80,7 +98,7 @@ model directory:
 bash scripts/convert-egyptian-whisper-to-ct2.sh
 export OKAL_STT_MODEL_DIR="$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2"
 export OKAL_STT_DEVICE=cuda
-export OKAL_STT_COMPUTE_TYPE=float16
+export OKAL_STT_COMPUTE_TYPE=int8_float16
 ```
 
 For lower VRAM pressure, use:
