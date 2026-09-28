@@ -52,8 +52,7 @@ case "${version}" in
 esac
 
 "${PYTHON_BIN}" -m venv --upgrade-deps .venv-okal-voice
-source .venv-okal-voice/bin/activate
-python -m pip install -e '.[stt,tts,lab]'
+.venv-okal-voice/bin/python -m pip install -e '.[stt,tts,lab]'
 
 mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/okal/models/whisper"
 
