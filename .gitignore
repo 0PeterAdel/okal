@@ -16,6 +16,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venv-okal-voice/
 venv/
 htmlcov/
 .coverage
@@ -60,3 +61,5 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+voice-lab-audio/
+voice-lab-results*.json

@@ -117,14 +117,13 @@ voice-quality result.
 ## Voice Lab
 
 The Voice Lab deliberately uses 12 short utterances covering Egyptian Arabic,
-English, and code-switching. It does not fabricate quality numbers: you provide
-recordings named after the cases and the lab records actual transcription,
-language, latency, and WER when `jiwer` is installed.
+English, and code-switching. It does not fabricate quality numbers: the guided
+recorder shows each exact phrase, and the lab records actual transcription,
+language, latency, and WER when `jiwer` is installed. Keep the WAV recordings
+private; the default recording directory and result file are Git-ignored.
 
 ```bash
-mkdir -p voice-lab-audio
-# Record these exact filenames with the same person who will use Okal:
-# ar_01.wav ... ar_05.wav, en_01.wav ... en_03.wav, mix_01.wav ... mix_04.wav
+bash scripts/record-voice-lab.sh
 
 source .venv-okal-voice/bin/activate
 okal-voice-lab voice-lab-audio --output voice-lab-results.json
@@ -132,6 +131,8 @@ okal-voice-lab voice-lab-audio --output voice-lab-results.json
 
 The 12 references are embedded in `apps/voice/src/okal_voice/voice_lab.py`.
 A missing recording is reported as a missing case rather than a zero-quality score.
+The command exits with status 2 until all 12 cases complete; group summaries
+show Arabic, English, and mixed speech separately.
 The benchmark is the release gate for choosing the primary STT backend.
 
 ## Development
