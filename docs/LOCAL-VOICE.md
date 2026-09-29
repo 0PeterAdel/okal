@@ -66,6 +66,17 @@ The setup creates an isolated `.venv-okal-voice` with Python 3.12 or 3.13 and
 installs the optional local STT, TTS, and benchmark dependencies. It does not
 configure a hosted API.
 
+`faster-whisper` currently passes `metadata_errors` to PyAV when opening audio.
+PyAV 19 removed that argument, so the STT profile constrains `av<19`. If an
+earlier setup installed PyAV 19, repair only that dependency with:
+
+```bash
+.venv-okal-voice/bin/python -m pip install 'av>=11,<19'
+```
+
+The converted CTranslate2 model and recorded WAV files do not need to be
+downloaded or recorded again.
+
 If mise exposes an unconfigured `python3.13` shim, the setup installs Python
 3.13 with mise and uses it only for this virtual environment. It does not
 change your global Python setting. You can also install it beforehand with:
