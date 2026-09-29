@@ -16,7 +16,8 @@ class VoiceLabTests(unittest.TestCase):
             root = Path(directory)
             report = root / "results.json"
             with patch("sys.argv", ["okal-voice-lab", str(root), "--output", str(report)]):
-                with contextlib.redirect_stdout(io.StringIO()):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
                     status = voice_lab.main()
 
             self.assertEqual(status, 2)
@@ -25,6 +26,7 @@ class VoiceLabTests(unittest.TestCase):
             self.assertEqual(len(summary["cases"]), 12)
             self.assertEqual(summary["groups"]["mix"]["completed"], 0)
             self.assertEqual(summary["groups"]["mix"]["total"], 4)
+            self.assertIn("failed (12 cases): missing recording", output.getvalue())
 
     def test_recorder_prompts_come_from_benchmark_cases(self):
         with patch("sys.argv", ["okal-voice-lab", "--list-cases"]):

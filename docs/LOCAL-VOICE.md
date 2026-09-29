@@ -90,7 +90,10 @@ okal-voice-lab voice-lab-audio --output voice-lab-results.json
 The model repository provides `processor_config.json` with a nested 128-bin
 feature extractor instead of `preprocessor_config.json`. The converter writes
 the required flat feature extractor configuration and checks it against the
-model's mel-bin count before converting.
+model's mel-bin count before converting. A retry removes an empty output
+directory left by setup and reuses a complete conversion. If an incomplete
+directory contains files, inspect and move it aside before retrying; the
+converter never deletes those files.
 
 For the specialized Whisper model, the preferred deployment is a CTranslate2
 model directory:
@@ -151,7 +154,8 @@ okal-voice-lab voice-lab-audio --output voice-lab-results.json
 The 12 references are embedded in `apps/voice/src/okal_voice/voice_lab.py`.
 A missing recording is reported as a missing case rather than a zero-quality score.
 The command exits with status 2 until all 12 cases complete; group summaries
-show Arabic, English, and mixed speech separately.
+show Arabic, English, and mixed speech separately. Failed cases also print
+their error and count, with details in the private JSON report.
 The benchmark is the release gate for choosing the primary STT backend.
 
 ## Development

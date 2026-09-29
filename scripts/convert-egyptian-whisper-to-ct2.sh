@@ -12,8 +12,20 @@ if [[ ! -x "$PYTHON_BIN" || ! -x "$CONVERTER_BIN" ]]; then
   exit 1
 fi
 
+if [[ -e "$OUTPUT_DIR" || -L "$OUTPUT_DIR" ]]; then
+  if [[ -s "$OUTPUT_DIR/model.bin" && -s "$OUTPUT_DIR/tokenizer.json" && -s "$OUTPUT_DIR/preprocessor_config.json" ]]; then
+    echo "Converted CTranslate2 model already exists: $OUTPUT_DIR"
+    exit 0
+  fi
+  if [[ ! -d "$OUTPUT_DIR" || -L "$OUTPUT_DIR" ]] || ! rmdir -- "$OUTPUT_DIR" 2>/dev/null; then
+    echo "Incomplete conversion directory is not empty: $OUTPUT_DIR" >&2
+    echo "Inspect it and move it aside before retrying; existing files were not removed." >&2
+    exit 1
+  fi
+fi
+
 preprocessor_json="$("$PYTHON_BIN" -m okal_voice.model_conversion "$SOURCE_MODEL")"
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$(dirname -- "$OUTPUT_DIR")"
 "$CONVERTER_BIN" \
   --model "$SOURCE_MODEL" \
   --output_dir "$OUTPUT_DIR" \

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import statistics
@@ -103,6 +104,8 @@ def main() -> int:
     print(f"Voice Lab: {len(completed)}/{len(results)} recordings completed")
     for name, group in groups.items():
         print(f"  {name}: {group['completed']}/{group['total']}  mean WER: {group['mean_wer']}  median latency: {group['median_latency_seconds']}s")
+    for error, count in Counter(r.get("error", "unknown error") for r in results if not r["ok"]).items():
+        print(f"  failed ({count} cases): {error}")
     print(f"Results: {args.output}")
     return 0 if len(completed) == len(results) else 2
 
