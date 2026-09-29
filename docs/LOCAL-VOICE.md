@@ -93,7 +93,11 @@ the required flat feature extractor configuration and checks it against the
 model's mel-bin count before converting. A retry removes an empty output
 directory left by setup and reuses a complete conversion. If an incomplete
 directory contains files, inspect and move it aside before retrying; the
-converter never deletes those files.
+converter never deletes those files. This command uses Hugging Face's non-Xet
+transfer path by default to avoid a large-file reconstruction failure observed
+with this model. Set `HF_HUB_DISABLE_XET=0` before running it to try Xet again.
+Wait for `Converted CTranslate2 model` before running the Voice Lab; a failed
+download cannot produce meaningful transcripts.
 
 For the specialized Whisper model, the preferred deployment is a CTranslate2
 model directory:

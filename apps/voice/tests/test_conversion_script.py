@@ -22,6 +22,7 @@ class ConversionScriptTests(unittest.TestCase):
             converter = bin_dir / "ct2-transformers-converter"
             converter.write_text(
                 "#!/bin/sh\n"
+                "[ \"$HF_HUB_DISABLE_XET\" = 1 ] || exit 20\n"
                 "while [ \"$#\" -gt 0 ]; do\n"
                 "  if [ \"$1\" = --output_dir ]; then output=$2; shift; fi\n"
                 "  shift\n"

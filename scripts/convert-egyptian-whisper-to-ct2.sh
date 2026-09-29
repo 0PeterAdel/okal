@@ -12,6 +12,10 @@ if [[ ! -x "$PYTHON_BIN" || ! -x "$CONVERTER_BIN" ]]; then
   exit 1
 fi
 
+# Avoid Xet reconstruction failures seen while downloading this model's large weights.
+# Set HF_HUB_DISABLE_XET=0 explicitly to opt back into the faster Xet transfer.
+export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
+
 if [[ -e "$OUTPUT_DIR" || -L "$OUTPUT_DIR" ]]; then
   if [[ -s "$OUTPUT_DIR/model.bin" && -s "$OUTPUT_DIR/tokenizer.json" && -s "$OUTPUT_DIR/preprocessor_config.json" ]]; then
     echo "Converted CTranslate2 model already exists: $OUTPUT_DIR"
