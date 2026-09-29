@@ -75,6 +75,13 @@ class VoiceServiceTests(unittest.TestCase):
             router=self.router,
             tts=self.tts,
         )
+        self.addCleanup(self.finish_pipeline)
+
+    def finish_pipeline(self):
+        pipeline = self.service._pipeline
+        if pipeline is not None:
+            pipeline.join(timeout=2)
+            self.assertFalse(pipeline.is_alive(), "voice pipeline did not finish")
 
     def wait_for(self, phase, timeout=2):
         deadline = time.monotonic() + timeout
