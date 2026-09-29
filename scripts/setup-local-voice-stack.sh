@@ -19,7 +19,10 @@ if [[ -z "${PYTHON_BIN}" ]]; then
     if ! command -v "${candidate}" >/dev/null 2>&1; then
       continue
     fi
-    version="$("${candidate}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+    # A mise shim can exist on PATH without an installed/selected version.
+    if ! version="$("${candidate}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"; then
+      continue
+    fi
     case "${version}" in
       3.12|3.13)
         PYTHON_BIN="${candidate}"
@@ -30,6 +33,8 @@ if [[ -z "${PYTHON_BIN}" ]]; then
 fi
 
 if [[ -z "${PYTHON_BIN}" ]] && command -v mise >/dev/null 2>&1; then
+  echo "Installing/using Python 3.13 with mise for Okal's isolated voice environment..." >&2
+  mise install python@3.13
   PYTHON_BIN="$(mise exec python@3.13 -- python -c 'import sys; print(sys.executable)')"
 fi
 
@@ -42,7 +47,7 @@ That Pynini release has wheels through Python 3.13, but not Python 3.14.
 Install Python 3.13 (recommended) or 3.12, then rerun this script.
 
 On mise-managed Omarchy systems:
-  mise exec python@3.13 -- python --version
+  mise install python@3.13
   bash scripts/setup-local-voice-stack.sh
 EOF
   exit 1

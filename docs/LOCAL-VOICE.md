@@ -66,11 +66,12 @@ The setup creates an isolated `.venv-okal-voice` with Python 3.12 or 3.13 and
 installs the optional local STT, TTS, and benchmark dependencies. It does not
 configure a hosted API.
 
-If your system is managed by mise and neither supported Python is installed, use:
+If mise exposes an unconfigured `python3.13` shim, the setup installs Python
+3.13 with mise and uses it only for this virtual environment. It does not
+change your global Python setting. You can also install it beforehand with:
 
 ```bash
 mise install python@3.13
-mise use -g python@3.13
 bash scripts/setup-local-voice-stack.sh
 ```
 
