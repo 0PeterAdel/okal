@@ -6,13 +6,18 @@ OUT_DIR="${1:-$ROOT_DIR/voice-lab-audio}"
 umask 077
 command -v pw-record >/dev/null || { echo "pw-record is required" >&2; exit 1; }
 command -v ffprobe >/dev/null || { echo "ffprobe is required to check recording duration" >&2; exit 1; }
+command -v ffmpeg >/dev/null || { echo "ffmpeg is required to check microphone level" >&2; exit 1; }
 mkdir -p "$OUT_DIR"
 
 recorder_pid=""
+candidate_path=""
 cleanup() {
   if [[ -n "$recorder_pid" ]]; then
     kill -INT "$recorder_pid" 2>/dev/null || true
     wait "$recorder_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$candidate_path" ]]; then
+    rm -f -- "$candidate_path"
   fi
 }
 trap cleanup EXIT
@@ -21,29 +26,45 @@ trap 'exit 143' TERM
 
 case_lines="$(PYTHONPATH="$ROOT_DIR/apps/voice/src" python3 -m okal_voice.voice_lab --list-cases)"
 while IFS=$'\t' read -r case_id phrase <&3; do
-  printf '\n[%s] Say exactly:\n%s\nPress Enter to record, then Enter to stop.\n' "$case_id" "$phrase"
-  read -r
   audio_path="$OUT_DIR/$case_id.wav"
-  pw-record --rate 16000 --channels 1 "$audio_path" &
-  recorder_pid=$!
-  read -r
-  kill -INT "$recorder_pid" 2>/dev/null || true
-  wait "$recorder_pid" 2>/dev/null || true
-  recorder_pid=""
-  if [[ ! -s "$audio_path" ]]; then
-    printf 'pw-record did not create %s. Check PipeWire/microphone access and leave time between Enter presses.\n' "$audio_path" >&2
-    exit 1
+  while :; do
+    printf '\n[%s] Say exactly:\n%s\nPress Enter to record, then Enter to stop.\n' "$case_id" "$phrase"
+    read -r
+    candidate_path="$(mktemp "$OUT_DIR/.${case_id}.XXXXXX.wav")"
+    pw-record --rate 16000 --channels 1 "$candidate_path" &
+    recorder_pid=$!
+    read -r
+    kill -INT "$recorder_pid" 2>/dev/null || true
+    wait "$recorder_pid" 2>/dev/null || true
+    recorder_pid=""
+    if [[ ! -s "$candidate_path" ]]; then
+      printf 'pw-record did not create audio. Check the microphone with wpctl status, then retry.\n' >&2
+    elif ! duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$candidate_path" 2>/dev/null)"; then
+      printf 'Recording is not a valid WAV; retry %s.\n' "$case_id" >&2
+    elif [[ -z "$duration" ]] || ! awk -v seconds="$duration" 'BEGIN { exit !(seconds >= 0.25) }'; then
+      printf 'Recording too short; retry %s.\n' "$case_id" >&2
+    elif ! volume_output="$(ffmpeg -hide_banner -nostats -i "$candidate_path" -af volumedetect -f null - 2>&1)"; then
+      printf 'Could not measure microphone level; retry %s.\n' "$case_id" >&2
+    else
+      peak_db="$(sed -n 's/.*max_volume: \([^ ]*\) dB.*/\1/p' <<< "$volume_output" | tail -n 1)"
+      if [[ -z "$peak_db" || "$peak_db" == "-inf" ]] || ! awk -v peak="$peak_db" 'BEGIN { exit !(peak + 0 > -55) }'; then
+        printf 'Silent or very quiet recording (peak %s dB). Check the selected input and mute with wpctl status; retry %s.\n' "${peak_db:-unknown}" "$case_id" >&2
+      else
+        mv -f -- "$candidate_path" "$audio_path"
+        candidate_path=""
+        printf 'Saved %s.wav (peak %s dB)\n' "$case_id" "$peak_db"
+        break
+      fi
+    fi
+    rm -f -- "$candidate_path"
+    candidate_path=""
+  done
+  if [[ "$case_id" == "ar_01" ]] && command -v pw-play >/dev/null 2>&1; then
+    printf 'Playing back the first clip. Listen for your words.\n'
+    pw-play "$audio_path"
+    printf 'If your words are clear, press Enter to continue. Otherwise press Ctrl+C and check the microphone.\n'
+    read -r
   fi
-  if ! duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$audio_path" 2>/dev/null)"; then
-    printf 'Recording is not a valid WAV: %s\n' "$audio_path" >&2
-    exit 1
-  fi
-  if [[ -z "$duration" ]] || ! awk -v seconds="$duration" 'BEGIN { exit !(seconds >= 0.25) }'; then
-    rm -f -- "$audio_path"
-    printf 'Recording too short or invalid: %s. Please rerun the recorder.\n' "$case_id" >&2
-    exit 1
-  fi
-  printf 'Saved %s.wav\n' "$case_id"
 done 3<<< "$case_lines"
 
 printf '\nVoice Lab recordings are in %s\n' "$OUT_DIR"

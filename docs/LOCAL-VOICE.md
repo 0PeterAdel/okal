@@ -171,6 +171,16 @@ recorder shows each exact phrase, and the lab records actual transcription,
 language, latency, and WER when `jiwer` is installed. Keep the WAV recordings
 private; the default recording directory and result file are Git-ignored.
 
+Before recording, use `wpctl status` to confirm the starred entry under Audio
+Sources is the microphone, not a monitor or disconnected input. Use
+`wpctl set-default SOURCE_ID` if it is wrong, and
+`wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0` if the source is muted. The recorder
+rejects clips shorter than 0.25 seconds and clips with a peak at or below
+-55 dBFS, then retries the same phrase. It keeps the previous WAV until a new
+clip passes these checks. A level check cannot prove the words are audible, so
+the recorder plays the first saved clip and waits for your confirmation before
+continuing with the other phrases.
+
 ```bash
 bash scripts/record-voice-lab.sh
 
