@@ -8,8 +8,8 @@ set -euo pipefail
 # to CPython 3.12 or 3.13 until that dependency chain moves forward.
 
 case "${1:-}" in
-  --stt-only) EXTRAS="stt,lab,convert" ;;
-  "") EXTRAS="stt,tts,lab,convert" ;;
+  --stt-only) EXTRAS="stt,cuda,lab,convert" ;;
+  "") EXTRAS="stt,cuda,tts,lab,convert" ;;
   *) echo "Usage: bash scripts/setup-local-voice-stack.sh [--stt-only]" >&2; exit 2 ;;
 esac
 
@@ -67,7 +67,7 @@ esac
 
 mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/okal/models/whisper"
 
-if [[ "$EXTRAS" == "stt,lab,convert" ]]; then
+if [[ "$EXTRAS" == "stt,cuda,lab,convert" ]]; then
   cat <<EOF
 
 Using Python: ${PYTHON_BIN} (${version})
@@ -77,8 +77,7 @@ Run the STT Voice Lab:
   bash scripts/convert-egyptian-whisper-to-ct2.sh
   export OKAL_STT_MODEL_DIR=\$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2
   export OKAL_STT_COMPUTE_TYPE=int8_float16
-  source .venv-okal-voice/bin/activate
-  okal-voice-lab voice-lab-audio --output voice-lab-results.json
+  bash scripts/run-voice-lab.sh voice-lab-audio --output voice-lab-results.json
 EOF
   exit 0
 fi

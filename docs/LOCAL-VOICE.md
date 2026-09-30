@@ -77,6 +77,19 @@ earlier setup installed PyAV 19, repair only that dependency with:
 The converted CTranslate2 model and recorded WAV files do not need to be
 downloaded or recorded again.
 
+On the reference GPU, CTranslate2 requires CUDA 12 cuBLAS and cuDNN 9 even if
+PyTorch installed CUDA 13 libraries. For an existing voice environment, install
+the missing local runtime packages once:
+
+```bash
+.venv-okal-voice/bin/python -m pip install '.[cuda]'
+```
+
+The setup script includes these packages for new installations. Run the Voice
+Lab through `scripts/run-voice-lab.sh`, which sets the CUDA 12 library paths
+before starting Python. It checks the libraries first and does not alter system
+CUDA or driver configuration.
+
 If mise exposes an unconfigured `python3.13` shim, the setup installs Python
 3.13 with mise and uses it only for this virtual environment. It does not
 change your global Python setting. You can also install it beforehand with:
@@ -94,8 +107,7 @@ bash scripts/convert-egyptian-whisper-to-ct2.sh
 export OKAL_STT_MODEL_DIR="$HOME/.local/share/okal/models/whisper/egyptian-code-switching-ct2"
 export OKAL_STT_DEVICE=cuda
 export OKAL_STT_COMPUTE_TYPE=int8_float16
-source .venv-okal-voice/bin/activate
-okal-voice-lab voice-lab-audio --output voice-lab-results.json
+bash scripts/run-voice-lab.sh voice-lab-audio --output voice-lab-results.json
 ```
 
 The model repository provides `processor_config.json` with a nested 128-bin
@@ -162,8 +174,7 @@ private; the default recording directory and result file are Git-ignored.
 ```bash
 bash scripts/record-voice-lab.sh
 
-source .venv-okal-voice/bin/activate
-okal-voice-lab voice-lab-audio --output voice-lab-results.json
+bash scripts/run-voice-lab.sh voice-lab-audio --output voice-lab-results.json
 ```
 
 The 12 references are embedded in `apps/voice/src/okal_voice/voice_lab.py`.

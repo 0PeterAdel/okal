@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 stt = ["faster-whisper>=1.2,<2", "av>=11,<19"]
+cuda = ["nvidia-cublas-cu12>=12,<13; sys_platform == 'linux'", "nvidia-cudnn-cu12>=9,<10; sys_platform == 'linux'"]
 tts = ["silma-tts>=1.0,<2"]
 lab = ["jiwer>=3,<4", "psutil>=6,<8"]
 convert = ["transformers[torch]>=4.46,<6", "huggingface-hub>=0.34,<2"]
