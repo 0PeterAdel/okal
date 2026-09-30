@@ -87,8 +87,10 @@ the missing local runtime packages once:
 
 The setup script includes these packages for new installations. Run the Voice
 Lab through `scripts/run-voice-lab.sh`, which sets the CUDA 12 library paths
-before starting Python. It checks the libraries first and does not alter system
-CUDA or driver configuration.
+before starting Python. It imports the Voice Lab from the checked-out source,
+so a `git pull` does not require reinstalling the package to use new lab flags.
+It checks the libraries first and does not alter system CUDA or driver
+configuration.
 
 If mise exposes an unconfigured `python3.13` shim, the setup installs Python
 3.13 with mise and uses it only for this virtual environment. It does not

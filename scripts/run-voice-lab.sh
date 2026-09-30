@@ -3,9 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="$ROOT_DIR/.venv-okal-voice/bin/python"
-LAB_BIN="$ROOT_DIR/.venv-okal-voice/bin/okal-voice-lab"
 
-if [[ ! -x "$PYTHON_BIN" || ! -x "$LAB_BIN" ]]; then
+if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Voice Lab is missing. Run: bash scripts/setup-local-voice-stack.sh --stt-only" >&2
   exit 1
 fi
@@ -22,4 +21,7 @@ if [[ "${OKAL_STT_DEVICE:-cuda}" == "cuda" && "${OKAL_STT_BACKEND:-faster-whispe
   export LD_LIBRARY_PATH="$cublas_dir:$cudnn_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
-exec "$LAB_BIN" "$@"
+# Use the checked-out source so `git pull` updates the lab without reinstalling
+# the editable package inside the voice environment.
+export PYTHONPATH="$ROOT_DIR/apps/voice/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PYTHON_BIN" -m okal_voice.voice_lab "$@"
