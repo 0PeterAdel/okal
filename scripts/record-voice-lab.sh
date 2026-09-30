@@ -2,7 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="${1:-$ROOT_DIR/voice-lab-audio}"
+SUITE="${2:-baseline}"
+case "$SUITE" in
+  baseline) default_dir="$ROOT_DIR/voice-lab-audio" ;;
+  holdout) default_dir="$ROOT_DIR/voice-lab-holdout-audio" ;;
+  *) echo "Unknown Voice Lab suite: $SUITE (expected baseline or holdout)" >&2; exit 2 ;;
+esac
+OUT_DIR="${1:-$default_dir}"
 umask 077
 command -v pw-record >/dev/null || { echo "pw-record is required" >&2; exit 1; }
 command -v ffprobe >/dev/null || { echo "ffprobe is required to check recording duration" >&2; exit 1; }
@@ -24,7 +30,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-case_lines="$(PYTHONPATH="$ROOT_DIR/apps/voice/src" python3 -m okal_voice.voice_lab --list-cases)"
+case_lines="$(PYTHONPATH="$ROOT_DIR/apps/voice/src" python3 -m okal_voice.voice_lab --suite "$SUITE" --list-cases)"
 while IFS=$'\t' read -r case_id phrase <&3; do
   audio_path="$OUT_DIR/$case_id.wav"
   while :; do

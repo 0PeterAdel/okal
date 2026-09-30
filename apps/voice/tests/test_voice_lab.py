@@ -37,6 +37,20 @@ class VoiceLabTests(unittest.TestCase):
             f"{case_id}\t{phrase}" for case_id, phrase in voice_lab.CASES
         ])
 
+    def test_holdout_prompts_are_distinct_and_report_is_labeled(self):
+        self.assertEqual(len(voice_lab.HOLDOUT_CASES), 12)
+        self.assertFalse({phrase for _, phrase in voice_lab.CASES} &
+                         {phrase for _, phrase in voice_lab.HOLDOUT_CASES})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "holdout.json"
+            with patch("sys.argv", ["okal-voice-lab", str(root), "--suite", "holdout",
+                                    "--output", str(report)]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(voice_lab.main(), 2)
+            summary = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(summary["suite"], "holdout")
+            self.assertEqual(summary["cases"][0]["reference"], voice_lab.HOLDOUT_CASES[0][1])
+
     def test_language_hints_only_apply_to_known_language_cases(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

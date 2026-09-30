@@ -28,6 +28,23 @@ CASES = [
     ("mix_04", "ممكن تعمل a quick summary للـ issue دي بالمصري؟"),
 ]
 
+HOLDOUT_CASES = [
+    ("ar_01", "اقفل نافذة المتصفح وافتح محرر النصوص"),
+    ("ar_02", "قول لي الساعة كام ودرجة حرارة الجهاز دلوقتي"),
+    ("ar_03", "جهز رسالة لبيتر تقول له الاجتماع اتأجل لبكرة"),
+    ("ar_04", "هات آخر تعديل حصل في المشروع واشرحه ببساطة"),
+    ("ar_05", "افتح مجلد التنزيلات ودور على أحدث ملف"),
+    ("en_01", "Show me the last three commits in this repository"),
+    ("en_02", "Open my downloads folder and find the newest PDF"),
+    ("en_03", "Summarize today's notes in two short sentences"),
+    ("mix_01", "افتح الـ terminal واعرض آخر خمس commits"),
+    ("mix_02", "دور على ملف README وقولي الـ main points"),
+    ("mix_03", "عايز أعمل new issue عن مشكلة المايك"),
+    ("mix_04", "شغل الـ browser وافتح pull request رقم عشرة"),
+]
+
+SUITES = {"baseline": CASES, "holdout": HOLDOUT_CASES}
+
 
 def _wer(reference: str, hypothesis: str) -> float | None:
     try:
@@ -40,14 +57,16 @@ def _wer(reference: str, hypothesis: str) -> float | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the local Okal STT voice lab")
     parser.add_argument("audio_dir", type=Path, nargs="?", help="Directory containing CASE_ID.wav files")
+    parser.add_argument("--suite", choices=SUITES, default="baseline", help="Phrase set, with a separate recording directory for each suite")
     parser.add_argument("--list-cases", action="store_true", help="Print case IDs and phrases for the recorder")
     parser.add_argument("--language-hints", action="store_true", help="Diagnostic: force ar/en for known-language cases; mixed cases stay automatic")
     parser.add_argument("--language-probes", action="store_true", help="Diagnostic: transcribe every clip automatically and with both ar/en candidates")
     parser.add_argument("--output", type=Path, default=Path("voice-lab-results.json"))
     args = parser.parse_args()
+    cases = SUITES[args.suite]
 
     if args.list_cases:
-        for case_id, reference in CASES:
+        for case_id, reference in cases:
             print(f"{case_id}\t{reference}")
         return 0
     if args.audio_dir is None:
@@ -60,7 +79,7 @@ def main() -> int:
         parser.error("language diagnostics require faster-whisper")
     stt = build_stt(config)
     results: list[dict] = []
-    for case_id, reference in CASES:
+    for case_id, reference in cases:
         audio = args.audio_dir / f"{case_id}.wav"
         row = {"id": case_id, "reference": reference, "audio": str(audio), "ok": False}
         if not audio.is_file():
@@ -124,6 +143,7 @@ def main() -> int:
         "device": config.stt_device,
         "compute_type": config.stt_compute_type,
         "language_mode": config.stt_language_mode,
+        "suite": args.suite,
         "language_hints": args.language_hints,
         "language_probes": args.language_probes,
         "groups": groups,

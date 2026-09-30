@@ -16,7 +16,7 @@ class RecorderTests(unittest.TestCase):
             binaries = root / "bin"
             binaries.mkdir()
             for name, body in {
-                "python3": "printf 'ar_01\\tاختبار التسجيل\\n'\n",
+                "python3": "printf '%s\\n' \"$*\" > \"$CASE_ARGS\"\nprintf 'ar_01\\tاختبار التسجيل\\n'\n",
                 "pw-record": "printf 'WAV' > \"${@: -1}\"\n",
                 "ffprobe": "printf '1.0\\n'\n",
                 "ffmpeg": "printf '[Parsed_volumedetect_0] max_volume: -12.0 dB\\n' >&2\n",
@@ -27,9 +27,9 @@ class RecorderTests(unittest.TestCase):
                 path.chmod(0o755)
 
             audio = root / "recordings/ar_01.wav"
-            env = dict(os.environ, PATH=f"{binaries}:{os.environ['PATH']}")
+            env = dict(os.environ, PATH=f"{binaries}:{os.environ['PATH']}", CASE_ARGS=str(root / "case-args"))
             process = subprocess.Popen(
-                ["bash", str(SCRIPT), str(audio.parent)],
+                ["bash", str(SCRIPT), str(audio.parent), "holdout"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -48,6 +48,7 @@ class RecorderTests(unittest.TestCase):
                 self.assertEqual(process.returncode, 0, errors)
                 self.assertIn("Saved ar_01.wav", output)
                 self.assertTrue(audio.is_file())
+                self.assertIn("--suite holdout --list-cases", (root / "case-args").read_text())
             finally:
                 if process.poll() is None:
                     process.kill()

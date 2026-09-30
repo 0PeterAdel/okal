@@ -243,6 +243,19 @@ OKAL_STT_LANGUAGE_MODE=dual \
 bash scripts/run-voice-lab.sh voice-lab-audio --output voice-lab-dual.json
 ```
 
+For an independent check after choosing a rule, record the separate holdout
+suite. Its phrases and WAV directory differ from the baseline; read each prompt
+exactly and listen to the first clip. Run `auto` and `dual` on the same new WAVs
+to compare recognition and the cost of an extra decode. Keep these recordings
+and JSON reports private; their paths are Git-ignored.
+
+```bash
+bash scripts/record-voice-lab.sh voice-lab-holdout-audio holdout
+bash scripts/run-voice-lab.sh voice-lab-holdout-audio --suite holdout --output voice-lab-holdout-auto.json
+OKAL_STT_LANGUAGE_MODE=dual \
+bash scripts/run-voice-lab.sh voice-lab-holdout-audio --suite holdout --output voice-lab-holdout-dual.json
+```
+
 ## Development
 
 Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.

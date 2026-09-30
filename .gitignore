@@ -62,4 +62,5 @@ tmp/
 temp/
 *.tmp
 voice-lab-audio/
-voice-lab-results*.json
+voice-lab-*-audio/
+voice-lab-*.json
