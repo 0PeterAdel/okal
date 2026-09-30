@@ -42,6 +42,7 @@ def main() -> int:
     parser.add_argument("audio_dir", type=Path, nargs="?", help="Directory containing CASE_ID.wav files")
     parser.add_argument("--list-cases", action="store_true", help="Print case IDs and phrases for the recorder")
     parser.add_argument("--language-hints", action="store_true", help="Diagnostic: force ar/en for known-language cases; mixed cases stay automatic")
+    parser.add_argument("--language-probes", action="store_true", help="Diagnostic: transcribe every clip automatically and with both ar/en candidates")
     parser.add_argument("--output", type=Path, default=Path("voice-lab-results.json"))
     args = parser.parse_args()
 
@@ -51,10 +52,12 @@ def main() -> int:
         return 0
     if args.audio_dir is None:
         parser.error("audio_dir is required unless --list-cases is used")
+    if args.language_hints and args.language_probes:
+        parser.error("select one diagnostic mode at a time")
 
     config = VoiceConfig.from_env()
-    if args.language_hints and config.stt_backend != "faster-whisper":
-        parser.error("--language-hints requires faster-whisper")
+    if (args.language_hints or args.language_probes) and config.stt_backend != "faster-whisper":
+        parser.error("language diagnostics require faster-whisper")
     stt = build_stt(config)
     results: list[dict] = []
     for case_id, reference in CASES:
@@ -66,14 +69,17 @@ def main() -> int:
             continue
         started = time.perf_counter()
         try:
-            language_hint = case_id.split("_", 1)[0] if args.language_hints else None
-            if language_hint == "mix":
-                language_hint = None
-            if language_hint:
-                row["language_hint"] = language_hint
-                transcript, language = stt.transcribe(audio, language_hint=language_hint)
+            if args.language_probes:
+                transcript, language, row["auto_metadata"] = stt.transcribe_with_metadata(audio)
             else:
-                transcript, language = stt.transcribe(audio)
+                language_hint = case_id.split("_", 1)[0] if args.language_hints else None
+                if language_hint == "mix":
+                    language_hint = None
+                if language_hint:
+                    row["language_hint"] = language_hint
+                    transcript, language = stt.transcribe(audio, language_hint=language_hint)
+                else:
+                    transcript, language = stt.transcribe(audio)
             row.update(
                 ok=True,
                 transcript=transcript,
@@ -81,6 +87,20 @@ def main() -> int:
                 latency_seconds=round(time.perf_counter() - started, 3),
                 wer=_wer(reference, transcript),
             )
+            if args.language_probes:
+                row["probes"] = {}
+                for hint in ("ar", "en"):
+                    probe_started = time.perf_counter()
+                    try:
+                        candidate, _, metadata = stt.transcribe_with_metadata(audio, language_hint=hint)
+                        row["probes"][hint] = {
+                            "transcript": candidate,
+                            "wer": _wer(reference, candidate),
+                            "latency_seconds": round(time.perf_counter() - probe_started, 3),
+                            "mean_logprob": metadata["mean_logprob"],
+                        }
+                    except ProviderError as exc:
+                        row["probes"][hint] = {"error": str(exc)}
         except ProviderError as exc:
             row["error"] = str(exc)
         results.append(row)
@@ -104,6 +124,7 @@ def main() -> int:
         "device": config.stt_device,
         "compute_type": config.stt_compute_type,
         "language_hints": args.language_hints,
+        "language_probes": args.language_probes,
         "groups": groups,
         "cases": results,
     }

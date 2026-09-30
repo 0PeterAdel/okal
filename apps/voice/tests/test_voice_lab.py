@@ -60,6 +60,35 @@ class VoiceLabTests(unittest.TestCase):
             self.assertEqual(rows["en_02"]["language_hint"], "en")
             self.assertNotIn("language_hint", rows["mix_01"])
 
+    def test_probes_compare_both_candidates_without_using_case_label(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "en_02.wav").touch()
+            report = root / "probes.json"
+            stt = Mock()
+            stt.transcribe_with_metadata.side_effect = [
+                ("automatic", "ar", {"language_probability": 0.6,
+                                     "language_probabilities": {"ar": 0.6, "en": 0.4}, "mean_logprob": -0.5}),
+                ("arabic", "ar", {"mean_logprob": -0.6}),
+                ("english", "en", {"mean_logprob": -0.3}),
+            ]
+            with patch("okal_voice.voice_lab.build_stt", return_value=stt), patch(
+                "okal_voice.voice_lab._wer", return_value=0.25
+            ), patch("sys.argv", ["okal-voice-lab", str(root), "--language-probes", "--output", str(report)]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(voice_lab.main(), 2)  # Eleven cases have no WAV.
+
+            self.assertEqual([call.kwargs for call in stt.transcribe_with_metadata.call_args_list], [
+                {}, {"language_hint": "ar"}, {"language_hint": "en"},
+            ])
+            row = next(case for case in json.loads(report.read_text(encoding="utf-8"))["cases"]
+                       if case["id"] == "en_02")
+            self.assertEqual(row["transcript"], "automatic")
+            self.assertEqual(row["auto_metadata"]["language_probabilities"], {"ar": 0.6, "en": 0.4})
+            self.assertEqual(row["probes"]["ar"]["transcript"], "arabic")
+            self.assertEqual(row["probes"]["en"]["mean_logprob"], -0.3)
+            self.assertEqual(stat.S_IMODE(report.stat().st_mode), 0o600)
+
 
 if __name__ == "__main__":
     unittest.main()

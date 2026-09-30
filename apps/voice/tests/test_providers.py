@@ -75,6 +75,27 @@ class SttSelectionTests(unittest.TestCase):
             stt.transcribe(Path("en_01.wav"), language_hint="mixed")
         self.assertEqual(model.transcribe.call_count, 2)
 
+    def test_probe_exposes_auto_language_probabilities_and_candidate_score(self):
+        model = mock.Mock()
+        model.transcribe.return_value = (
+            [SimpleNamespace(text="Read the report", avg_logprob=-0.4)],
+            SimpleNamespace(language="ar", language_probability=0.62,
+                            all_language_probs=[("ar", 0.62), ("en", 0.34), ("fr", 0.04)]),
+        )
+        stt = FasterWhisper(VoiceConfig())
+        with mock.patch.object(stt, "_load", return_value=model):
+            text, language, metadata = stt.transcribe_with_metadata(Path("en_02.wav"))
+            self.assertEqual((text, language), ("Read the report", "ar"))
+            self.assertEqual(metadata, {
+                "language_probability": 0.62,
+                "language_probabilities": {"ar": 0.62, "en": 0.34},
+                "mean_logprob": -0.4,
+            })
+            _, _, forced_metadata = stt.transcribe_with_metadata(Path("en_02.wav"), language_hint="en")
+            self.assertIsNone(forced_metadata["language_probability"])
+            self.assertEqual(forced_metadata["language_probabilities"], {})
+            self.assertEqual(model.transcribe.call_args.kwargs["language"], "en")
+
 
 if __name__ == "__main__":
     unittest.main()

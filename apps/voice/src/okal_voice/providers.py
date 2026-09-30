@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import statistics
 import subprocess
 import tempfile
 from pathlib import Path
@@ -46,6 +47,13 @@ class FasterWhisper:
         return self._model
 
     def transcribe(self, audio_path: Path, *, language_hint: str | None = None) -> tuple[str, str]:
+        text, language, _ = self.transcribe_with_metadata(audio_path, language_hint=language_hint)
+        return text, language
+
+    def transcribe_with_metadata(
+        self, audio_path: Path, *, language_hint: str | None = None
+    ) -> tuple[str, str, dict]:
+        """Expose decoder evidence for lab experiments; the service uses transcribe()."""
         if language_hint not in {None, "ar", "en"}:
             raise ValueError("language hint must be ar or en")
         model = self._load()
@@ -59,13 +67,23 @@ class FasterWhisper:
             if language_hint is not None:
                 options["language"] = language_hint
             segments, info = model.transcribe(str(audio_path), **options)
-            text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
+            segments = [segment for segment in segments if segment.text.strip()]
+            text = " ".join(segment.text.strip() for segment in segments).strip()
         except Exception as exc:
             raise ProviderError(f"faster-whisper transcription failed: {exc}") from exc
         if not text:
             raise ProviderError("faster-whisper returned an empty transcript")
         language = getattr(info, "language", "unknown")
-        return text, language if language in {"ar", "en"} else "mixed"
+        language_probs = getattr(info, "all_language_probs", None) or []
+        logprobs = [segment.avg_logprob for segment in segments if hasattr(segment, "avg_logprob")]
+        metadata = {
+            "language_probability": getattr(info, "language_probability", None) if language_hint is None else None,
+            "language_probabilities": {
+                code: probability for code, probability in language_probs if code in {"ar", "en"}
+            } if language_hint is None else {},
+            "mean_logprob": statistics.mean(logprobs) if logprobs else None,
+        }
+        return text, language if language in {"ar", "en"} else "mixed", metadata
 
 
 class WhisperCpp:

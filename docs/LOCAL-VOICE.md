@@ -213,6 +213,20 @@ production still needs a way to infer language without knowing the words.
 Plain WER also counts punctuation, Arabic spelling variants, and spaces as
 errors; inspect the words and whether the requested action survived.
 
+To investigate a selector that does not know the spoken language beforehand,
+run both Arabic and English candidate decodes on every clip:
+
+```bash
+bash scripts/run-voice-lab.sh voice-lab-audio --language-probes --output voice-lab-probes.json
+```
+
+The owner-only report preserves the automatic result and adds its Arabic/English
+language probabilities plus the text, raw WER, latency, and mean segment log
+probability of each forced candidate. These are diagnostic scores, not a proven
+way to choose a transcript; compare all 12 cases before changing production.
+This mode performs three decodes per clip and does not use the reference to
+select a candidate or change what the voice service does.
+
 ## Development
 
 Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.
