@@ -194,6 +194,23 @@ show Arabic, English, and mixed speech separately. Failed cases also print
 their error and count, with details in the private JSON report.
 The benchmark is the release gate for choosing the primary STT backend.
 
+If English recordings are transcribed as Arabic, compare automatic language
+detection with a diagnostic run on the *same* WAV files:
+
+```bash
+bash scripts/run-voice-lab.sh voice-lab-audio --output voice-lab-results.json
+bash scripts/run-voice-lab.sh voice-lab-audio --language-hints --output voice-lab-hints.json
+```
+
+The second run passes `ar` or `en` to faster-whisper for cases whose spoken
+language is known. Mixed cases stay automatic. Compare each transcript and WER
+between the two private JSON reports, especially `en_02`, `en_03`, and `ar_03`.
+Language hints use the benchmark's answer key, so their scores are diagnostic
+only; they are not a production or release score. If they improve the result,
+production still needs a way to infer language without knowing the words.
+Plain WER also counts punctuation, Arabic spelling variants, and spaces as
+errors; inspect the words and whether the requested action survived.
+
 ## Development
 
 Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.

@@ -5,7 +5,7 @@ import stat
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from okal_voice import voice_lab
 
@@ -36,6 +36,29 @@ class VoiceLabTests(unittest.TestCase):
         self.assertEqual(output.getvalue().splitlines(), [
             f"{case_id}\t{phrase}" for case_id, phrase in voice_lab.CASES
         ])
+
+    def test_language_hints_only_apply_to_known_language_cases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "hints.json"
+            for case_id in ("ar_01", "en_02", "mix_01"):
+                (root / f"{case_id}.wav").touch()
+            stt = Mock()
+            stt.transcribe.return_value = ("words", "en")
+            with patch("okal_voice.voice_lab.build_stt", return_value=stt), patch(
+                "sys.argv", ["okal-voice-lab", str(root), "--language-hints", "--output", str(report)]
+            ), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(voice_lab.main(), 2)  # Only three cases have recordings.
+
+            self.assertEqual([call.kwargs for call in stt.transcribe.call_args_list], [
+                {"language_hint": "ar"}, {"language_hint": "en"}, {},
+            ])
+            summary = json.loads(report.read_text(encoding="utf-8"))
+            self.assertTrue(summary["language_hints"])
+            rows = {case["id"]: case for case in summary["cases"]}
+            self.assertEqual(rows["ar_01"]["language_hint"], "ar")
+            self.assertEqual(rows["en_02"]["language_hint"], "en")
+            self.assertNotIn("language_hint", rows["mix_01"])
 
 
 if __name__ == "__main__":

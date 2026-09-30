@@ -1,11 +1,13 @@
 import json
 import unittest
 from contextlib import AbstractContextManager
+from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from okal_voice.config import VoiceConfig
 from okal_voice.contracts import RouteKind
-from okal_voice.providers import OllamaRouter, ProviderError, WhisperCpp, build_stt
+from okal_voice.providers import FasterWhisper, OllamaRouter, ProviderError, WhisperCpp, build_stt
 
 
 class Response(AbstractContextManager):
@@ -58,6 +60,20 @@ class SttSelectionTests(unittest.TestCase):
     def test_whisper_cpp_is_explicit_fallback(self):
         stt = build_stt(VoiceConfig(stt_backend="whisper.cpp"))
         self.assertIsInstance(stt, WhisperCpp)
+
+    def test_language_hint_is_diagnostic_and_auto_detection_stays_default(self):
+        model = mock.Mock()
+        model.transcribe.return_value = ([SimpleNamespace(text="Open the terminal")], SimpleNamespace(language="en"))
+        stt = FasterWhisper(VoiceConfig())
+        with mock.patch.object(stt, "_load", return_value=model):
+            self.assertEqual(stt.transcribe(Path("en_01.wav")), ("Open the terminal", "en"))
+            self.assertNotIn("language", model.transcribe.call_args.kwargs)
+            self.assertEqual(stt.transcribe(Path("en_01.wav"), language_hint="en"), ("Open the terminal", "en"))
+            self.assertEqual(model.transcribe.call_args.kwargs["language"], "en")
+
+        with self.assertRaises(ValueError):
+            stt.transcribe(Path("en_01.wav"), language_hint="mixed")
+        self.assertEqual(model.transcribe.call_count, 2)
 
 
 if __name__ == "__main__":

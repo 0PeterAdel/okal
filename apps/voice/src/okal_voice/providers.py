@@ -45,16 +45,20 @@ class FasterWhisper:
                 raise ProviderError(f"failed to load faster-whisper model: {exc}") from exc
         return self._model
 
-    def transcribe(self, audio_path: Path) -> tuple[str, str]:
+    def transcribe(self, audio_path: Path, *, language_hint: str | None = None) -> tuple[str, str]:
+        if language_hint not in {None, "ar", "en"}:
+            raise ValueError("language hint must be ar or en")
         model = self._load()
         try:
-            segments, info = model.transcribe(
-                str(audio_path),
-                beam_size=self.config.stt_beam_size,
-                vad_filter=self.config.stt_vad_filter,
-                condition_on_previous_text=False,
-                task="transcribe",
-            )
+            options = {
+                "beam_size": self.config.stt_beam_size,
+                "vad_filter": self.config.stt_vad_filter,
+                "condition_on_previous_text": False,
+                "task": "transcribe",
+            }
+            if language_hint is not None:
+                options["language"] = language_hint
+            segments, info = model.transcribe(str(audio_path), **options)
             text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
         except Exception as exc:
             raise ProviderError(f"faster-whisper transcription failed: {exc}") from exc
