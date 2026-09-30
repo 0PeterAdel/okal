@@ -227,6 +227,22 @@ way to choose a transcript; compare all 12 cases before changing production.
 This mode performs three decodes per clip and does not use the reference to
 select a candidate or change what the voice service does.
 
+To trial the candidate rule in the actual STT adapter, set
+`OKAL_STT_LANGUAGE_MODE=dual` for one lab run. The default `auto` mode is
+unchanged. Dual mode runs the English decoder only when automatic detection
+selects Arabic, then picks English if its mean segment log probability is
+higher. It does not read the benchmark reference. A failed English candidate
+keeps the automatic transcript. This rule is experimental: the 12 cases used
+to derive it are not independent validation, and it adds decoding time for
+Arabic and mixed speech. Do not treat a good result on these same recordings
+as a release gate or enable it by default before measuring new speakers and
+phrases.
+
+```bash
+OKAL_STT_LANGUAGE_MODE=dual \
+bash scripts/run-voice-lab.sh voice-lab-audio --output voice-lab-dual.json
+```
+
 ## Development
 
 Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.

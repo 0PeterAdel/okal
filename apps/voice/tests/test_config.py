@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from okal_voice.config import validate_loopback_endpoint
+from okal_voice.config import VoiceConfig, validate_loopback_endpoint
 
 
 class LoopbackPolicyTests(unittest.TestCase):
@@ -16,6 +17,13 @@ class LoopbackPolicyTests(unittest.TestCase):
     def test_denies_embedded_credentials(self):
         with self.assertRaises(ValueError):
             validate_loopback_endpoint("http://user:pass@127.0.0.1:11434")
+
+    def test_dual_language_selection_requires_explicit_opt_in(self):
+        with patch.dict("os.environ", {"OKAL_STT_LANGUAGE_MODE": "dual"}):
+            self.assertEqual(VoiceConfig.from_env().stt_language_mode, "dual")
+        with patch.dict("os.environ", {"OKAL_STT_LANGUAGE_MODE": "invalid"}):
+            with self.assertRaisesRegex(ValueError, "OKAL_STT_LANGUAGE_MODE"):
+                VoiceConfig.from_env()
 
 
 if __name__ == "__main__":

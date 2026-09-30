@@ -123,6 +123,7 @@ def main() -> int:
         "model": config.stt_model_dir.as_posix() if config.stt_model_dir else config.stt_model,
         "device": config.stt_device,
         "compute_type": config.stt_compute_type,
+        "language_mode": config.stt_language_mode,
         "language_hints": args.language_hints,
         "language_probes": args.language_probes,
         "groups": groups,

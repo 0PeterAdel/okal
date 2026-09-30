@@ -47,7 +47,20 @@ class FasterWhisper:
         return self._model
 
     def transcribe(self, audio_path: Path, *, language_hint: str | None = None) -> tuple[str, str]:
-        text, language, _ = self.transcribe_with_metadata(audio_path, language_hint=language_hint)
+        text, language, metadata = self.transcribe_with_metadata(audio_path, language_hint=language_hint)
+        if language_hint is not None or self.config.stt_language_mode != "dual" or language != "ar":
+            return text, language
+
+        # Experimental bilingual rescue: try English only when auto chose Arabic.
+        # Keep the original if the candidate fails or has no comparable score.
+        try:
+            english_text, _, english_metadata = self.transcribe_with_metadata(audio_path, language_hint="en")
+        except ProviderError:
+            return text, language
+        auto_score = metadata["mean_logprob"]
+        english_score = english_metadata["mean_logprob"]
+        if auto_score is not None and english_score is not None and english_score > auto_score:
+            return english_text, "en"
         return text, language
 
     def transcribe_with_metadata(

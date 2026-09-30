@@ -96,6 +96,39 @@ class SttSelectionTests(unittest.TestCase):
             self.assertEqual(forced_metadata["language_probabilities"], {})
             self.assertEqual(model.transcribe.call_args.kwargs["language"], "en")
 
+    def test_dual_mode_rescues_english_without_changing_arabic_or_default(self):
+        model = mock.Mock()
+        arabic = ([SimpleNamespace(text="كلام عربي", avg_logprob=-1.1)], SimpleNamespace(language="ar"))
+        english = ([SimpleNamespace(text="Read the latest report", avg_logprob=-0.4)],
+                   SimpleNamespace(language="en"))
+        stt = FasterWhisper(VoiceConfig(stt_language_mode="dual"))
+        with mock.patch.object(stt, "_load", return_value=model):
+            model.transcribe.side_effect = [arabic, english]
+            self.assertEqual(stt.transcribe(Path("en_02.wav")), ("Read the latest report", "en"))
+            self.assertEqual(model.transcribe.call_args_list[1].kwargs["language"], "en")
+
+            model.transcribe.reset_mock(side_effect=True)
+            model.transcribe.side_effect = [
+                ([SimpleNamespace(text="افتح المتصفح", avg_logprob=-0.3)], SimpleNamespace(language="ar")),
+                ([SimpleNamespace(text="Open the browser", avg_logprob=-1.2)], SimpleNamespace(language="en")),
+            ]
+            self.assertEqual(stt.transcribe(Path("ar_01.wav")), ("افتح المتصفح", "ar"))
+
+            model.transcribe.reset_mock(side_effect=True)
+            model.transcribe.return_value = english
+            self.assertEqual(stt.transcribe(Path("en_01.wav")), ("Read the latest report", "en"))
+            self.assertEqual(model.transcribe.call_count, 1)
+
+    def test_dual_mode_keeps_auto_if_english_candidate_fails(self):
+        model = mock.Mock()
+        model.transcribe.side_effect = [
+            ([SimpleNamespace(text="الكلام العربي", avg_logprob=-0.3)], SimpleNamespace(language="ar")),
+            RuntimeError("decoder unavailable"),
+        ]
+        stt = FasterWhisper(VoiceConfig(stt_language_mode="dual"))
+        with mock.patch.object(stt, "_load", return_value=model):
+            self.assertEqual(stt.transcribe(Path("ar_01.wav")), ("الكلام العربي", "ar"))
+
 
 if __name__ == "__main__":
     unittest.main()

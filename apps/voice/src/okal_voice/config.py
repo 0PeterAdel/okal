@@ -33,6 +33,7 @@ class VoiceConfig:
     stt_compute_type: str = "float16"
     stt_beam_size: int = 3
     stt_vad_filter: bool = True
+    stt_language_mode: str = "auto"
     whisper_bin: str = "whisper-cli"
     whisper_model: Path = _data_home() / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin"
     ollama_endpoint: str = "http://127.0.0.1:11434"
@@ -52,6 +53,9 @@ class VoiceConfig:
     @classmethod
     def from_env(cls) -> "VoiceConfig":
         data = _data_home()
+        language_mode = os.environ.get("OKAL_STT_LANGUAGE_MODE", "auto")
+        if language_mode not in {"auto", "dual"}:
+            raise ValueError("OKAL_STT_LANGUAGE_MODE must be auto or dual")
         endpoint = validate_loopback_endpoint(
             os.environ.get("OKAL_OLLAMA_ENDPOINT", "http://127.0.0.1:11434")
         )
@@ -66,6 +70,7 @@ class VoiceConfig:
             stt_compute_type=os.environ.get("OKAL_STT_COMPUTE_TYPE", "float16"),
             stt_beam_size=int(os.environ.get("OKAL_STT_BEAM_SIZE", "3")),
             stt_vad_filter=os.environ.get("OKAL_STT_VAD", "1") not in {"0", "false", "no"},
+            stt_language_mode=language_mode,
             whisper_bin=os.environ.get("OKAL_WHISPER_BIN", "whisper-cli"),
             whisper_model=Path(
                 os.environ.get(
