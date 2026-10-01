@@ -330,6 +330,62 @@ env -u OKAL_STT_MODEL_DIR \
     --output voice-lab-generic-turbo.json
 ```
 
+## Next-generation STT tournament
+
+The current faster-whisper backend remains the production default until measured
+evidence selects a replacement. Two newer local candidates are available only
+through explicit backends:
+
+- `cohere`: `CohereLabs/cohere-transcribe-arabic-07-2026`, a 2B Arabic/English
+  ASR model specialized for Arabic dialects and code-switching. It needs a
+  pre-selected `ar` or `en` language, so the lab records both an Arabic-matrix
+  deployment run and a diagnostic language-hinted run.
+- `qwencleo`: `mohammedaly22/QwenCleo-ASR`, a Qwen3-ASR 1.7B fine-tune for
+  Egyptian Arabic and Arabic/English code-switching. Its production candidate
+  run uses automatic language selection; a second Arabic-matrix run measures
+  the checkpoint author's recommended hint for Egyptian/code-switched speech.
+
+These candidates intentionally use separate virtual environments. The Qwen ASR
+package pins a Transformers 4.x release while Cohere Transcribe Arabic requires
+Transformers 5.4 or newer. Keeping them isolated avoids replacing dependencies
+inside `.venv-okal-voice`.
+
+Set them up without modifying system Python, CUDA, or the existing voice venv:
+
+```bash
+bash scripts/setup-stt-tournament.sh
+```
+
+Cohere's Hugging Face repository is gated. Accept its access conditions in your
+own Hugging Face account and authenticate locally with `hf auth login`. Never
+put an access token in a committed command, source file, or benchmark report.
+
+Run all candidate passes against the same existing recordings:
+
+```bash
+bash scripts/run-stt-tournament.sh voice-lab-holdout-audio holdout
+```
+
+The command writes owner-only JSON reports under `voice-lab-tournament/` and
+prints a comparison table. It runs QwenCleo with automatic language selection,
+QwenCleo with Arabic as the matrix language, Cohere with Arabic as the matrix
+language, and a diagnostic Cohere pass that uses the benchmark's known
+Arabic/English labels for pure-language clips. The diagnostic pass is not a
+production or release score.
+
+Voice Lab continues to report raw WER, and also reports normalized WER,
+normalized CER, recall of command/technical terms present in each reference,
+median latency, and PyTorch peak reserved GPU memory when the backend uses
+PyTorch. Normalization removes case, punctuation, Arabic diacritics, tatweel,
+and common Alef/Yeh spelling variation; the raw transcript is always preserved.
+The memory number is an in-process PyTorch measurement, not whole-GPU telemetry,
+so it is useful for relative candidate pressure but does not replace
+`nvidia-smi`.
+
+The tournament does not silently promote a winner. A candidate still needs
+new-speaker and natural-command evidence plus end-to-end voice acceptance before
+changing the default backend.
+
 ## Development
 
 Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.
