@@ -22,6 +22,11 @@ def _device_name(configured: str) -> str:
     return configured
 
 
+def _candidate_source(config: VoiceConfig) -> str:
+    """Candidate backends never inherit the legacy Whisper CTranslate2 directory."""
+    return config.stt_model
+
+
 def _language_code(value: object, fallback: str = "mixed") -> str:
     text = str(value or "").strip().lower()
     if text in {"ar", "arabic"} or text.startswith("arab"):
@@ -51,7 +56,7 @@ class CohereTranscribe:
                 "`bash scripts/setup-stt-tournament.sh`"
             ) from exc
 
-        source = str(self.config.stt_model_dir or self.config.stt_model)
+        source = _candidate_source(self.config)
         dtype = _torch_dtype(torch, self.config.stt_torch_dtype)
         try:
             processor = AutoProcessor.from_pretrained(source)
@@ -126,7 +131,7 @@ class QwenCleoAsr:
                 "`bash scripts/setup-stt-tournament.sh`"
             ) from exc
 
-        source = str(self.config.stt_model_dir or self.config.stt_model)
+        source = _candidate_source(self.config)
         dtype = _torch_dtype(torch, self.config.stt_torch_dtype)
         device_map = _device_name(self.config.stt_device)
         try:
