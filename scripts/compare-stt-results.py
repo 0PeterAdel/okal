@@ -5,31 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import statistics
 from pathlib import Path
 
 
-def _mean(rows: list[dict], key: str) -> float | None:
-    values = [row[key] for row in rows if row.get(key) is not None]
-    return statistics.mean(values) if values else None
-
-
-def _median(rows: list[dict], key: str) -> float | None:
-    values = [row[key] for row in rows if row.get(key) is not None]
-    return statistics.median(values) if values else None
-
-
-def _maximum(rows: list[dict], key: str) -> float | None:
-    values = [row[key] for row in rows if row.get(key) is not None]
-    return max(values) if values else None
-
-
-def _fmt(value: float | None, *, percent: bool = False) -> str:
+def _fmt(value: float | None, *, percent: bool = False, suffix: str = "") -> str:
     if value is None:
         return "-"
     if percent:
         return f"{value * 100:.1f}%"
-    return f"{value:.3f}"
+    return f"{value:.3f}{suffix}"
 
 
 def main() -> int:
@@ -37,27 +21,32 @@ def main() -> int:
     parser.add_argument("reports", nargs="+", type=Path)
     args = parser.parse_args()
 
-    print("| report | mode | completed | WER | norm WER | CER | critical recall | median latency | peak torch VRAM |")
-    print("|---|---|---:|---:|---:|---:|---:|---:|---:|")
+    print(
+        "| report | backend/mode | group | done | WER | norm WER | CER | "
+        "critical recall | median latency | peak torch VRAM |"
+    )
+    print("|---|---|---|---:|---:|---:|---:|---:|---:|---:|")
     for path in args.reports:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        rows = [row for row in payload.get("cases", []) if row.get("ok")]
-        total = len(payload.get("cases", []))
-        mode = f"{payload.get('backend', '?')}/{payload.get('language', 'auto')}"
+        mode = f"{payload.get('backend', '?')}/{payload.get('language', 'legacy')}"
         if payload.get("language_hints"):
             mode += " + hints*"
-        print(
-            f"| {path.stem} | {mode} | {len(rows)}/{total} | "
-            f"{_fmt(_mean(rows, 'wer'))} | "
-            f"{_fmt(_mean(rows, 'normalized_wer'))} | "
-            f"{_fmt(_mean(rows, 'cer'))} | "
-            f"{_fmt(_mean(rows, 'critical_term_recall'), percent=True)} | "
-            f"{_fmt(_median(rows, 'latency_seconds'))}s | "
-            f"{_fmt(_maximum(rows, 'torch_peak_memory_mb'))} MB |"
-        )
+        for group_name in ("ar", "en", "mix"):
+            group = payload.get("groups", {}).get(group_name, {})
+            print(
+                f"| {path.stem} | {mode} | {group_name} | "
+                f"{group.get('completed', 0)}/{group.get('total', 0)} | "
+                f"{_fmt(group.get('mean_wer'))} | "
+                f"{_fmt(group.get('mean_normalized_wer'))} | "
+                f"{_fmt(group.get('mean_cer'))} | "
+                f"{_fmt(group.get('mean_critical_term_recall'), percent=True)} | "
+                f"{_fmt(group.get('median_latency_seconds'), suffix='s')} | "
+                f"{_fmt(group.get('max_torch_peak_memory_mb'), suffix=' MB')} |"
+            )
 
     print()
-    print("* language-hinted reports use the benchmark answer key for pure-language clips and are diagnostic only.")
+    print("* hinted reports use the benchmark answer key for pure-language clips and are diagnostic only.")
+    print("* legacy reports created before the extra metrics show '-' for those columns.")
     return 0
 
 
