@@ -9,6 +9,15 @@ from urllib.parse import urlparse
 
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+STT_BACKENDS = frozenset({"faster-whisper", "whisper.cpp", "cohere", "qwencleo"})
+DEFAULT_STT_MODELS = {
+    "faster-whisper": "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching",
+    "whisper.cpp": "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching",
+    "cohere": "CohereLabs/cohere-transcribe-arabic-07-2026",
+    "qwencleo": "mohammedaly22/QwenCleo-ASR",
+}
+TORCH_DTYPES = frozenset({"float16", "bfloat16", "float32"})
+STT_LANGUAGES = frozenset({"auto", "ar", "en"})
 
 
 def _data_home() -> Path:
@@ -34,6 +43,8 @@ class VoiceConfig:
     stt_beam_size: int = 3
     stt_vad_filter: bool = True
     stt_language_mode: str = "auto"
+    stt_language: str = "auto"
+    stt_torch_dtype: str = "bfloat16"
     stt_hotwords: str | None = None
     whisper_bin: str = "whisper-cli"
     whisper_model: Path = _data_home() / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin"
@@ -54,24 +65,32 @@ class VoiceConfig:
     @classmethod
     def from_env(cls) -> "VoiceConfig":
         data = _data_home()
+        backend = os.environ.get("OKAL_STT_BACKEND", "faster-whisper")
+        if backend not in STT_BACKENDS:
+            raise ValueError(f"OKAL_STT_BACKEND must be one of: {', '.join(sorted(STT_BACKENDS))}")
         language_mode = os.environ.get("OKAL_STT_LANGUAGE_MODE", "auto")
         if language_mode not in {"auto", "dual"}:
             raise ValueError("OKAL_STT_LANGUAGE_MODE must be auto or dual")
+        language = os.environ.get("OKAL_STT_LANGUAGE", "auto")
+        if language not in STT_LANGUAGES:
+            raise ValueError("OKAL_STT_LANGUAGE must be auto, ar, or en")
+        torch_dtype = os.environ.get("OKAL_STT_TORCH_DTYPE", "bfloat16")
+        if torch_dtype not in TORCH_DTYPES:
+            raise ValueError("OKAL_STT_TORCH_DTYPE must be float16, bfloat16, or float32")
         endpoint = validate_loopback_endpoint(
             os.environ.get("OKAL_OLLAMA_ENDPOINT", "http://127.0.0.1:11434")
         )
         return cls(
-            stt_backend=os.environ.get("OKAL_STT_BACKEND", "faster-whisper"),
-            stt_model=os.environ.get(
-                "OKAL_STT_MODEL",
-                "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching",
-            ),
+            stt_backend=backend,
+            stt_model=os.environ.get("OKAL_STT_MODEL", DEFAULT_STT_MODELS[backend]),
             stt_model_dir=_optional_path("OKAL_STT_MODEL_DIR"),
             stt_device=os.environ.get("OKAL_STT_DEVICE", "cuda"),
             stt_compute_type=os.environ.get("OKAL_STT_COMPUTE_TYPE", "float16"),
             stt_beam_size=int(os.environ.get("OKAL_STT_BEAM_SIZE", "3")),
             stt_vad_filter=os.environ.get("OKAL_STT_VAD", "1") not in {"0", "false", "no"},
             stt_language_mode=language_mode,
+            stt_language=language,
+            stt_torch_dtype=torch_dtype,
             stt_hotwords=os.environ.get("OKAL_STT_HOTWORDS", "").strip() or None,
             whisper_bin=os.environ.get("OKAL_WHISPER_BIN", "whisper-cli"),
             whisper_model=Path(
