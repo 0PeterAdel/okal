@@ -17,6 +17,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 .venv-okal-voice/
+.venv-okal-stt-*/
 venv/
 htmlcov/
 .coverage
@@ -64,3 +65,4 @@ temp/
 voice-lab-audio/
 voice-lab-*-audio/
 voice-lab-*.json
+voice-lab-tournament/
