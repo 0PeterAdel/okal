@@ -6,8 +6,10 @@ import argparse
 from collections import Counter
 import json
 import os
+import re
 import statistics
 import time
+import unicodedata
 from pathlib import Path
 
 from .config import VoiceConfig
@@ -60,6 +62,23 @@ VOCABULARY_CASES = [
 
 SUITES = {"baseline": CASES, "holdout": HOLDOUT_CASES, "vocabulary": VOCABULARY_CASES}
 
+CRITICAL_VOCAB = (
+    "pull request", "git status", "VS Code", "GitHub", "Wi-Fi", "README",
+    "commits", "branch", "issue", "browser", "terminal", "repository", "project",
+    "report", "PDF", "downloads", "notes",
+    "افتح", "اقفل", "شغل", "اكتب", "اقرأ", "اعرض", "دور", "هات", "جهز",
+    "رسالة", "ملف", "التنزيلات", "الواي فاي",
+)
+_ARABIC_DIACRITICS = re.compile(r"[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]")
+_NON_TEXT = re.compile(r"[^\w\u0600-\u06ff+#./-]+", re.UNICODE)
+
+
+def _normalize_for_score(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text).casefold().replace("ـ", "")
+    text = _ARABIC_DIACRITICS.sub("", text)
+    text = text.translate(str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي"}))
+    return " ".join(_NON_TEXT.sub(" ", text).split())
+
 
 def _wer(reference: str, hypothesis: str) -> float | None:
     try:
@@ -67,6 +86,50 @@ def _wer(reference: str, hypothesis: str) -> float | None:
     except ImportError:
         return None
     return float(wer(reference, hypothesis))
+
+
+def _cer(reference: str, hypothesis: str) -> float | None:
+    try:
+        from jiwer import cer
+    except ImportError:
+        return None
+    return float(cer(reference, hypothesis))
+
+
+def _critical_terms(reference: str) -> list[str]:
+    normalized = _normalize_for_score(reference)
+    return [term for term in CRITICAL_VOCAB if _normalize_for_score(term) in normalized]
+
+
+def _critical_term_recall(
+    reference: str, hypothesis: str
+) -> tuple[float | None, list[str], list[str]]:
+    required = _critical_terms(reference)
+    if not required:
+        return None, [], []
+    normalized_hypothesis = _normalize_for_score(hypothesis)
+    matched = [term for term in required if _normalize_for_score(term) in normalized_hypothesis]
+    return len(matched) / len(required), required, matched
+
+
+def _reset_torch_peak_memory() -> None:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+    except (ImportError, RuntimeError):
+        pass
+
+
+def _torch_peak_memory_mb() -> float | None:
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return None
+        peak = int(torch.cuda.max_memory_reserved())
+    except (ImportError, RuntimeError):
+        return None
+    return round(peak / (1024 * 1024), 1) if peak else None
 
 
 def main() -> int:
@@ -90,11 +153,13 @@ def main() -> int:
         parser.error("select one diagnostic mode at a time")
 
     config = VoiceConfig.from_env()
-    if (args.language_hints or args.language_probes) and config.stt_backend != "faster-whisper":
-        parser.error("language diagnostics require faster-whisper")
+    if args.language_probes and config.stt_backend != "faster-whisper":
+        parser.error("language probes require faster-whisper decoder metadata")
+    if args.language_hints and config.stt_backend == "whisper.cpp":
+        parser.error("language hints are not supported by whisper.cpp")
     stt = build_stt(config)
     preparation_error = None
-    if config.stt_backend == "faster-whisper" and any(
+    if hasattr(stt, "prepare") and any(
         (args.audio_dir / f"{case_id}.wav").is_file() for case_id, _ in cases
     ):
         try:
@@ -113,6 +178,7 @@ def main() -> int:
             row["error"] = preparation_error
             results.append(row)
             continue
+        _reset_torch_peak_memory()
         started = time.perf_counter()
         try:
             if args.language_probes:
@@ -126,12 +192,23 @@ def main() -> int:
                     transcript, language = stt.transcribe(audio, language_hint=language_hint)
                 else:
                     transcript, language = stt.transcribe(audio)
+            normalized_reference = _normalize_for_score(reference)
+            normalized_transcript = _normalize_for_score(transcript)
+            critical_recall, required_terms, matched_terms = _critical_term_recall(
+                reference, transcript
+            )
             row.update(
                 ok=True,
                 transcript=transcript,
                 language=language,
                 latency_seconds=round(time.perf_counter() - started, 3),
                 wer=_wer(reference, transcript),
+                normalized_wer=_wer(normalized_reference, normalized_transcript),
+                cer=_cer(normalized_reference, normalized_transcript),
+                critical_term_recall=critical_recall,
+                critical_terms=required_terms,
+                critical_terms_matched=matched_terms,
+                torch_peak_memory_mb=_torch_peak_memory_mb(),
             )
             if args.language_probes:
                 row["probes"] = {}
@@ -157,11 +234,27 @@ def main() -> int:
         group = [r for r in results if r["id"].startswith(prefix + "_")]
         measured = [r for r in group if r["ok"]]
         scores = [r["wer"] for r in measured if r["wer"] is not None]
+        normalized_scores = [r["normalized_wer"] for r in measured if r["normalized_wer"] is not None]
+        cer_scores = [r["cer"] for r in measured if r["cer"] is not None]
+        critical_scores = [
+            r["critical_term_recall"] for r in measured if r["critical_term_recall"] is not None
+        ]
+        memory_scores = [
+            r["torch_peak_memory_mb"] for r in measured if r["torch_peak_memory_mb"] is not None
+        ]
         groups[prefix] = {
             "completed": len(measured),
             "total": len(group),
             "mean_wer": round(statistics.mean(scores), 3) if scores else None,
-            "median_latency_seconds": round(statistics.median(r["latency_seconds"] for r in measured), 3) if measured else None,
+            "mean_normalized_wer": round(statistics.mean(normalized_scores), 3)
+            if normalized_scores else None,
+            "mean_cer": round(statistics.mean(cer_scores), 3) if cer_scores else None,
+            "mean_critical_term_recall": round(statistics.mean(critical_scores), 3)
+            if critical_scores else None,
+            "median_latency_seconds": round(
+                statistics.median(r["latency_seconds"] for r in measured), 3
+            ) if measured else None,
+            "max_torch_peak_memory_mb": max(memory_scores) if memory_scores else None,
         }
     summary = {
         "schema_version": "okal.voice.lab.v1",
@@ -170,6 +263,8 @@ def main() -> int:
         "device": config.stt_device,
         "compute_type": config.stt_compute_type,
         "language_mode": config.stt_language_mode,
+        "language": config.stt_language,
+        "torch_dtype": config.stt_torch_dtype,
         "hotwords": config.stt_hotwords,
         "suite": args.suite,
         "language_hints": args.language_hints,
@@ -184,7 +279,12 @@ def main() -> int:
         output.write("\n")
     print(f"Voice Lab: {len(completed)}/{len(results)} recordings completed")
     for name, group in groups.items():
-        print(f"  {name}: {group['completed']}/{group['total']}  mean WER: {group['mean_wer']}  median latency: {group['median_latency_seconds']}s")
+        print(
+            f"  {name}: {group['completed']}/{group['total']}  "
+            f"WER: {group['mean_wer']}  norm WER: {group['mean_normalized_wer']}  "
+            f"critical: {group['mean_critical_term_recall']}  "
+            f"median latency: {group['median_latency_seconds']}s"
+        )
     for error, count in Counter(r.get("error", "unknown error") for r in results if not r["ok"]).items():
         print(f"  failed ({count} cases): {error}")
     print(f"Results: {args.output}")
