@@ -149,7 +149,15 @@ class WhisperCpp:
 def build_stt(config: VoiceConfig):
     if config.stt_backend == "whisper.cpp":
         return WhisperCpp(config)
-    return FasterWhisper(config)
+    if config.stt_backend == "cohere":
+        from .candidate_stt import CohereTranscribe
+        return CohereTranscribe(config)
+    if config.stt_backend == "qwencleo":
+        from .candidate_stt import QwenCleoAsr
+        return QwenCleoAsr(config)
+    if config.stt_backend == "faster-whisper":
+        return FasterWhisper(config)
+    raise ProviderError(f"unsupported STT backend: {config.stt_backend}")
 
 
 ROUTER_SCHEMA = {
