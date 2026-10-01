@@ -81,6 +81,8 @@ class FasterWhisper:
                 "condition_on_previous_text": False,
                 "task": "transcribe",
             }
+            if self.config.stt_hotwords:
+                options["hotwords"] = self.config.stt_hotwords
             if language_hint is not None:
                 options["language"] = language_hint
             segments, info = model.transcribe(str(audio_path), **options)

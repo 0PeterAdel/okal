@@ -25,6 +25,12 @@ class LoopbackPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "OKAL_STT_LANGUAGE_MODE"):
                 VoiceConfig.from_env()
 
+    def test_hotwords_are_opt_in(self):
+        with patch.dict("os.environ", {"OKAL_STT_HOTWORDS": "  README, pull request  "}):
+            self.assertEqual(VoiceConfig.from_env().stt_hotwords, "README, pull request")
+        with patch.dict("os.environ", {"OKAL_STT_HOTWORDS": "   "}):
+            self.assertIsNone(VoiceConfig.from_env().stt_hotwords)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,7 @@ class VoiceConfig:
     stt_beam_size: int = 3
     stt_vad_filter: bool = True
     stt_language_mode: str = "auto"
+    stt_hotwords: str | None = None
     whisper_bin: str = "whisper-cli"
     whisper_model: Path = _data_home() / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin"
     ollama_endpoint: str = "http://127.0.0.1:11434"
@@ -71,6 +72,7 @@ class VoiceConfig:
             stt_beam_size=int(os.environ.get("OKAL_STT_BEAM_SIZE", "3")),
             stt_vad_filter=os.environ.get("OKAL_STT_VAD", "1") not in {"0", "false", "no"},
             stt_language_mode=language_mode,
+            stt_hotwords=os.environ.get("OKAL_STT_HOTWORDS", "").strip() or None,
             whisper_bin=os.environ.get("OKAL_WHISPER_BIN", "whisper-cli"),
             whisper_model=Path(
                 os.environ.get(

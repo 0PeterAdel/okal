@@ -68,12 +68,26 @@ class SttSelectionTests(unittest.TestCase):
         with mock.patch.object(stt, "_load", return_value=model):
             self.assertEqual(stt.transcribe(Path("en_01.wav")), ("Open the terminal", "en"))
             self.assertNotIn("language", model.transcribe.call_args.kwargs)
+            self.assertNotIn("hotwords", model.transcribe.call_args.kwargs)
             self.assertEqual(stt.transcribe(Path("en_01.wav"), language_hint="en"), ("Open the terminal", "en"))
             self.assertEqual(model.transcribe.call_args.kwargs["language"], "en")
 
         with self.assertRaises(ValueError):
             stt.transcribe(Path("en_01.wav"), language_hint="mixed")
         self.assertEqual(model.transcribe.call_count, 2)
+
+    def test_hotwords_apply_to_both_dual_decodes(self):
+        model = mock.Mock()
+        model.transcribe.side_effect = [
+            ([SimpleNamespace(text="ريدمي", avg_logprob=-0.8)], SimpleNamespace(language="ar")),
+            ([SimpleNamespace(text="README", avg_logprob=-0.4)], SimpleNamespace(language="en")),
+        ]
+        stt = FasterWhisper(VoiceConfig(stt_language_mode="dual", stt_hotwords="README, pull request"))
+        with mock.patch.object(stt, "_load", return_value=model):
+            self.assertEqual(stt.transcribe(Path("mix_02.wav")), ("README", "en"))
+        self.assertEqual(len(model.transcribe.call_args_list), 2)
+        self.assertTrue(all(call.kwargs["hotwords"] == "README, pull request"
+                            for call in model.transcribe.call_args_list))
 
     def test_probe_exposes_auto_language_probabilities_and_candidate_score(self):
         model = mock.Mock()

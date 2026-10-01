@@ -213,6 +213,33 @@ production still needs a way to infer language without knowing the words.
 Plain WER also counts punctuation, Arabic spelling variants, and spaces as
 errors; inspect the words and whether the requested action survived.
 
+### Optional technical vocabulary hints
+
+`faster-whisper` accepts short `hotwords` hints when decoding. To try a small
+list of product terms without retraining or changing the default behavior,
+set `OKAL_STT_HOTWORDS`. The list is passed to both decodes in experimental
+`dual` mode. It is a decoding hint, not a guaranteed vocabulary constraint:
+check whether it introduces words the speaker never said, and keep the old
+report for comparison. The private lab report records the chosen hints.
+
+```bash
+export OKAL_STT_HOTWORDS='README, commits, pull request, git status, VS Code, GitHub, Wi-Fi'
+OKAL_STT_LANGUAGE_MODE=dual \
+bash scripts/run-voice-lab.sh voice-lab-holdout-audio --suite holdout \
+  --output voice-lab-holdout-hotwords.json
+unset OKAL_STT_HOTWORDS
+```
+
+These phrases overlap recordings we have already inspected, so an improvement
+on the existing holdout is diagnostic only. For a credible release comparison,
+write a small product vocabulary *before* recording fresh, naturally spoken
+commands with new phrases and speakers; compare the same WAVs with the hints
+unset and set. Evaluate critical terms (`README` versus `ريدمي`, `commits`
+versus `comments`, complete `pull request`) and Arabic verbs as well as raw WER
+and latency. Do not silently replace command words after transcription.
+Actual fine-tuning is a separate step requiring many labeled audio clips and
+their exact transcripts; a text-only word list cannot update model weights.
+
 To investigate a selector that does not know the spoken language beforehand,
 run both Arabic and English candidate decodes on every clip:
 
