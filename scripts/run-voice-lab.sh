@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="$ROOT_DIR/.venv-okal-voice/bin/python"
+PYTHON_BIN="${OKAL_VOICE_PYTHON:-$ROOT_DIR/.venv-okal-voice/bin/python}"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Voice Lab is missing. Run: bash scripts/setup-local-voice-stack.sh --stt-only" >&2
