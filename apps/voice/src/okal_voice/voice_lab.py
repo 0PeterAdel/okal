@@ -77,6 +77,7 @@ def _normalize_for_score(text: str) -> str:
     text = unicodedata.normalize("NFKC", text).casefold().replace("ـ", "")
     text = _ARABIC_DIACRITICS.sub("", text)
     text = text.translate(str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي"}))
+    text = re.sub(r"(^|\s)ال(?=[a-z0-9+#])", r"\1", text)
     return " ".join(_NON_TEXT.sub(" ", text).split())
 
 
