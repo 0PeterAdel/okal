@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from okal_voice.candidate_stt import CohereTranscribe, QwenCleoAsr
+from okal_voice.candidate_stt import CohereTranscribe, QwenCleoAsr, _candidate_source
 from okal_voice.config import VoiceConfig
 from okal_voice.contracts import RouteKind
 from okal_voice.providers import FasterWhisper, OllamaRouter, ProviderError, WhisperCpp, build_stt
@@ -61,6 +61,17 @@ class SttSelectionTests(unittest.TestCase):
     def test_whisper_cpp_is_explicit_fallback(self):
         stt = build_stt(VoiceConfig(stt_backend="whisper.cpp"))
         self.assertIsInstance(stt, WhisperCpp)
+
+    def test_candidate_backends_ignore_legacy_whisper_model_directory(self):
+        config = VoiceConfig(
+            stt_backend="cohere",
+            stt_model="CohereLabs/cohere-transcribe-arabic-07-2026",
+            stt_model_dir=Path("/tmp/legacy-whisper-ct2"),
+        )
+        self.assertEqual(
+            _candidate_source(config),
+            "CohereLabs/cohere-transcribe-arabic-07-2026",
+        )
 
     def test_candidate_backends_are_explicit(self):
         self.assertIsInstance(
