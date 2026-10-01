@@ -70,7 +70,7 @@ CRITICAL_VOCAB = (
     "رسالة", "ملف", "التنزيلات", "الواي فاي",
 )
 _ARABIC_DIACRITICS = re.compile(r"[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]")
-_NON_TEXT = re.compile(r"[^\w\u0600-\u06ff+#./-]+", re.UNICODE)
+_NON_TEXT = re.compile(r"[^\w\u0600-\u06ff+#]+", re.UNICODE)
 
 
 def _normalize_for_score(text: str) -> str:
