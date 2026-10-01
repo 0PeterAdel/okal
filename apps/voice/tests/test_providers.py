@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from okal_voice.candidate_stt import CohereTranscribe, QwenCleoAsr
 from okal_voice.config import VoiceConfig
 from okal_voice.contracts import RouteKind
 from okal_voice.providers import FasterWhisper, OllamaRouter, ProviderError, WhisperCpp, build_stt
@@ -60,6 +61,16 @@ class SttSelectionTests(unittest.TestCase):
     def test_whisper_cpp_is_explicit_fallback(self):
         stt = build_stt(VoiceConfig(stt_backend="whisper.cpp"))
         self.assertIsInstance(stt, WhisperCpp)
+
+    def test_candidate_backends_are_explicit(self):
+        self.assertIsInstance(
+            build_stt(VoiceConfig(stt_backend="cohere")),
+            CohereTranscribe,
+        )
+        self.assertIsInstance(
+            build_stt(VoiceConfig(stt_backend="qwencleo")),
+            QwenCleoAsr,
+        )
 
     def test_language_hint_is_diagnostic_and_auto_detection_stays_default(self):
         model = mock.Mock()
