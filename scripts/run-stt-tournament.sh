@@ -51,6 +51,7 @@ fi
 
 run_candidate "QwenCleo / automatic language" \
   env -u OKAL_STT_MODEL_DIR -u OKAL_STT_HOTWORDS \
+      HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=600 \
       OKAL_VOICE_PYTHON="$QWEN_PY" \
       OKAL_STT_BACKEND=qwencleo \
       OKAL_STT_MODEL=mohammedaly22/QwenCleo-ASR \
@@ -61,6 +62,7 @@ run_candidate "QwenCleo / automatic language" \
 
 run_candidate "QwenCleo / Arabic matrix language" \
   env -u OKAL_STT_MODEL_DIR -u OKAL_STT_HOTWORDS \
+      HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=600 \
       OKAL_VOICE_PYTHON="$QWEN_PY" \
       OKAL_STT_BACKEND=qwencleo \
       OKAL_STT_MODEL=mohammedaly22/QwenCleo-ASR \
@@ -71,6 +73,7 @@ run_candidate "QwenCleo / Arabic matrix language" \
 
 run_candidate "Cohere Arabic / Arabic matrix language" \
   env -u OKAL_STT_MODEL_DIR -u OKAL_STT_HOTWORDS \
+      HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=600 \
       OKAL_VOICE_PYTHON="$COHERE_PY" \
       OKAL_STT_BACKEND=cohere \
       OKAL_STT_MODEL=CohereLabs/cohere-transcribe-arabic-07-2026 \
@@ -81,6 +84,7 @@ run_candidate "Cohere Arabic / Arabic matrix language" \
 
 run_candidate "Cohere Arabic / diagnostic language hints" \
   env -u OKAL_STT_MODEL_DIR -u OKAL_STT_HOTWORDS \
+      HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=600 \
       OKAL_VOICE_PYTHON="$COHERE_PY" \
       OKAL_STT_BACKEND=cohere \
       OKAL_STT_MODEL=CohereLabs/cohere-transcribe-arabic-07-2026 \
