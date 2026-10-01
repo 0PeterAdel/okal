@@ -6,7 +6,7 @@ PYTHONPATH := apps/voice/src
 check: compile test governance
 
 compile:
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m compileall -q apps/voice/src apps/voice/tests
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m compileall -q apps/voice/src apps/voice/tests scripts/compare-stt-results.py
 
 test:
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m unittest discover -s apps/voice/tests -v
