@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from okal_voice import voice_lab
+from okal_voice.providers import ProviderError
 
 
 class VoiceLabTests(unittest.TestCase):
@@ -102,6 +103,25 @@ class VoiceLabTests(unittest.TestCase):
             self.assertEqual(row["probes"]["ar"]["transcript"], "arabic")
             self.assertEqual(row["probes"]["en"]["mean_logprob"], -0.3)
             self.assertEqual(stat.S_IMODE(report.stat().st_mode), 0o600)
+
+    def test_model_load_failure_is_attempted_once_for_the_batch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for case_id, _ in voice_lab.CASES:
+                (root / f"{case_id}.wav").touch()
+            report = root / "failed.json"
+            stt = Mock()
+            stt.prepare.side_effect = ProviderError("model download timed out")
+            with patch("okal_voice.voice_lab.build_stt", return_value=stt), patch(
+                "sys.argv", ["okal-voice-lab", str(root), "--output", str(report)]
+            ), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(voice_lab.main(), 2)
+
+            stt.prepare.assert_called_once_with()
+            stt.transcribe.assert_not_called()
+            summary = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual({case["error"] for case in summary["cases"]}, {"model download timed out"})
+            self.assertIn("failed (12 cases): model download timed out", output.getvalue())
 
 
 if __name__ == "__main__":

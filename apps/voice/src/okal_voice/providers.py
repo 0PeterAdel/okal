@@ -46,6 +46,10 @@ class FasterWhisper:
                 raise ProviderError(f"failed to load faster-whisper model: {exc}") from exc
         return self._model
 
+    def prepare(self) -> None:
+        """Load the model once before a batch, so download errors do not repeat per clip."""
+        self._load()
+
     def transcribe(self, audio_path: Path, *, language_hint: str | None = None) -> tuple[str, str]:
         text, language, metadata = self.transcribe_with_metadata(audio_path, language_hint=language_hint)
         if language_hint is not None or self.config.stt_language_mode != "dual" or language != "ar":

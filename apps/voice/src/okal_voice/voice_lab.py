@@ -78,12 +78,24 @@ def main() -> int:
     if (args.language_hints or args.language_probes) and config.stt_backend != "faster-whisper":
         parser.error("language diagnostics require faster-whisper")
     stt = build_stt(config)
+    preparation_error = None
+    if config.stt_backend == "faster-whisper" and any(
+        (args.audio_dir / f"{case_id}.wav").is_file() for case_id, _ in cases
+    ):
+        try:
+            stt.prepare()
+        except ProviderError as exc:
+            preparation_error = str(exc)
     results: list[dict] = []
     for case_id, reference in cases:
         audio = args.audio_dir / f"{case_id}.wav"
         row = {"id": case_id, "reference": reference, "audio": str(audio), "ok": False}
         if not audio.is_file():
             row["error"] = "missing recording"
+            results.append(row)
+            continue
+        if preparation_error is not None:
+            row["error"] = preparation_error
             results.append(row)
             continue
         started = time.perf_counter()

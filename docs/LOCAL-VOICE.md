@@ -256,6 +256,37 @@ OKAL_STT_LANGUAGE_MODE=dual \
 bash scripts/run-voice-lab.sh voice-lab-holdout-audio --suite holdout --output voice-lab-holdout-dual.json
 ```
 
+To compare the general `large-v3-turbo` CTranslate2 model, download it into
+the normal Hugging Face cache before running the lab. Large-file network
+failures can leave an incomplete cached snapshot; rerun this download after
+connectivity returns. Do not delete the cache or the completed Egyptian model.
+The longer download timeout can help with a slow connection. The lab checks
+the model once before the batch, so a failed download does not retry for every
+recording.
+
+```bash
+HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=120 \
+.venv-okal-voice/bin/python - <<'PY'
+from pathlib import Path
+from huggingface_hub import snapshot_download
+
+path = Path(snapshot_download(
+    "dropbox-dash/faster-whisper-large-v3-turbo",
+    allow_patterns=["config.json", "preprocessor_config.json", "model.bin", "tokenizer.json", "vocabulary.*"],
+))
+for name in ("model.bin", "config.json", "preprocessor_config.json", "tokenizer.json"):
+    if not (path / name).is_file() or not (path / name).stat().st_size:
+        raise SystemExit(f"Incomplete model: {name}")
+print(f"Ready CTranslate2 model: {path}")
+PY
+
+env -u OKAL_STT_MODEL_DIR \
+  HF_HUB_OFFLINE=1 OKAL_STT_MODEL=dropbox-dash/faster-whisper-large-v3-turbo \
+  OKAL_STT_LANGUAGE_MODE=auto OKAL_STT_DEVICE=cuda OKAL_STT_COMPUTE_TYPE=int8_float16 \
+  bash scripts/run-voice-lab.sh voice-lab-holdout-audio --suite holdout \
+    --output voice-lab-generic-turbo.json
+```
+
 ## Development
 
 Requirements: Python 3.12 or 3.13, Bash, and standard-library `unittest`.
