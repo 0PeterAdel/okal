@@ -25,6 +25,38 @@ class LoopbackPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "OKAL_STT_LANGUAGE_MODE"):
                 VoiceConfig.from_env()
 
+    def test_candidate_backends_select_their_own_default_models(self):
+        with patch.dict("os.environ", {"OKAL_STT_BACKEND": "cohere"}, clear=True):
+            config = VoiceConfig.from_env()
+            self.assertEqual(
+                config.stt_model,
+                "CohereLabs/cohere-transcribe-arabic-07-2026",
+            )
+        with patch.dict("os.environ", {"OKAL_STT_BACKEND": "qwencleo"}, clear=True):
+            config = VoiceConfig.from_env()
+            self.assertEqual(config.stt_model, "mohammedaly22/QwenCleo-ASR")
+
+    def test_candidate_language_and_dtype_are_validated(self):
+        with patch.dict("os.environ", {
+            "OKAL_STT_BACKEND": "qwencleo",
+            "OKAL_STT_LANGUAGE": "ar",
+            "OKAL_STT_TORCH_DTYPE": "bfloat16",
+        }, clear=True):
+            config = VoiceConfig.from_env()
+            self.assertEqual(config.stt_language, "ar")
+            self.assertEqual(config.stt_torch_dtype, "bfloat16")
+        with patch.dict("os.environ", {"OKAL_STT_LANGUAGE": "mixed"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "OKAL_STT_LANGUAGE"):
+                VoiceConfig.from_env()
+        with patch.dict("os.environ", {"OKAL_STT_TORCH_DTYPE": "int8"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "OKAL_STT_TORCH_DTYPE"):
+                VoiceConfig.from_env()
+
+    def test_invalid_backend_is_rejected(self):
+        with patch.dict("os.environ", {"OKAL_STT_BACKEND": "remote-api"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "OKAL_STT_BACKEND"):
+                VoiceConfig.from_env()
+
     def test_hotwords_are_opt_in(self):
         with patch.dict("os.environ", {"OKAL_STT_HOTWORDS": "  README, pull request  "}):
             self.assertEqual(VoiceConfig.from_env().stt_hotwords, "README, pull request")
