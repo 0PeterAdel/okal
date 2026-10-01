@@ -232,11 +232,27 @@ unset OKAL_STT_HOTWORDS
 
 These phrases overlap recordings we have already inspected, so an improvement
 on the existing holdout is diagnostic only. For a credible release comparison,
-write a small product vocabulary *before* recording fresh, naturally spoken
-commands with new phrases and speakers; compare the same WAVs with the hints
-unset and set. Evaluate critical terms (`README` versus `ريدمي`, `commits`
-versus `comments`, complete `pull request`) and Arabic verbs as well as raw WER
-and latency. Do not silently replace command words after transcription.
+use the separate `vocabulary` suite: it fixes 12 new phrases in advance,
+including Arabic commands and sentences without any listed technical terms.
+Record once, then compare the same WAVs with the hints unset and set. Ideally
+ask another speaker to record the same suite in their own private directory.
+
+```bash
+bash scripts/record-voice-lab.sh voice-lab-vocabulary-audio vocabulary
+OKAL_STT_LANGUAGE_MODE=dual \
+bash scripts/run-voice-lab.sh voice-lab-vocabulary-audio --suite vocabulary \
+  --output voice-lab-vocabulary-control.json
+OKAL_STT_LANGUAGE_MODE=dual \
+OKAL_STT_HOTWORDS='README, commits, pull request, git status, VS Code, GitHub, Wi-Fi' \
+bash scripts/run-voice-lab.sh voice-lab-vocabulary-audio --suite vocabulary \
+  --output voice-lab-vocabulary-hotwords.json
+```
+
+Evaluate critical terms (`README` versus `ريدمي`, `commits` versus `comments`,
+complete `pull request`) and Arabic verbs as well as raw WER and latency. Check
+the sentences without listed terms for words the speaker did not say. The
+phrases are new, but a recording by the original speaker is not a new-speaker
+validation. Do not silently replace command words after transcription.
 Actual fine-tuning is a separate step requiring many labeled audio clips and
 their exact transcripts; a text-only word list cannot update model weights.
 

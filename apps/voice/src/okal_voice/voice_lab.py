@@ -43,7 +43,22 @@ HOLDOUT_CASES = [
     ("mix_04", "شغل الـ browser وافتح pull request رقم عشرة"),
 ]
 
-SUITES = {"baseline": CASES, "holdout": HOLDOUT_CASES}
+VOCABULARY_CASES = [
+    ("ar_01", "اقفل النافذة الحالية وافتح مجلد الصور"),
+    ("ar_02", "هات درجة حرارة المعالج وقولي المروحة شغالة ولا لأ"),
+    ("ar_03", "اكتب ملاحظة جديدة في ملف المصروفات"),
+    ("ar_04", "اقرأ لي عنوان آخر ملف في التنزيلات"),
+    ("en_01", "Find the README for this project and read the setup steps"),
+    ("en_02", "Show the last five commits without opening the editor"),
+    ("en_03", "Tell me whether the latest notes were saved today"),
+    ("mix_01", "افتح GitHub وشوف الـ pull request اللي اتعمل امبارح"),
+    ("mix_02", "اعمل git status وبعدها افتح VS Code"),
+    ("mix_03", "شغل الواي فاي وقولي عدد التغييرات في المشروع"),
+    ("mix_04", "افتح ملف الملاحظات وقولي آخر سطرين"),
+    ("mix_05", "افتح التيرمنال واعرض آخر سبع commits"),
+]
+
+SUITES = {"baseline": CASES, "holdout": HOLDOUT_CASES, "vocabulary": VOCABULARY_CASES}
 
 
 def _wer(reference: str, hypothesis: str) -> float | None:

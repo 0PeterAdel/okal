@@ -6,7 +6,8 @@ SUITE="${2:-baseline}"
 case "$SUITE" in
   baseline) default_dir="$ROOT_DIR/voice-lab-audio" ;;
   holdout) default_dir="$ROOT_DIR/voice-lab-holdout-audio" ;;
-  *) echo "Unknown Voice Lab suite: $SUITE (expected baseline or holdout)" >&2; exit 2 ;;
+  vocabulary) default_dir="$ROOT_DIR/voice-lab-vocabulary-audio" ;;
+  *) echo "Unknown Voice Lab suite: $SUITE (expected baseline, holdout, or vocabulary)" >&2; exit 2 ;;
 esac
 OUT_DIR="${1:-$default_dir}"
 umask 077

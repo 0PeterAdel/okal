@@ -52,6 +52,21 @@ class VoiceLabTests(unittest.TestCase):
             self.assertEqual(summary["suite"], "holdout")
             self.assertEqual(summary["cases"][0]["reference"], voice_lab.HOLDOUT_CASES[0][1])
 
+    def test_vocabulary_suite_is_new_and_has_unhinted_controls(self):
+        cases = voice_lab.VOCABULARY_CASES
+        self.assertEqual(len(cases), 12)
+        previous = {phrase for _, phrase in voice_lab.CASES + voice_lab.HOLDOUT_CASES}
+        self.assertFalse(previous & {phrase for _, phrase in cases})
+        hinted_terms = ("README", "commits", "pull request", "git status", "VS Code", "GitHub", "Wi-Fi")
+        self.assertTrue(any(not any(term in phrase for term in hinted_terms)
+                            for case_id, phrase in cases if case_id.startswith("mix_")))
+        with patch("sys.argv", ["okal-voice-lab", "--suite", "vocabulary", "--list-cases"]), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(voice_lab.main(), 0)
+        self.assertEqual(output.getvalue().splitlines(), [
+            f"{case_id}\t{phrase}" for case_id, phrase in cases
+        ])
+
     def test_language_hints_only_apply_to_known_language_cases(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
