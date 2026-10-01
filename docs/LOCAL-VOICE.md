@@ -367,11 +367,13 @@ bash scripts/run-stt-tournament.sh voice-lab-holdout-audio holdout
 ```
 
 The command writes owner-only JSON reports under `voice-lab-tournament/` and
-prints a comparison table. It runs QwenCleo with automatic language selection,
-QwenCleo with Arabic as the matrix language, Cohere with Arabic as the matrix
-language, and a diagnostic Cohere pass that uses the benchmark's known
-Arabic/English labels for pure-language clips. The diagnostic pass is not a
-production or release score.
+prints an Arabic/English/mixed comparison table. When the existing Okal voice
+environment is present, it first reruns the current Seif medium code-switched
+faster-whisper model as a control with the new metrics. It then runs QwenCleo
+with automatic language selection, QwenCleo with Arabic as the matrix language,
+Cohere with Arabic as the matrix language, and a diagnostic Cohere pass that
+uses the benchmark's known Arabic/English labels for pure-language clips. The
+diagnostic pass is not a production or release score.
 
 Voice Lab continues to report raw WER, and also reports normalized WER,
 normalized CER, recall of command/technical terms present in each reference,
