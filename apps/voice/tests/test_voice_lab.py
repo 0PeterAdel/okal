@@ -12,6 +12,23 @@ from okal_voice.providers import ProviderError
 
 
 class VoiceLabTests(unittest.TestCase):
+    def test_normalized_scoring_ignores_case_punctuation_and_common_arabic_variants(self):
+        self.assertEqual(
+            voice_lab._normalize_for_score("README, أفتح الـPDF!"),
+            voice_lab._normalize_for_score("readme افتح PDF"),
+        )
+
+    def test_critical_term_recall_tracks_actions_and_technical_entities(self):
+        score, required, matched = voice_lab._critical_term_recall(
+            "افتح ملف README واعرض آخر خمس commits",
+            "افتح ملف README واعرض آخر خمس comments",
+        )
+        self.assertIn("README", required)
+        self.assertIn("commits", required)
+        self.assertIn("README", matched)
+        self.assertNotIn("commits", matched)
+        self.assertLess(score, 1.0)
+
     def test_incomplete_run_fails_and_keeps_private_report(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
