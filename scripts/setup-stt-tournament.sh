@@ -54,6 +54,9 @@ Authenticate with a NEW token after accepting them:
 
 Do not paste the token into shell commands or commit it to this repository.
 
+Then prefetch both model snapshots with the reliable HTTP fallback:
+  bash scripts/download-stt-candidates.sh
+
 Then run:
-  bash scripts/run-stt-tournament.sh voice-lab-holdout-audio holdout
+  HF_HUB_DISABLE_XET=1 bash scripts/run-stt-tournament.sh voice-lab-holdout-audio holdout
 EOF
