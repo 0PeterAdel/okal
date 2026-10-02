@@ -3,17 +3,38 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
+import shlex
 import shutil
 import socket
 import sys
+import sysconfig
+from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from .config import VoiceConfig
 from .runtime import StateStore
 from .service import run_daemon
+
+
+def load_voice_environment(path: Path | None = None) -> None:
+    """Use the service settings for direct CLI checks, without executing the file."""
+    path = path or Path.home() / ".config/okal/voice.env"
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        try:
+            tokens = shlex.split(raw, comments=True)
+        except ValueError:
+            continue
+        if len(tokens) != 1 or "=" not in tokens[0]:
+            continue
+        key, value = tokens[0].split("=", 1)
+        if key.startswith("OKAL_") and key.replace("_", "").isalnum():
+            os.environ.setdefault(key, value)
 
 
 def send_control(request: dict) -> dict:
@@ -49,9 +70,24 @@ def doctor(config: VoiceConfig) -> tuple[int, list[dict]]:
     for binary in ("pw-record", "pw-play"):
         found = shutil.which(binary)
         add(binary, bool(found), found or "not installed")
-    whisper = shutil.which(config.whisper_bin)
-    add("whisper.cpp", bool(whisper), whisper or f"missing {config.whisper_bin}")
-    add("Whisper model", config.whisper_model.is_file(), str(config.whisper_model))
+    if config.stt_backend == "whisper.cpp":
+        whisper = shutil.which(config.whisper_bin)
+        add("whisper.cpp", bool(whisper), whisper or f"missing {config.whisper_bin}")
+        add("Whisper model", config.whisper_model.is_file(), str(config.whisper_model))
+    elif config.stt_backend == "faster-whisper":
+        installed = importlib.util.find_spec("faster_whisper") is not None
+        add("faster-whisper", installed, "installed" if installed else "run setup-local-voice-stack.sh")
+        if config.stt_model_dir:
+            ready = all((config.stt_model_dir / name).is_file() for name in ("model.bin", "config.json"))
+            add("STT model", ready, str(config.stt_model_dir))
+        else:
+            add("STT model", True, f"{config.stt_model} (cache verified on first use)")
+        if config.stt_device == "cuda":
+            packages = Path(sysconfig.get_path("purelib"))
+            ready = (packages / "nvidia/cublas/lib/libcublas.so.12").is_file() and (packages / "nvidia/cudnn/lib/libcudnn.so.9").is_file()
+            add("CUDA libraries", ready, "CUDA 12 cuBLAS and cuDNN 9" if ready else "run pip install '.[cuda]' in the voice environment")
+    else:
+        add("STT backend", True, f"{config.stt_backend} (model verified on first use)")
     try:
         with urlopen(f"{config.ollama_endpoint}/api/tags", timeout=2) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -64,10 +100,12 @@ def doctor(config: VoiceConfig) -> tuple[int, list[dict]]:
         add("Router model", False, config.router_model)
     piper = shutil.which(config.piper_bin)
     espeak = shutil.which(config.espeak_bin)
-    tts_ready = bool(
-        (piper and (config.piper_ar_model or config.piper_en_model)) or espeak
-    )
-    add("Local TTS", tts_ready, piper or espeak or "install Piper or espeak-ng")
+    silma_ready = bool(config.silma_enabled and config.silma_ref_audio and config.silma_ref_audio.is_file()
+                       and config.silma_ref_text and importlib.util.find_spec("silma_tts"))
+    piper_ready = bool(piper and any(model and model.is_file() for model in
+                                     (config.piper_ar_model, config.piper_en_model)))
+    add("Local TTS", bool(silma_ready or piper_ready or espeak),
+        "SILMA" if silma_ready else ("Piper" if piper_ready else (espeak or "configure SILMA reference or install a local fallback")))
     return (0 if all(item["ok"] for item in checks) else 1), checks
 
 
@@ -84,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_voice_environment()
     args = build_parser().parse_args(argv)
     if args.command == "run":
         return run_daemon()
