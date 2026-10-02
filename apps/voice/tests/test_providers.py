@@ -8,7 +8,7 @@ from unittest import mock
 from okal_voice.candidate_stt import CohereTranscribe, QwenCleoAsr, _candidate_source
 from okal_voice.config import VoiceConfig
 from okal_voice.contracts import RouteKind
-from okal_voice.providers import FasterWhisper, OllamaRouter, ProviderError, WhisperCpp, build_stt
+from okal_voice.providers import FasterWhisper, OllamaConversation, OllamaRouter, ProviderError, WhisperCpp, build_stt
 
 
 class Response(AbstractContextManager):
@@ -40,6 +40,17 @@ class RouterTests(unittest.TestCase):
         sent = json.loads(request.data.decode("utf-8"))
         self.assertFalse(sent["think"])
         self.assertNotIn("tools", sent)
+        self.assertEqual(sent["keep_alive"], "5m")
+
+    def test_large_conversation_model_has_no_tools_and_unloads(self):
+        opener = mock.Mock(return_value=Response({"message": {"content": "أهلاً، أنا معاك."}}))
+        chat = OllamaConversation(VoiceConfig(conversation_model="command-r7b-arabic"), opener=opener)
+        self.assertEqual(chat.reply("عامل إيه؟"), "أهلاً، أنا معاك.")
+        sent = json.loads(opener.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent["model"], "command-r7b-arabic")
+        self.assertEqual(sent["keep_alive"], 0)
+        self.assertNotIn("tools", sent)
+
 
     def test_malformed_output_fails_closed(self):
         opener = mock.Mock(return_value=Response({"message": {"content": "not json"}}))
