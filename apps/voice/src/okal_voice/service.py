@@ -12,8 +12,8 @@ from typing import Protocol
 
 from .capture import CaptureError, PipeWireCapture
 from .config import VoiceConfig
-from .contracts import RouteDecision, VoicePhase, VoiceSnapshot
-from .providers import LocalTts, OllamaRouter, ProviderError, build_stt
+from .contracts import RouteDecision, RouteKind, VoicePhase, VoiceSnapshot
+from .providers import LocalTts, OllamaConversation, OllamaRouter, ProviderError, build_stt
 from .runtime import StateStore
 
 
@@ -30,12 +30,15 @@ class Tts(Protocol):
 
 
 class VoiceService:
-    def __init__(self, config: VoiceConfig | None = None, store: StateStore | None = None, *, capture=None, stt: Stt | None = None, router: Router | None = None, tts: Tts | None = None):
+    def __init__(self, config: VoiceConfig | None = None, store: StateStore | None = None, *, capture=None, stt: Stt | None = None, router: Router | None = None, tts: Tts | None = None, conversation=None):
         self.config = config or VoiceConfig.from_env()
         self.store = store or StateStore()
         self.capture = capture or PipeWireCapture(self.store, sample_rate=self.config.sample_rate)
         self.stt = stt or build_stt(self.config)
         self.router = router or OllamaRouter(self.config)
+        self.conversation = conversation if conversation is not None else (
+            OllamaConversation(self.config) if self.config.conversation_model else None
+        )
         self.tts = tts or LocalTts(self.config)
         self.phase = VoicePhase.IDLE
         self.session_id = ""
@@ -152,6 +155,10 @@ class VoiceService:
         if decision.route.value == "blocked":
             self._publish(VoicePhase.BLOCKED, text=display, language=decision.language, route=decision.route.value)
             return
+        if decision.route is RouteKind.CONVERSATION and self.conversation is not None:
+            display = self.conversation.reply(transcript)
+            if self._cancel.is_set():
+                return
         self._publish(VoicePhase.SPEAKING, text=display, language=decision.language, route=decision.route.value)
         try:
             self.tts.speak(display, decision.language)
