@@ -20,6 +20,13 @@ No cloud fallback exists. Ollama's HTTP interface is accepted only on loopback.
 This slice cannot run tools, shell commands, desktop actions, GitHub writes, or
 approvals. A future Control Kernel will consume the route event under policy.
 
+The small `qwen3:0.6b` model classifies intent; its short reply is not a
+full conversational assistant. For an optional conversational trial,
+`OKAL_CONVERSATION_MODEL` sends only `conversation` routes to a separate
+larger local Ollama model. Task, dictation, clarify, and blocked routes are
+never sent to it. Both Ollama requests use `keep_alive=0` so their GPU memory
+can be released before speech synthesis. The trial has no tool access.
+
 ## Selected local profile
 
 | Concern | Current choice | Reason |
@@ -164,6 +171,49 @@ export OKAL_SILMA_REF_TEXT='exact words spoken in the reference recording'
 If SILMA is unavailable, Okal falls back to a reviewed Piper voice when configured,
 then `espeak-ng`. A fallback is reported as such; it is not counted as the target
 voice-quality result.
+
+## Voice quality trial: Egyptian speech and warmer conversation
+
+SILMA or `espeak-ng` speech is insufficient evidence for a pleasant assistant
+voice. `VoiceTut-TTS` is a 0.6B Egyptian Arabic / English code-switching model
+with built-in voices; its authors report about 2.93 GB peak VRAM on a T4 in
+FP16. That is a published figure, not a measurement on the reference RTX 4060.
+An isolated environment avoids changing the existing STT and SILMA packages.
+
+```bash
+bash scripts/run-tts-voice-lab.sh --setup
+bash scripts/run-tts-voice-lab.sh
+```
+
+The first command downloads dependencies; the second downloads the model on
+first use and writes private WAVs plus a timing/VRAM manifest in
+`voice-lab-tts/`. Listen to each speaker's greeting, practical response, and
+Arabic/English sentence. Check pronunciation, Egyptian accent, warmth, natural
+pauses, code-switching, delay, and whether the exact words were spoken. Run
+`bash scripts/run-tts-voice-lab.sh --list-speakers` or use
+`--speaker Asmaa --speaker Mohamed` to narrow the trial. This does not
+silently replace the service voice. A chosen voice needs a target-machine
+listening decision and a separate service adapter.
+
+The response text can also sound cold even with good audio: the default tiny
+router only classifies. To try fuller Egyptian replies in conversation, install
+the local `command-r7b-arabic` Ollama model (about 5.1 GB on disk) and add
+`OKAL_CONVERSATION_MODEL=command-r7b-arabic` to
+`~/.config/okal/voice.env`:
+
+```bash
+ollama pull command-r7b-arabic
+systemctl --user restart okal-voice.service
+okal voice doctor
+okal voice say 'مساء الخير، عامل إيه؟'
+```
+
+Edit the environment file before the restart. The model is opt-in because an
+8 GB GPU must also accommodate STT, context, and TTS. Watch `nvidia-smi`,
+latency, and any fallback to CPU while testing. The response model never
+receives tool access, and the route log stays classification-only. It may
+still misread a request or produce inaccurate text; review actual replies
+before promoting it.
 
 ## Voice Lab
 
