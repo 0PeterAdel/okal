@@ -197,6 +197,7 @@ class OllamaRouter:
             {
                 "model": self.config.router_model,
                 "stream": False,
+                "keep_alive": 0 if self.config.conversation_model else "5m",
                 "format": ROUTER_SCHEMA,
                 "messages": [
                     {"role": "system", "content": ROUTER_SYSTEM},
@@ -221,6 +222,51 @@ class OllamaRouter:
             return RouteDecision.from_json(content)
         except (KeyError, TypeError, ContractError) as exc:
             raise ProviderError(f"router response failed its contract: {exc}") from exc
+
+
+CONVERSATION_SYSTEM = """You are Okal, a warm, capable personal assistant.
+When the user speaks Arabic, reply in natural Egyptian Arabic with a friendly,
+calm tone. Match the user's language for English or mixed messages. Be concise,
+clear, and human-sounding without excessive praise or canned greetings.
+You have no tools in this conversation and cannot act on the computer.
+Never claim a task was done. If current or private information is unavailable,
+say so honestly. Do not output instructions for executing dangerous commands."""
+
+
+class OllamaConversation:
+    """Optional larger local model for chat replies, after intent classification."""
+
+    def __init__(self, config: VoiceConfig, *, opener: Callable = urlopen):
+        if not config.conversation_model:
+            raise ValueError("conversation model is not configured")
+        self.config = config
+        self.endpoint = validate_loopback_endpoint(config.ollama_endpoint)
+        self.opener = opener
+
+    def reply(self, transcript: str) -> str:
+        body = json.dumps({
+            "model": self.config.conversation_model,
+            "stream": False,
+            "keep_alive": 0,
+            "messages": [
+                {"role": "system", "content": CONVERSATION_SYSTEM},
+                {"role": "user", "content": transcript[:4000]},
+            ],
+            "options": {"temperature": 0.6, "num_ctx": 2048, "num_predict": 180},
+        }, ensure_ascii=False).encode("utf-8")
+        request = Request(
+            f"{self.endpoint}/api/chat", data=body, method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with self.opener(request, timeout=max(90.0, self.config.request_timeout_seconds)) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            reply = payload["message"]["content"].strip()
+        except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+            raise ProviderError(f"local conversation model failed: {exc}") from exc
+        if not reply:
+            raise ProviderError("local conversation model returned an empty reply")
+        return reply
 
 
 class SilmaTts:
