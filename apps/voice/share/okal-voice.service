@@ -8,6 +8,7 @@ StartLimitBurst=3
 
 [Service]
 Type=simple
+EnvironmentFile=%h/.config/okal/voice.env
 ExecStart=%h/.local/bin/okal voice run
 Restart=on-failure
 RestartSec=3
