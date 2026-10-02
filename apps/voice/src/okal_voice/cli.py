@@ -95,9 +95,16 @@ def doctor(config: VoiceConfig) -> tuple[int, list[dict]]:
         present = config.router_model in names or any(name.startswith(f"{config.router_model}:") for name in names)
         add("Ollama", True, config.ollama_endpoint)
         add("Router model", present, config.router_model)
+        if config.conversation_model:
+            chat_present = config.conversation_model in names or any(
+                name.startswith(f"{config.conversation_model}:") for name in names
+            )
+            add("Conversation model", chat_present, config.conversation_model)
     except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         add("Ollama", False, str(exc))
         add("Router model", False, config.router_model)
+        if config.conversation_model:
+            add("Conversation model", False, config.conversation_model)
     piper = shutil.which(config.piper_bin)
     espeak = shutil.which(config.espeak_bin)
     silma_ready = bool(config.silma_enabled and config.silma_ref_audio and config.silma_ref_audio.is_file()
