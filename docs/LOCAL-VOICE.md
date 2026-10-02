@@ -413,8 +413,32 @@ ollama pull qwen3:0.6b
 okal voice doctor
 ```
 
-The existing installer still handles the native user service, orb, binding,
-and rollback. No root service, secret, paid account, or external API is needed.
+The installer copies the app and creates the native user service, orb, and
+binding. It uses the isolated `.venv-okal-voice` Python and its CUDA 12 libraries.
+Keep the checkout and virtual environment at the same path while the service is
+installed. Service settings are saved in `~/.config/okal/voice.env` (mode
+`0600`), which direct `okal voice doctor` checks also read. Existing settings
+survive reinstall. Edit `OKAL_STT_MODEL_DIR` there if you choose another local
+CTranslate2 model, then run `systemctl --user restart okal-voice.service`.
+The installer defaults to the converted Egyptian model and experimental dual
+decoding; it does not download any model. The fallback `espeak-ng` permits an
+initial audible test before configuring SILMA.
+
+For a first hardware smoke test, check `systemctl --user status
+okal-voice.service`, then run `okal voice say 'مساء الخير'`. The orb should show
+the routed response and the local TTS should speak. Press `SUPER + SHIFT + O`,
+speak a short command, and press it again. Check `okal voice status` for the
+phase and displayed reply; inspect `journalctl --user -u okal-voice.service -n 80`
+if a stage fails. The router classifies tasks but never executes them. Try
+`okal voice cancel` while recording and verify the mic capture stops.
+
+To use SILMA, record an authorized 5–10 second reference into
+`~/.local/share/okal/voice/ref.wav` and add `OKAL_SILMA_REF_AUDIO` (absolute
+path) and `OKAL_SILMA_REF_TEXT` (the exact spoken words) to
+`~/.config/okal/voice.env`; restart the service. `okal voice doctor` reports
+the active TTS provider. A fallback result is not SILMA quality evidence.
+
+No root service, secret, paid account, or external API is needed.
 
 ## Privacy and failure behavior
 
