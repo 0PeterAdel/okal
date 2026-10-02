@@ -13,12 +13,10 @@ VOICE_PYTHON="$SOURCE/.venv-okal-voice/bin/python"
 ENV_DIR="$HOME/.config/okal"
 ENV_FILE="$ENV_DIR/voice.env"
 
-for command in pw-record; do
-  if ! command -v "$command" >/dev/null 2>&1; then
-    printf 'ERROR: required command is missing: %s\n' "$command" >&2
-    exit 1
-  fi
-done
+if ! command -v pw-record >/dev/null 2>&1; then
+  echo "ERROR: required command is missing: pw-record" >&2
+  exit 1
+fi
 
 if [[ ! -x "$VOICE_PYTHON" ]]; then
   echo "ERROR: voice environment is missing. Run: bash scripts/setup-local-voice-stack.sh" >&2
