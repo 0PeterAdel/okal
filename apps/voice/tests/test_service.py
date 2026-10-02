@@ -58,6 +58,15 @@ class FakeTts:
         return "fake"
 
 
+class FakeConversation:
+    def __init__(self):
+        self.calls = []
+
+    def reply(self, transcript):
+        self.calls.append(transcript)
+        return "يا أهلا، أنا معاك. تحب نبدأ بإيه؟"
+
+
 class VoiceServiceTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -134,6 +143,20 @@ class VoiceServiceTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(self.service.phase, VoicePhase.BLOCKED)
 
+    def test_opt_in_conversation_uses_large_model_only_for_chat(self):
+        conversation = FakeConversation()
+        self.service.conversation = conversation
+        self.service.say("مساء الخير")
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(conversation.calls, ["مساء الخير"])
+        self.assertEqual(self.tts.calls[-1][0], "يا أهلا، أنا معاك. تحب نبدأ بإيه؟")
+        self.router.route = lambda _: RouteDecision(
+            RouteKind.TASK, "ar", "فتح المتصفح", "فهمت طلبك", 0.9
+        )
+        self.service.say("افتح المتصفح")
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(conversation.calls, ["مساء الخير"])
+        self.assertEqual(self.tts.calls[-1][0], "فهمت طلبك")
 
 if __name__ == "__main__":
     unittest.main()
