@@ -185,8 +185,8 @@ bash scripts/run-tts-voice-lab.sh --setup
 bash scripts/run-tts-voice-lab.sh
 ```
 
-The first command downloads dependencies; the second downloads the model on
-first use and writes private WAVs plus a timing/VRAM manifest in
+The first command downloads dependencies; the second uses cached model files
+and writes private WAVs plus a timing/VRAM manifest in
 `voice-lab-tts/`. Listen to each speaker's greeting, practical response, and
 Arabic/English sentence. Check pronunciation, Egyptian accent, warmth, natural
 pauses, code-switching, delay, and whether the exact words were spoken. Run
@@ -194,6 +194,36 @@ pauses, code-switching, delay, and whether the exact words were spoken. Run
 `--speaker Asmaa --speaker Mohamed` to narrow the trial. This does not
 silently replace the service voice. A chosen voice needs a target-machine
 listening decision and a separate service adapter.
+
+### Recover a stopped VoiceTut download without spending more data
+
+The initial lab accidentally requested the entire Hugging Face model repository,
+including `optimizer.bin` (a 4.9 GB training artifact). The inference checkpoint
+is `model.safetensors` (2.45 GB). OmniVoice also needs a separate Higgs audio
+tokenizer checkpoint (806 MB). The lab now checks both existing caches before
+loading and forces Hub offline mode; it cannot start a network download.
+
+After pulling the update, inspect the local cache for one voice first:
+
+```bash
+bash scripts/run-tts-voice-lab.sh --cache-status --speaker Asmaa
+```
+
+If the check passes, run only that speaker and listen. Other speakers may need
+small reference clips which the cache check reports before any model load:
+
+```bash
+bash scripts/run-tts-voice-lab.sh --speaker Asmaa &&
+pw-play voice-lab-tts/asmaa-greeting.wav
+```
+
+If the check lists `model.safetensors` or the Higgs audio tokenizer, stop here.
+The old 4.21 GB transfer does not prove those files completed, and no offline
+command can reconstruct absent weights. Do not delete the Hugging Face cache or
+rerun the original lab: it could spend more data. The incomplete optimizer file
+is irrelevant for inference and is deliberately ignored. When you have access
+to a local copy of the missing checkpoint later, it can be reused without
+reinstalling the voice environment or rerecording anything.
 
 If setup stopped at `torchaudio` with Python 3.13, pull the updated script
 and rerun `--setup`. The old CUDA 12.1 index had a compatible `torch` wheel
