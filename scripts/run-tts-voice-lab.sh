@@ -28,4 +28,10 @@ fi
 
 umask 077
 export PYTHONPATH="$ROOT_DIR/apps/voice/src${PYTHONPATH:+:$PYTHONPATH}"
+if [[ "${1:-}" == "--download-missing" ]]; then
+  # The earlier Xet reconstruction failed after several GB. The regular
+  # transfer path keeps incomplete blobs in the same cache for later retries.
+  export HF_HUB_DISABLE_XET=1
+  export HF_HUB_DOWNLOAD_TIMEOUT="${HF_HUB_DOWNLOAD_TIMEOUT:-120}"
+fi
 exec "$LAB_PYTHON" -m okal_voice.tts_lab "$@"
