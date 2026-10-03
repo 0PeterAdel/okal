@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--speaker", choices=SPEAKERS, action="append")
     parser.add_argument("--list-speakers", action="store_true")
     parser.add_argument("--cache-status", action="store_true", help="Inspect local model files without network or CUDA")
+    parser.add_argument("--download-missing", action="store_true", help="Fetch only inference files into the existing cache")
     return parser
 
 
@@ -62,12 +63,60 @@ def check_cache(speakers: tuple[str, ...]) -> tuple[Path | None, list[str]]:
     return voice, missing
 
 
+def download_missing(speakers: tuple[str, ...]) -> None:
+    """Download inference files one by one, preserving cached and partial blobs."""
+    from huggingface_hub import hf_hub_download
+
+    groups = (
+        (VOICE_REPO, (
+            ("config.json", 1),
+            ("tokenizer.json", 1),
+            ("tokenizer_config.json", 1),
+            ("chat_template.jinja", 1),
+            ("reference_speakers/references.json", 1),
+            *((f"reference_speakers/{speaker}_clean.wav", 1) for speaker in speakers),
+            ("model.safetensors", 2_000_000_000),
+        )),
+        (TOKENIZER_REPO, (
+            ("config.json", 1),
+            ("preprocessor_config.json", 1),
+            ("model.safetensors", 700_000_000),
+        )),
+    )
+    for repo, files in groups:
+        snapshot = cached_snapshot(repo)
+        # A commit hash keeps the same ETags and partial blob names across
+        # separate runs even if the upstream main branch moves in between.
+        revision = snapshot.name if snapshot is not None else "main"
+        for name, minimum in files:
+            path = snapshot / name if snapshot is not None else None
+            if path is not None and path.is_file() and path.stat().st_size >= minimum:
+                print(f"Cached: {repo}/{name}", flush=True)
+                continue
+            print(f"Fetching: {repo}/{name} (safe to retry with this same command)", flush=True)
+            hf_hub_download(repo, name, revision=revision)
+            if snapshot is None:
+                snapshot = cached_snapshot(repo)
+                if snapshot is None:
+                    raise RuntimeError(f"Hub did not cache a pinned revision for {repo}")
+                revision = snapshot.name
+    _, missing = check_cache(speakers)
+    if missing:
+        raise RuntimeError("Download returned but required files remain missing: " + ", ".join(missing))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.list_speakers:
         print("\n".join(SPEAKERS))
         return 0
     speakers = tuple(dict.fromkeys(args.speaker or SPEAKERS))
+    if args.download_missing:
+        if os.environ.get("HF_HUB_OFFLINE", "").lower() in {"1", "true", "yes", "on"}:
+            raise SystemExit("HF_HUB_OFFLINE is enabled. Unset it before --download-missing.")
+        download_missing(speakers)
+        print("Inference files ready in the existing cache. Run --cache-status, then try one speaker.")
+        return 0
     model_path, missing = check_cache(speakers)
     if missing:
         print("VoiceTut local cache is incomplete. No download started. Missing:")
