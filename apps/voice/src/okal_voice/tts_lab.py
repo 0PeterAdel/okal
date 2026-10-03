@@ -31,7 +31,6 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(SPEAKERS))
         return 0
     os.umask(0o077)
-    args.output.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
         import torch
         from voicetut_tts import VoiceTutTTS
@@ -40,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     if not torch.cuda.is_available():
         raise SystemExit("CUDA is unavailable in the isolated VoiceTut environment.")
     engine = VoiceTutTTS.from_pretrained("mohammedaly22/VoiceTut-TTS")
+    args.output.mkdir(mode=0o700, parents=True, exist_ok=True)
     results = []
     for speaker in dict.fromkeys(args.speaker or SPEAKERS):
         for name, text in PHRASES.items():
