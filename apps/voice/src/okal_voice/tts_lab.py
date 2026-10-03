@@ -10,6 +10,8 @@ from pathlib import Path
 
 
 SPEAKERS = ("Asmaa", "Hanan", "Mohamed", "Omar")
+VOICE_REPO = "mohammedaly22/VoiceTut-TTS"
+TOKENIZER_REPO = "eustlb/higgs-audio-v2-tokenizer"
 PHRASES = {
     "greeting": "أهلاً يا بيتر، عامل إيه؟ أنا معاك، قول لي تحب نبدأ بإيه.",
     "assistant": "تمام، هبص على آخر تعديل في المشروع وألخصهولك ببساطة.",
@@ -22,7 +24,42 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, default=Path("voice-lab-tts"))
     parser.add_argument("--speaker", choices=SPEAKERS, action="append")
     parser.add_argument("--list-speakers", action="store_true")
+    parser.add_argument("--cache-status", action="store_true", help="Inspect local model files without network or CUDA")
     return parser
+
+
+def cached_snapshot(repo: str) -> Path | None:
+    """Find the cached main revision without asking the Hub for metadata."""
+    cache = Path(os.environ.get("HF_HUB_CACHE") or Path(os.environ.get("HF_HOME", Path.home() / ".cache/huggingface")) / "hub")
+    root = cache / ("models--" + repo.replace("/", "--"))
+    ref = root / "refs/main"
+    if not ref.is_file():
+        return None
+    revision = ref.read_text(encoding="utf-8").strip()
+    if len(revision) != 40 or any(ch not in "0123456789abcdef" for ch in revision):
+        return None
+    return root / "snapshots" / revision
+
+
+def check_cache(speakers: tuple[str, ...]) -> tuple[Path | None, list[str]]:
+    voice = cached_snapshot(VOICE_REPO)
+    tokenizer = cached_snapshot(TOKENIZER_REPO)
+    expected = (
+        (voice, "VoiceTut", "config.json", 1),
+        (voice, "VoiceTut", "model.safetensors", 2_000_000_000),
+        (voice, "VoiceTut", "tokenizer.json", 1),
+        (voice, "VoiceTut", "reference_speakers/references.json", 1),
+        *((voice, "VoiceTut", f"reference_speakers/{speaker}_clean.wav", 1) for speaker in speakers),
+        (tokenizer, "Higgs audio tokenizer", "config.json", 1),
+        (tokenizer, "Higgs audio tokenizer", "model.safetensors", 700_000_000),
+        (tokenizer, "Higgs audio tokenizer", "preprocessor_config.json", 1),
+    )
+    missing = [
+        f"{label}: {name}"
+        for root, label, name, minimum in expected
+        if root is None or not (root / name).is_file() or (root / name).stat().st_size < minimum
+    ]
+    return voice, missing
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +67,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.list_speakers:
         print("\n".join(SPEAKERS))
         return 0
+    speakers = tuple(dict.fromkeys(args.speaker or SPEAKERS))
+    model_path, missing = check_cache(speakers)
+    if missing:
+        print("VoiceTut local cache is incomplete. No download started. Missing:")
+        for item in missing:
+            print(f"  {item}")
+        return 2
+    if args.cache_status:
+        print("VoiceTut and audio tokenizer are cached for the selected speakers. No download started.")
+        return 0
+    # The upstream loader resolves missing components from the Hub; disable
+    # those requests even if its cache layout changes after this preflight.
+    os.environ["HF_HUB_OFFLINE"] = "1"
     os.umask(0o077)
     try:
         import torch
@@ -38,10 +88,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"VoiceTut dependencies missing: {exc}. Run --setup.") from exc
     if not torch.cuda.is_available():
         raise SystemExit("CUDA is unavailable in the isolated VoiceTut environment.")
-    engine = VoiceTutTTS.from_pretrained("mohammedaly22/VoiceTut-TTS")
+    engine = VoiceTutTTS.from_pretrained(str(model_path))
     args.output.mkdir(mode=0o700, parents=True, exist_ok=True)
     results = []
-    for speaker in dict.fromkeys(args.speaker or SPEAKERS):
+    for speaker in speakers:
         for name, text in PHRASES.items():
             path = args.output / f"{speaker.lower()}-{name}.wav"
             torch.cuda.reset_peak_memory_stats()
