@@ -195,6 +195,14 @@ pauses, code-switching, delay, and whether the exact words were spoken. Run
 silently replace the service voice. A chosen voice needs a target-machine
 listening decision and a separate service adapter.
 
+If setup stopped at `torchaudio` with Python 3.13, pull the updated script
+and rerun `--setup`. The old CUDA 12.1 index had a compatible `torch` wheel
+but no matching `torchaudio` wheel. The lab now installs the matching
+2.9.1 CUDA 12.6 pair in its separate environment. It preserves that
+environment across retries; the earlier CUDA 12.1 download cannot satisfy
+this pair. Chain the sample generation and playback with `&&` so a failed
+download does not attempt to play a nonexistent WAV.
+
 The response text can also sound cold even with good audio: the default tiny
 router only classifies. To try fuller Egyptian replies in conversation, install
 the local `command-r7b-arabic` Ollama model (about 5.1 GB on disk) and add
