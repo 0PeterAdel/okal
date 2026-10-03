@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "okal.voice",
+  "name": "Okal Voice Orb",
+  "version": "0.0.1",
+  "author": "Okal contributors",
+  "description": "A local-only, click-through voice status orb for Okal.",
+  "kinds": ["panel"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "VoiceOrb.qml"
+  }
+}
