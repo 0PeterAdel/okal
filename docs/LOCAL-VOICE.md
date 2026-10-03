@@ -225,6 +225,31 @@ is irrelevant for inference and is deliberately ignored. When you have access
 to a local copy of the missing checkpoint later, it can be reused without
 reinstalling the voice environment or rerecording anything.
 
+When bandwidth is available, fetch just the inference files for one speaker:
+
+```bash
+bash scripts/run-tts-voice-lab.sh --download-missing --speaker Asmaa
+```
+
+The command selects the old VoiceTut revision already recorded in the local
+cache, downloads individual files into the same Hugging Face cache, disables
+the Xet transfer path that failed here, and skips completed files. It never
+requests `optimizer.bin`, random training states, or every speaker clip. The
+remaining large inference files can require about 2.45 GB for VoiceTut and
+806 MB for the separate audio tokenizer, plus small files. This is a rough
+file-size budget, not a promise about actual network traffic or recovery of
+the earlier failed Xet transfer.
+
+If connectivity or the data allowance runs out, stop the command with Ctrl+C
+and later run **the same command**. Keep the same machine, Hugging Face cache,
+and virtual environment; the regular transfer path retains `.incomplete`
+blobs for resume when supported by the server. Do not pass `--setup`, clear
+the cache, use `hf cache prune`, or change `HF_HOME`/`HF_HUB_CACHE` in between.
+Some bytes from the earlier Xet reconstruction failure may be unrecoverable;
+we cannot guarantee zero repeated traffic. `--cache-status --speaker Asmaa`
+always remains safe to run without an internet connection. Only after it
+passes should you synthesize and play the sample.
+
 If setup stopped at `torchaudio` with Python 3.13, pull the updated script
 and rerun `--setup`. The old CUDA 12.1 index had a compatible `torch` wheel
 but no matching `torchaudio` wheel. The lab now installs the matching
