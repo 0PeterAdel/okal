@@ -127,19 +127,19 @@ class VoiceServiceTests(unittest.TestCase):
 
     def test_router_failure_is_visible_and_never_speaks(self):
         self.router.failure = ProviderError("bad router")
-        self.service.say("hello")
+        self.service.ask("hello")
         self.wait_for(VoicePhase.ERROR)
         self.assertEqual(self.tts.calls, [])
 
     def test_tts_failure_keeps_text_visible_without_rerouting(self):
         self.tts.failure = ProviderError("no voice")
-        self.service.say("hello")
+        self.service.ask("hello")
         self.wait_for(VoicePhase.ERROR)
         self.assertEqual(self.router.calls, ["hello"])
         self.assertIn("مساء النور", self.store.read().text)
 
     def test_empty_typed_request_is_blocked(self):
-        response = self.service.say("  ")
+        response = self.service.ask("  ")
         self.assertFalse(response["ok"])
         self.assertEqual(self.service.phase, VoicePhase.BLOCKED)
 
@@ -147,7 +147,7 @@ class VoiceServiceTests(unittest.TestCase):
         self.router.route = lambda _: RouteDecision(
             RouteKind.CONVERSATION, "en", "English greeting", "May you have a peaceful day, Peter.", 0.8
         )
-        self.service.say("مساء الخير يا بيتر")
+        self.service.ask("مساء الخير يا بيتر")
         self.wait_for(VoicePhase.IDLE)
         self.assertEqual(self.tts.calls, [("مساء النور يا بيتر، أنا معاك. تحب نبدأ بإيه؟", "ar")])
         self.assertEqual(self.store.read().language, "ar")
@@ -156,21 +156,31 @@ class VoiceServiceTests(unittest.TestCase):
         self.router.route = lambda _: RouteDecision(
             RouteKind.CONVERSATION, "ar", "تحية", "Good evening, Peter.", 0.8
         )
-        self.service.say("Good evening, Peter")
+        self.service.ask("Good evening, Peter")
         self.wait_for(VoicePhase.IDLE)
         self.assertEqual(self.tts.calls, [("Good evening, Peter.", "en")])
+
+    def test_say_speaks_exact_text_without_router_or_conversation(self):
+        self.service.conversation = FakeConversation()
+        response = self.service.handle({"command": "say", "text": "مساء الخير يا بيتر"})
+        self.assertEqual(response, {"ok": True, "phase": "speaking"})
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(self.tts.calls, [("مساء الخير يا بيتر", "ar")])
+        self.assertEqual(self.router.calls, [])
+        self.assertEqual(self.service.conversation.calls, [])
+        self.assertFalse(self.store.route_path.exists())
 
     def test_opt_in_conversation_uses_large_model_only_for_chat(self):
         conversation = FakeConversation()
         self.service.conversation = conversation
-        self.service.say("مساء الخير")
+        self.service.ask("مساء الخير")
         self.wait_for(VoicePhase.IDLE)
         self.assertEqual(conversation.calls, ["مساء الخير"])
         self.assertEqual(self.tts.calls[-1][0], "يا أهلا، أنا معاك. تحب نبدأ بإيه؟")
         self.router.route = lambda _: RouteDecision(
             RouteKind.TASK, "ar", "فتح المتصفح", "فهمت طلبك", 0.9
         )
-        self.service.say("افتح المتصفح")
+        self.service.ask("افتح المتصفح")
         self.wait_for(VoicePhase.IDLE)
         self.assertEqual(conversation.calls, ["مساء الخير"])
         self.assertEqual(self.tts.calls[-1][0], "فهمت طلبك")
