@@ -286,9 +286,11 @@ service. This saves repeated loading time but keeps roughly the lab's 2 GB of
 GPU memory in use while idle. The router receives an explicit Egyptian Arabic
 instruction; if it still answers an Arabic-only greeting in English, the
 service replaces that text with a short Egyptian Arabic greeting before speech.
-`okal voice say` accepts the request asynchronously: the initial JSON response
-only confirms routing has started. Compare the overlay text and audio after it
-finishes; repeat once to check the warm renderer. No model download is needed.
+`okal voice say 'مساء الخير يا بيتر'` now speaks those exact words without routing
+them through Ollama. It accepts the request asynchronously: the initial JSON
+response reports `speaking`, then the orb shows the same text while Asmaa speaks.
+Use `okal voice ask 'مساء الخير يا بيتر'` for a conversational reply. Repeat
+`say` once to check the warm renderer. No model download is needed.
 To revert
 without deleting any downloaded files, set `OKAL_VOICETUT_ENABLED=0` and
 restart `okal-voice.service`.
@@ -311,7 +313,7 @@ the local `command-r7b-arabic` Ollama model (about 5.1 GB on disk) and add
 ollama pull command-r7b-arabic
 systemctl --user restart okal-voice.service
 okal voice doctor
-okal voice say 'مساء الخير، عامل إيه؟'
+okal voice ask 'مساء الخير، عامل إيه؟'
 ```
 
 Edit the environment file before the restart. The model is opt-in because an
@@ -582,7 +584,8 @@ initial audible test before configuring SILMA.
 
 For a first hardware smoke test, check `systemctl --user status
 okal-voice.service`, then run `okal voice say 'مساء الخير'`. The orb should show
-the routed response and the local TTS should speak. Press `SUPER + SHIFT + O`,
+the exact supplied words and the local TTS should speak. Use
+`okal voice ask 'مساء الخير'` to test a routed reply. Press `SUPER + SHIFT + O`,
 speak a short command, and press it again. Check `okal voice status` for the
 phase and displayed reply; inspect `journalctl --user -u okal-voice.service -n 80`
 if a stage fails. The router classifies tasks but never executes them. Try
