@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import shutil
 import statistics
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Callable
 from urllib.error import HTTPError, URLError
@@ -179,7 +182,9 @@ Return only JSON matching the supplied schema. You have no tools and no permissi
 Routes: conversation for ordinary chat and questions; task for a request that should later be
 handled by the governed kernel; dictation only when the user explicitly asks to type/write their
 words; clarify when the intended route is genuinely unclear; blocked for requests to bypass safety.
-Keep summary and reply short. Reply in the user's language. Never emit commands, code to execute,
+Keep summary and reply short. For Arabic input, use Egyptian Arabic in both summary and reply,
+even if your internal classification prefers English. For English input use English.
+Never emit commands, code to execute,
 tool names, credentials, or authorization decisions. For task, acknowledge that it was understood
 and will be handed to the governed kernel; do not claim it ran."""
 
@@ -311,10 +316,71 @@ class SilmaTts:
 
 
 class VoiceTutTts:
-    """Run the opt-in Egyptian voice in its isolated Python environment."""
+    """Keep an isolated offline renderer loaded for the life of the service."""
 
     def __init__(self, config: VoiceConfig):
         self.config = config
+        self._process: subprocess.Popen | None = None
+        self._buffer = b""
+        self._lock = threading.Lock()
+
+    def _stop(self) -> None:
+        process = self._process
+        self._process = None
+        self._buffer = b""
+        if process is None:
+            return
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+        if process.stdin:
+            process.stdin.close()
+        if process.stdout:
+            process.stdout.close()
+
+    def close(self) -> None:
+        with self._lock:
+            self._stop()
+
+    def _message(self, timeout: float) -> dict:
+        process = self._process
+        assert process is not None and process.stdout is not None
+        deadline = time.monotonic() + timeout
+        while True:
+            if b"\n" in self._buffer:
+                line, self._buffer = self._buffer.split(b"\n", 1)
+                if line.startswith(b"OKAL_TTS "):
+                    return json.loads(line[len(b"OKAL_TTS "):].decode("utf-8"))
+                continue
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderError("VoiceTut timed out while loading or synthesizing")
+            ready, _, _ = select.select([process.stdout], [], [], remaining)
+            if not ready:
+                raise ProviderError("VoiceTut timed out while loading or synthesizing")
+            chunk = os.read(process.stdout.fileno(), 4096)
+            if not chunk:
+                raise ProviderError("VoiceTut process exited before producing audio")
+            self._buffer += chunk
+            if len(self._buffer) > 65536:
+                raise ProviderError("VoiceTut returned an oversized response")
+
+    def _start(self, python: Path, speaker: str) -> None:
+        package_root = str(Path(__file__).resolve().parent.parent)
+        env = os.environ.copy()
+        env["PYTHONPATH"] = package_root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        env["HF_HUB_OFFLINE"] = "1"
+        self._process = subprocess.Popen(
+            [str(python), "-m", "okal_voice.tts_worker", "--speaker", speaker, "--serve"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env,
+        )
+        ready = self._message(120)
+        if ready.get("ready") is not True:
+            raise ProviderError("VoiceTut did not become ready")
 
     def speak(self, text: str, language: str) -> str:
         from .tts_lab import SPEAKERS, check_cache
@@ -334,16 +400,23 @@ class VoiceTutTts:
         with tempfile.NamedTemporaryFile(prefix="okal-voicetut-", suffix=".wav", delete=False) as handle:
             output = Path(handle.name)
         try:
-            package_root = str(Path(__file__).resolve().parent.parent)
-            env = os.environ.copy()
-            env["PYTHONPATH"] = package_root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-            env["HF_HUB_OFFLINE"] = "1"
-            generated = subprocess.run(
-                [str(python), "-m", "okal_voice.tts_worker", "--speaker", speaker, "--output", str(output)],
-                input=text[:4000], capture_output=True, text=True, timeout=120, env=env,
-            )
-            if generated.returncode != 0 or not output.is_file() or output.stat().st_size == 0:
-                raise ProviderError((generated.stderr or "VoiceTut produced no audio").strip()[-500:])
+            with self._lock:
+                try:
+                    if self._process is None or self._process.poll() is not None:
+                        self._stop()
+                        self._start(python, speaker)
+                    assert self._process is not None and self._process.stdin is not None
+                    request = json.dumps({"text": text[:4000], "output": str(output)}, ensure_ascii=False)
+                    self._process.stdin.write((request + "\n").encode("utf-8"))
+                    self._process.stdin.flush()
+                    result = self._message(120)
+                    if result.get("ok") is not True:
+                        raise ProviderError(str(result.get("error", "VoiceTut produced no audio")))
+                except (OSError, ValueError, json.JSONDecodeError, ProviderError) as exc:
+                    self._stop()
+                    raise ProviderError(f"VoiceTut synthesis failed: {exc}") from exc
+            if not output.is_file() or output.stat().st_size == 0:
+                raise ProviderError("VoiceTut produced no audio")
             played = subprocess.run([player, str(output)], capture_output=True, text=True, timeout=120)
             if played.returncode != 0:
                 raise ProviderError((played.stderr or "audio playback failed").strip())
@@ -357,13 +430,19 @@ class VoiceTutTts:
 class LocalTts:
     def __init__(self, config: VoiceConfig):
         self.config = config
+        self._voicetut = VoiceTutTts(config) if config.voicetut_enabled else None
+
+    def close(self) -> None:
+        if self._voicetut is not None:
+            self._voicetut.close()
 
     def speak(self, text: str, language: str) -> str:
         text = " ".join(text.strip().split())
         if not text:
             raise ProviderError("cannot speak empty text")
         if self.config.voicetut_enabled:
-            return VoiceTutTts(self.config).speak(text, language)
+            assert self._voicetut is not None
+            return self._voicetut.speak(text, language)
         if self.config.silma_enabled and self.config.silma_ref_audio:
             try:
                 return SilmaTts(self.config).speak(text, language)
