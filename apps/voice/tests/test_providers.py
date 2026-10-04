@@ -8,7 +8,7 @@ from unittest import mock
 from okal_voice.candidate_stt import CohereTranscribe, QwenCleoAsr, _candidate_source
 from okal_voice.config import VoiceConfig
 from okal_voice.contracts import RouteKind
-from okal_voice.providers import FasterWhisper, OllamaConversation, OllamaRouter, ProviderError, WhisperCpp, build_stt
+from okal_voice.providers import FasterWhisper, LocalTts, OllamaConversation, OllamaRouter, ProviderError, WhisperCpp, build_stt
 
 
 class Response(AbstractContextManager):
@@ -175,6 +175,36 @@ class SttSelectionTests(unittest.TestCase):
         stt = FasterWhisper(VoiceConfig(stt_language_mode="dual"))
         with mock.patch.object(stt, "_load", return_value=model):
             self.assertEqual(stt.transcribe(Path("ar_01.wav")), ("الكلام العربي", "ar"))
+
+
+class VoiceTutTests(unittest.TestCase):
+    def test_opt_in_renders_offline_in_isolated_python_and_plays_private_wav(self):
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append((command, kwargs))
+            if "okal_voice.tts_worker" in command:
+                Path(command[-1]).write_bytes(b"RIFFwave")
+            return SimpleNamespace(returncode=0, stderr="")
+
+        config = VoiceConfig(voicetut_enabled=True, voicetut_python=Path("/bin/true"))
+        with mock.patch("okal_voice.tts_lab.check_cache", return_value=(Path("/cache"), [])), \
+             mock.patch("okal_voice.providers.shutil.which", return_value="/usr/bin/pw-play"), \
+             mock.patch("okal_voice.providers.subprocess.run", side_effect=run):
+            self.assertEqual(LocalTts(config).speak("أهلاً يا بيتر", "ar"), "voicetut-tts")
+        self.assertEqual(calls[0][0][:5], ["/bin/true", "-m", "okal_voice.tts_worker", "--speaker", "Asmaa"])
+        self.assertEqual(calls[0][1]["env"]["HF_HUB_OFFLINE"], "1")
+        self.assertEqual(calls[0][1]["input"], "أهلاً يا بيتر")
+        self.assertEqual(calls[1][0][0], "/usr/bin/pw-play")
+        self.assertFalse(Path(calls[0][0][-1]).exists())
+
+    def test_missing_cache_does_not_start_worker_or_playback(self):
+        config = VoiceConfig(voicetut_enabled=True, voicetut_python=Path("/bin/true"))
+        with mock.patch("okal_voice.tts_lab.check_cache", return_value=(None, ["VoiceTut: model.safetensors"])), \
+             mock.patch("okal_voice.providers.subprocess.run") as run:
+            with self.assertRaisesRegex(ProviderError, "cache incomplete"):
+                LocalTts(config).speak("hello", "en")
+        run.assert_not_called()
 
 
 if __name__ == "__main__":
