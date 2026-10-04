@@ -51,6 +51,9 @@ class VoiceConfig:
     ollama_endpoint: str = "http://127.0.0.1:11434"
     router_model: str = "qwen3:0.6b"
     conversation_model: str | None = None
+    voicetut_enabled: bool = False
+    voicetut_python: Path | None = None
+    voicetut_speaker: str = "Asmaa"
     silma_enabled: bool = True
     silma_ref_audio: Path | None = None
     silma_ref_text: str | None = None
@@ -103,6 +106,9 @@ class VoiceConfig:
             ollama_endpoint=endpoint,
             router_model=os.environ.get("OKAL_ROUTER_MODEL", "qwen3:0.6b"),
             conversation_model=os.environ.get("OKAL_CONVERSATION_MODEL", "").strip() or None,
+            voicetut_enabled=os.environ.get("OKAL_VOICETUT_ENABLED", "0").lower() in {"1", "true", "yes"},
+            voicetut_python=_optional_path("OKAL_VOICETUT_PYTHON"),
+            voicetut_speaker=os.environ.get("OKAL_VOICETUT_SPEAKER", "Asmaa"),
             silma_enabled=os.environ.get("OKAL_SILMA_ENABLED", "1") not in {"0", "false", "no"},
             silma_ref_audio=_optional_path("OKAL_SILMA_REF_AUDIO"),
             silma_ref_text=os.environ.get("OKAL_SILMA_REF_TEXT") or None,
