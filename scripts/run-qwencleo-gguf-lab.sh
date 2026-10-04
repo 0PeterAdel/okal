@@ -58,18 +58,27 @@ then
   echo "Port 18080 is in use; stop that process before this isolated lab run." >&2
   exit 2
 fi
+umask 077
 install -d -m 700 "$OUT_DIR"
+SERVER_LOG="$OUT_DIR/audiocpp-server.log"
 TEMP_DIR="$(mktemp -d)"
 chmod 700 "$TEMP_DIR"
 SERVER_PID=""
 cleanup() {
+  status=$?
   if [[ -n "$SERVER_PID" ]]; then
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
+  if (( status != 0 )) && [[ -s "$SERVER_LOG" ]]; then
+    echo "audio.cpp log: $SERVER_LOG" >&2
+    tail -n 80 "$SERVER_LOG" >&2
+  fi
   rm -rf -- "$TEMP_DIR"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 "$PYTHON_BIN" - "$TEMP_DIR/server.json" "$MODEL" <<'PY'
 import json
@@ -83,12 +92,11 @@ Path(sys.argv[1]).write_text(json.dumps({
                 "task": "asr", "mode": "offline"}],
 }), encoding="utf-8")
 PY
-"$SERVER" --config "$TEMP_DIR/server.json" >"$TEMP_DIR/server.log" 2>&1 &
+"$SERVER" --config "$TEMP_DIR/server.json" >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 for (( i=0; i<120; i++ )); do
   if curl -fsS --max-time 1 http://127.0.0.1:18080/health >/dev/null 2>&1; then break; fi
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    cat "$TEMP_DIR/server.log" >&2
     echo "audio.cpp server exited; current service/model are unchanged." >&2
     exit 2
   fi
