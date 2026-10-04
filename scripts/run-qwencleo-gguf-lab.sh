@@ -132,16 +132,20 @@ export OKAL_STT_BACKEND=audiocpp
 export OKAL_STT_MODEL=mohammedaly22/QwenCleo-ASR-GGUF
 export OKAL_STT_LANGUAGE=auto
 export OKAL_AUDIOCPP_ENDPOINT=http://127.0.0.1:18080
-unset OKAL_STT_MODEL_DIR OKAL_STT_HOTWORDS
+unset OKAL_STT_MODEL_DIR OKAL_STT_HOTWORDS OKAL_AUDIOCPP_PROMPT
 
 echo "Running QwenCleo Q8 with automatic language selection (live-assistant candidate)."
 bash scripts/run-voice-lab.sh "$AUDIO_DIR" --suite "$SUITE" --output "$OUT_DIR/qwencleo-auto.json"
+export OKAL_AUDIOCPP_PROMPT='The speaker may use these software terms: README, GitHub, git status, VS Code, terminal, commits, pull request, Wi-Fi, issue.'
+echo "Running QwenCleo Q8 auto with a fixed software-terms context."
+bash scripts/run-voice-lab.sh "$AUDIO_DIR" --suite "$SUITE" --output "$OUT_DIR/qwencleo-context.json"
+unset OKAL_AUDIOCPP_PROMPT
 export OKAL_STT_LANGUAGE=ar
 echo "Running QwenCleo Q8 with Arabic selected for Arabic and mixed commands."
 bash scripts/run-voice-lab.sh "$AUDIO_DIR" --suite "$SUITE" --output "$OUT_DIR/qwencleo-ar.json"
 echo "Running diagnostic labels for English clips; these labels are not available to a live assistant."
 bash scripts/run-voice-lab.sh "$AUDIO_DIR" --suite "$SUITE" --language-hints --output "$OUT_DIR/qwencleo-hints.json"
-"$PYTHON_BIN" - "$OUT_DIR/qwencleo-auto.json" "$OUT_DIR/qwencleo-ar.json" "$OUT_DIR/qwencleo-hints.json" <<'PY'
+"$PYTHON_BIN" - "$OUT_DIR/qwencleo-auto.json" "$OUT_DIR/qwencleo-context.json" "$OUT_DIR/qwencleo-ar.json" "$OUT_DIR/qwencleo-hints.json" <<'PY'
 import json
 import sys
 from pathlib import Path
