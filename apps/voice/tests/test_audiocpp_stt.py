@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 
 from okal_voice.audiocpp_stt import AudioCppAsr
 from okal_voice.config import VoiceConfig
@@ -53,6 +54,15 @@ class AudioCppSttTests(unittest.TestCase):
             audio.touch()
             with self.assertRaises(ProviderError):
                 AudioCppAsr(VoiceConfig(), opener=lambda *_args, **_kwargs: self.fail("network called")).transcribe(audio)
+
+    def test_server_error_includes_bounded_response_detail(self):
+        def opener(request, timeout):
+            raise HTTPError(request.full_url, 500, "Internal Server Error", {}, io.BytesIO(b'{"error":"model load failed"}'))
+        with tempfile.TemporaryDirectory() as tmp:
+            audio = Path(tmp) / "clip.wav"
+            audio.write_bytes(b"RIFF")
+            with self.assertRaisesRegex(ProviderError, "model load failed"):
+                AudioCppAsr(VoiceConfig(), opener=opener).transcribe(audio)
 
 
 if __name__ == "__main__":
