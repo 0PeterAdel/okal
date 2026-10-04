@@ -48,7 +48,10 @@ class AudioCppAsr:
             with self.opener(request, timeout=120) as response:
                 result = json.loads(response.read(65536))
             text = str(result["text"]).strip()
-        except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError) as exc:
+        except HTTPError as exc:
+            detail = exc.read(4096).decode("utf-8", errors="replace").strip()
+            raise ProviderError(f"audio.cpp transcription failed: HTTP {exc.code}: {detail[:512]}") from exc
+        except (URLError, TimeoutError, OSError, ValueError, KeyError, TypeError) as exc:
             raise ProviderError(f"audio.cpp transcription failed: {exc}") from exc
         if not text:
             raise ProviderError("audio.cpp returned an empty transcript")
