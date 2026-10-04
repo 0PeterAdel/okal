@@ -29,6 +29,34 @@ class Tts(Protocol):
     def speak(self, text: str, language: str) -> str: ...
 
 
+def _reply_language(transcript: str, model_language: str) -> str:
+    arabic = sum("\u0600" <= char <= "\u06ff" for char in transcript)
+    latin = sum("a" <= char.lower() <= "z" for char in transcript)
+    if arabic and not latin:
+        return "ar"
+    if latin and not arabic:
+        return "en"
+    return model_language
+
+
+def _arabic_reply_if_needed(reply: str, transcript: str, route: RouteKind) -> str:
+    if any("\u0600" <= char <= "\u06ff" for char in reply):
+        return reply
+    if route is RouteKind.CONVERSATION:
+        if "مساء الخير" in transcript:
+            return "مساء النور يا بيتر، أنا معاك. تحب نبدأ بإيه؟"
+        if "صباح الخير" in transcript:
+            return "صباح النور يا بيتر، أنا معاك. تحب نبدأ بإيه؟"
+        return "أنا معاك يا بيتر. ممكن توضح لي سؤالك أكتر؟"
+    if route is RouteKind.TASK:
+        return "فهمت طلبك، لكن لسه ما نفذتوش."
+    if route is RouteKind.DICTATION:
+        return "سمعتك، لكن لسه ما كتبتش حاجة."
+    if route is RouteKind.BLOCKED:
+        return "مش هقدر أساعد في الطلب ده."
+    return "ممكن توضح لي قصدك أكتر؟"
+
+
 class VoiceService:
     def __init__(self, config: VoiceConfig | None = None, store: StateStore | None = None, *, capture=None, stt: Stt | None = None, router: Router | None = None, tts: Tts | None = None, conversation=None):
         self.config = config or VoiceConfig.from_env()
@@ -152,21 +180,26 @@ class VoiceService:
             "authority": "classification-only",
         })
         display = decision.reply or decision.summary
+        language = _reply_language(transcript, decision.language)
         if decision.route.value == "blocked":
-            self._publish(VoicePhase.BLOCKED, text=display, language=decision.language, route=decision.route.value)
+            if language == "ar":
+                display = _arabic_reply_if_needed(display, transcript, decision.route)
+            self._publish(VoicePhase.BLOCKED, text=display, language=language, route=decision.route.value)
             return
         if decision.route is RouteKind.CONVERSATION and self.conversation is not None:
             display = self.conversation.reply(transcript)
             if self._cancel.is_set():
                 return
-        self._publish(VoicePhase.SPEAKING, text=display, language=decision.language, route=decision.route.value)
+        if language == "ar":
+            display = _arabic_reply_if_needed(display, transcript, decision.route)
+        self._publish(VoicePhase.SPEAKING, text=display, language=language, route=decision.route.value)
         try:
-            self.tts.speak(display, decision.language)
+            self.tts.speak(display, language)
         except ProviderError as exc:
-            self._publish(VoicePhase.ERROR, text=f"{display} — TTS unavailable: {exc}", language=decision.language, route=decision.route.value)
+            self._publish(VoicePhase.ERROR, text=f"{display} — TTS unavailable: {exc}", language=language, route=decision.route.value)
             return
         if not self._cancel.is_set():
-            self._publish(VoicePhase.IDLE, text=display, language=decision.language, route=decision.route.value)
+            self._publish(VoicePhase.IDLE, text=display, language=language, route=decision.route.value)
 
     def _publish(self, phase: VoicePhase, *, text: str = "", language: str = "unknown", route: str = "") -> None:
         with self._lock:
@@ -204,6 +237,9 @@ def run_daemon(service: VoiceService | None = None) -> int:
         server.serve_forever(poll_interval=0.25)
     finally:
         service.cancel()
+        close_tts = getattr(service.tts, "close", None)
+        if close_tts is not None:
+            close_tts()
         server.server_close()
         socket_path.unlink(missing_ok=True)
     return 0
