@@ -20,6 +20,8 @@ class AudioCppAsr:
     def transcribe(self, audio_path: Path, *, language_hint: str | None = None) -> tuple[str, str]:
         if language_hint not in {None, "ar", "en"}:
             raise ValueError("language hint must be ar or en")
+        if len(self.config.audiocpp_prompt) > 1024:
+            raise ProviderError("audio.cpp context prompt must be at most 1024 characters")
         selected = language_hint or self.config.stt_language
         language = {"auto": "", "ar": "Arabic", "en": "English"}[selected]
         try:
@@ -31,6 +33,8 @@ class AudioCppAsr:
         boundary = "okal-" + uuid.uuid4().hex
         payload = bytearray()
         fields = [("model", "qwencleo")]
+        if self.config.audiocpp_prompt:
+            fields.append(("prompt", self.config.audiocpp_prompt))
         if language:
             fields.append(("language", language))
         for name, value in fields:
