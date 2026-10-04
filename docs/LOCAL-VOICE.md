@@ -619,3 +619,31 @@ bash scripts/uninstall-local-voice.sh
 The uninstaller stops the user service, removes the app and panel, and restores
 the backed-up keybindings. Downloaded model files are preserved so rollback is
 recoverable and does not destroy large user-owned artifacts.
+
+## QwenCleo Q8 speech recognition trial
+
+This optional [QwenCleo-ASR GGUF](https://huggingface.co/mohammedaly22/QwenCleo-ASR-GGUF) trial uses the [audio.cpp server](https://github.com/0xShug0/audio.cpp/blob/main/app/server/README.md) on loopback. The author describes the model as trained for Egyptian Arabic and code switching; this is a candidate, not an observed improvement on Okal's recordings. The Q8 file is about 2.31 GiB, plus an official audio.cpp v0.9.0 CUDA archive of about 214 MB. Nothing changes the installed service or downloads automatically. The Ubuntu CUDA prebuilt has not yet been tested on the target Omarchy host; if its system libraries fail on Arch, stop and report the server log rather than downloading another model.
+
+From the repository root, check the cache without network access:
+
+```bash
+bash scripts/prepare-qwencleo-gguf.sh --cache-status
+```
+
+When bandwidth permits, fetch each missing artifact with resumable commands. Keep the same Hugging Face cache and archive location between retries; rerunning skips verified files:
+
+```bash
+bash scripts/prepare-qwencleo-gguf.sh --download-model
+bash scripts/prepare-qwencleo-gguf.sh --download-runtime
+bash scripts/prepare-qwencleo-gguf.sh --cache-status
+```
+
+The GGUF is pinned to a revision, and the runtime archive is checked against the release SHA-256 before extraction. Then run the already recorded holdout suite:
+
+```bash
+bash scripts/run-qwencleo-gguf-lab.sh voice-lab-holdout-audio holdout voice-lab-qwencleo-gguf
+```
+
+The run starts a temporary CUDA server at `127.0.0.1:18080`, writes `qwencleo-ar.json` and `qwencleo-hints.json`, prints individual transcripts and normalized WER/critical term recall, and stops the server on exit. The first clip includes cold model load time; compare later clip latency separately. The first report forces Arabic for the Arabic and mixed clips, so its English results are not a fair live-English score. The hints report supplies the reference language for English clips as a diagnostic; a real assistant does not know that label. Compare both against `voice-lab-holdout-dual.json` and inspect terms such as `README`, `commits`, `pull request`, and the action verbs. Do not switch the live backend based on the author's published scores or a single WER average.
+
+`OKAL_STT_BACKEND=audiocpp` and `OKAL_AUDIOCPP_ENDPOINT` exist only for an explicitly started local server. The default installed STT and the selected VoiceTut Asmaa voice stay as configured.
