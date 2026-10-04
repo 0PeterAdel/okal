@@ -48,6 +48,30 @@ class AudioCppSttTests(unittest.TestCase):
             self.assertEqual(AudioCppAsr(VoiceConfig(stt_language="auto"), opener=opener).transcribe(audio), ("Hello", "mixed"))
         self.assertNotIn(b'name="language"', requests[0].data)
 
+    def test_context_prompt_is_opt_in(self):
+        requests = []
+        def opener(request, timeout):
+            requests.append(request)
+            return io.BytesIO(b'{"text":"git status"}')
+        with tempfile.TemporaryDirectory() as tmp:
+            audio = Path(tmp) / "clip.wav"
+            audio.write_bytes(b"RIFF")
+            AudioCppAsr(VoiceConfig(audiocpp_prompt="git status, README"), opener=opener).transcribe(audio)
+            AudioCppAsr(VoiceConfig(), opener=opener).transcribe(audio)
+        self.assertIn(b'name="prompt"', requests[0].data)
+        self.assertIn(b"git status, README", requests[0].data)
+        self.assertNotIn(b'name="prompt"', requests[1].data)
+
+    def test_context_prompt_limit_fails_without_network(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audio = Path(tmp) / "clip.wav"
+            audio.write_bytes(b"RIFF")
+            with self.assertRaisesRegex(ProviderError, "1024"):
+                AudioCppAsr(
+                    VoiceConfig(audiocpp_prompt="a" * 1025),
+                    opener=lambda *_args, **_kwargs: self.fail("network called"),
+                ).transcribe(audio)
+
     def test_empty_audio_fails_without_network(self):
         with tempfile.TemporaryDirectory() as tmp:
             audio = Path(tmp) / "clip.wav"
