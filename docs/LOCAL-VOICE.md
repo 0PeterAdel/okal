@@ -646,4 +646,45 @@ bash scripts/run-qwencleo-gguf-lab.sh voice-lab-holdout-audio holdout voice-lab-
 
 The run starts a temporary CUDA server at `127.0.0.1:18080`, writes `qwencleo-ar.json` and `qwencleo-hints.json`, prints individual transcripts and normalized WER/critical term recall, and stops the server on exit. The first clip includes cold model load time; compare later clip latency separately. The first report forces Arabic for the Arabic and mixed clips, so its English results are not a fair live-English score. The hints report supplies the reference language for English clips as a diagnostic; a real assistant does not know that label. Compare both against `voice-lab-holdout-dual.json` and inspect terms such as `README`, `commits`, `pull request`, and the action verbs. Do not switch the live backend based on the author's published scores or a single WER average.
 
+### QwenCleo with tied embeddings on audio.cpp
+
+The QwenCleo GGUF has no `thinker.lm_head.weight`: its output projection shares
+`thinker.model.embed_tokens.weight`. The v0.9.0 prebuilt server requests the
+missing tensor and returns HTTP 500. The upstream audio.cpp source at commit
+`2721dc03a4349b62af0dfd264d3ca47b94273e46` contains the tied-embedding
+loader fix. The downloaded 2.31 GiB GGUF is valid for this path and stays in
+the Hugging Face cache; do not download it again or edit its bytes.
+
+First check for build tools without fetching anything:
+
+```bash
+command -v cmake
+command -v nvcc
+command -v c++
+```
+
+If `nvcc` is absent, stop here; the Python CUDA runtime libraries do not
+include the CUDA compiler. When a CUDA toolkit and build tools are already
+installed and source bandwidth is available, build a Qwen3 ASR-only server
+from the fixed upstream source. This fetches source and may fetch build
+dependencies, but it does not fetch model weights:
+
+```bash
+src="${XDG_CACHE_HOME:-$HOME/.cache}/okal/audio.cpp-source"
+git clone --filter=blob:none --no-checkout https://github.com/0xShug0/audio.cpp.git "$src"
+git -C "$src" fetch --depth 1 origin 2721dc03a4349b62af0dfd264d3ca47b94273e46
+git -C "$src" checkout --detach FETCH_HEAD
+cmake -S "$src" -B "$src/build-okal-cuda" -DENGINE_ENABLE_CUDA=ON \\
+  -DCMAKE_CUDA_ARCHITECTURES=89 -DAUDIOCPP_MODEL_SET=custom \\
+  -DAUDIOCPP_MODELS=qwen3_asr
+cmake --build "$src/build-okal-cuda" --parallel 4 --target audiocpp_server
+OKAL_AUDIOCPP_SERVER="$src/build-okal-cuda/bin/audiocpp_server" \\
+  bash scripts/run-qwencleo-gguf-lab.sh voice-lab-holdout-audio holdout voice-lab-qwencleo-gguf
+```
+
+If you already have that source directory, skip the clone and use the existing
+checkout. Keep the v0.9.0 executable and the live Okal service untouched. Check
+the individual transcripts and command terms before considering any backend
+change.
+
 `OKAL_STT_BACKEND=audiocpp` and `OKAL_AUDIOCPP_ENDPOINT` exist only for an explicitly started local server. The default installed STT and the selected VoiceTut Asmaa voice stay as configured.
