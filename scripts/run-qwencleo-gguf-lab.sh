@@ -21,9 +21,18 @@ cublas_dir="$site_packages/nvidia/cublas/lib"
   exit 2
 }
 cuda_lib_dirs=("$(dirname "$SERVER")")
-for lib_dir in "$site_packages"/nvidia/{cublas,cudnn,cuda_runtime,cuda_nvrtc,cufft}/lib; do
+for lib_dir in "$site_packages"/nvidia/{cublas,cudnn,cuda_runtime,cuda_nvrtc,cufft,nccl}/lib; do
   [[ -d "$lib_dir" ]] && cuda_lib_dirs+=("$lib_dir")
 done
+# The working VoiceTut CUDA environment can supply runtime, cuFFT and NCCL
+# without fetching another copy into the STT virtual environment.
+tts_python="$ROOT_DIR/.venv-okal-tts-lab/bin/python"
+if [[ -x "$tts_python" ]]; then
+  tts_site_packages="$("$tts_python" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
+  for lib_dir in "$tts_site_packages"/nvidia/{cuda_runtime,cufft,nccl,cublas,cudnn,cuda_nvrtc}/lib; do
+    [[ -d "$lib_dir" ]] && cuda_lib_dirs+=("$lib_dir")
+  done
+fi
 cuda_paths="$(IFS=:; echo "${cuda_lib_dirs[*]}")"
 export LD_LIBRARY_PATH="$cuda_paths${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 if command -v ldd >/dev/null; then
