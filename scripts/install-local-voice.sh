@@ -61,7 +61,27 @@ exec "@VOICE_PYTHON@" -m okal_voice.cli "$@"
 LAUNCHER
 install -m 755 "$launcher" "$BIN_DIR/okal"
 
-if [[ -f "$BINDINGS" ]] && ! grep -Fq "$MARKER" "$BINDINGS"; then
+if [[ -f "$BINDINGS" ]]; then
+  # Earlier installs could append the same block repeatedly because grep
+  # interpreted the Lua comment marker beginning with -- as an option.
+  "$VOICE_PYTHON" - "$BINDINGS" "$SOURCE/apps/voice/share/bindings.lua.snippet" <<'PY'
+import shutil
+import sys
+from pathlib import Path
+
+bindings, snippet = map(Path, sys.argv[1:])
+content = bindings.read_text(encoding="utf-8")
+block = snippet.read_text(encoding="utf-8")
+count = content.count(block)
+if count > 1:
+    backup = Path(str(bindings) + ".bak-okal-voice-dedup")
+    if not backup.exists():
+        shutil.copy2(bindings, backup)
+    bindings.write_text(content.replace(block, "", count - 1), encoding="utf-8")
+    print(f"Removed {count - 1} duplicate Okal binding(s); backup: {backup}")
+PY
+fi
+if [[ -f "$BINDINGS" ]] && ! grep -Fq -- "$MARKER" "$BINDINGS"; then
   cp "$BINDINGS" "$BINDINGS.bak-okal-voice"
   printf '\n' >>"$BINDINGS"
   cat "$SOURCE/apps/voice/share/bindings.lua.snippet" >>"$BINDINGS"
