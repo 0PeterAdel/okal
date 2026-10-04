@@ -671,19 +671,25 @@ dependencies, but it does not fetch model weights:
 
 ```bash
 src="${XDG_CACHE_HOME:-$HOME/.cache}/okal/audio.cpp-source"
-git clone --filter=blob:none --no-checkout https://github.com/0xShug0/audio.cpp.git "$src"
-git -C "$src" fetch --depth 1 origin 2721dc03a4349b62af0dfd264d3ca47b94273e46
+mkdir -p "$src"
+if ! git -C "$src" rev-parse --git-dir >/dev/null 2>&1; then git -C "$src" init; fi
+if ! git -C "$src" remote get-url origin >/dev/null 2>&1; then
+  git -C "$src" remote add origin https://github.com/0xShug0/audio.cpp.git
+fi
+git -C "$src" fetch --depth 1 --filter=blob:none origin 2721dc03a4349b62af0dfd264d3ca47b94273e46
 git -C "$src" checkout --detach FETCH_HEAD
-cmake -S "$src" -B "$src/build-okal-cuda" -DENGINE_ENABLE_CUDA=ON \\
-  -DCMAKE_CUDA_ARCHITECTURES=89 -DAUDIOCPP_MODEL_SET=custom \\
+cmake -S "$src" -B "$src/build-okal-cuda" -DENGINE_ENABLE_CUDA=ON \
+  -DCUDAToolkit_ROOT=/opt/cuda -DCMAKE_CUDA_COMPILER=/opt/cuda/bin/nvcc \
+  -DCMAKE_CUDA_ARCHITECTURES=89 -DAUDIOCPP_MODEL_SET=custom \
   -DAUDIOCPP_MODELS=qwen3_asr
 cmake --build "$src/build-okal-cuda" --parallel 4 --target audiocpp_server
 OKAL_AUDIOCPP_SERVER="$src/build-okal-cuda/bin/audiocpp_server" \\
   bash scripts/run-qwencleo-gguf-lab.sh voice-lab-holdout-audio holdout voice-lab-qwencleo-gguf
 ```
 
-If you already have that source directory, skip the clone and use the existing
-checkout. Keep the v0.9.0 executable and the live Okal service untouched. Check
+The fetch can be retried in the same directory if the connection drops; it
+only requests the pinned source commit. The configure step explicitly uses the
+CUDA toolkit already installed at `/opt/cuda` on Omarchy. Keep the v0.9.0 executable and the live Okal service untouched. Check
 the individual transcripts and command terms before considering any backend
 change.
 
