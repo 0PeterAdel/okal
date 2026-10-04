@@ -9,12 +9,13 @@ from urllib.parse import urlparse
 
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
-STT_BACKENDS = frozenset({"faster-whisper", "whisper.cpp", "cohere", "qwencleo"})
+STT_BACKENDS = frozenset({"faster-whisper", "whisper.cpp", "cohere", "qwencleo", "audiocpp"})
 DEFAULT_STT_MODELS = {
     "faster-whisper": "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching",
     "whisper.cpp": "mohammedaly22/whisper-large-v3-turbo-egyptian-code-switching",
     "cohere": "CohereLabs/cohere-transcribe-arabic-07-2026",
     "qwencleo": "mohammedaly22/QwenCleo-ASR",
+    "audiocpp": "mohammedaly22/QwenCleo-ASR-GGUF",
 }
 TORCH_DTYPES = frozenset({"float16", "bfloat16", "float32"})
 STT_LANGUAGES = frozenset({"auto", "ar", "en"})
@@ -48,6 +49,7 @@ class VoiceConfig:
     stt_hotwords: str | None = None
     whisper_bin: str = "whisper-cli"
     whisper_model: Path = _data_home() / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin"
+    audiocpp_endpoint: str = "http://127.0.0.1:18080"
     ollama_endpoint: str = "http://127.0.0.1:11434"
     router_model: str = "qwen3:0.6b"
     conversation_model: str | None = None
@@ -102,6 +104,9 @@ class VoiceConfig:
                     "OKAL_WHISPER_MODEL",
                     data / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin",
                 )
+            ),
+            audiocpp_endpoint=validate_loopback_endpoint(
+                os.environ.get("OKAL_AUDIOCPP_ENDPOINT", "http://127.0.0.1:18080")
             ),
             ollama_endpoint=endpoint,
             router_model=os.environ.get("OKAL_ROUTER_MODEL", "qwen3:0.6b"),
