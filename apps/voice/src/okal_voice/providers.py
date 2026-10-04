@@ -156,6 +156,9 @@ def build_stt(config: VoiceConfig):
     if config.stt_backend == "cohere":
         from .candidate_stt import CohereTranscribe
         return CohereTranscribe(config)
+    if config.stt_backend == "audiocpp":
+        from .audiocpp_stt import AudioCppAsr
+        return AudioCppAsr(config)
     if config.stt_backend == "qwencleo":
         from .candidate_stt import QwenCleoAsr
         return QwenCleoAsr(config)
