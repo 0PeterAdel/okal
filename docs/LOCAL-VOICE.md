@@ -644,7 +644,7 @@ The GGUF is pinned to a revision, and the runtime archive is checked against the
 bash scripts/run-qwencleo-gguf-lab.sh voice-lab-holdout-audio holdout voice-lab-qwencleo-gguf
 ```
 
-The run starts a temporary CUDA server at `127.0.0.1:18080`, writes `qwencleo-ar.json` and `qwencleo-hints.json`, prints individual transcripts and normalized WER/critical term recall, and stops the server on exit. The first clip includes cold model load time; compare later clip latency separately. The first report forces Arabic for the Arabic and mixed clips, so its English results are not a fair live-English score. The hints report supplies the reference language for English clips as a diagnostic; a real assistant does not know that label. Compare both against `voice-lab-holdout-dual.json` and inspect terms such as `README`, `commits`, `pull request`, and the action verbs. Do not switch the live backend based on the author's published scores or a single WER average.
+The run starts a temporary CUDA server at `127.0.0.1:18080`, writes `qwencleo-auto.json`, `qwencleo-ar.json`, and `qwencleo-hints.json`, prints individual transcripts and normalized WER/critical term recall, and stops the server on exit. The first clip includes cold model load time; compare later clip latency separately. The auto report is the only language-selection run available to a live assistant without additional logic. The Arabic report forces Arabic for every clip, including English, and the hints report supplies the reference language for English clips as a diagnostic; a real assistant does not know that label. Compare both against `voice-lab-holdout-dual.json` and inspect terms such as `README`, `commits`, `pull request`, and the action verbs. Do not switch the live backend based on the author's published scores or a single WER average.
 
 ### QwenCleo with tied embeddings on audio.cpp
 
@@ -692,5 +692,7 @@ only requests the pinned source commit. The configure step explicitly uses the
 CUDA toolkit already installed at `/opt/cuda` on Omarchy. Keep the v0.9.0 executable and the live Okal service untouched. Check
 the individual transcripts and command terms before considering any backend
 change.
+
+On the owner's 12 recorded holdout commands, QwenCleo Q8 with Arabic selected finished 12/12: Arabic normalized WER 0.283, English 0.074, mixed 0.496; median latencies were around 0.24–0.30 seconds. Those English results came from forcing Arabic and do not establish reliable automatic language selection. Several command-critical words still failed, including `commits`, `README`, and the verb in `اقفل نافذة`. Compare the new auto report before any live trial; the existing service stays unchanged.
 
 `OKAL_STT_BACKEND=audiocpp` and `OKAL_AUDIOCPP_ENDPOINT` exist only for an explicitly started local server. The default installed STT and the selected VoiceTut Asmaa voice stay as configured.
