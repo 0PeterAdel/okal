@@ -250,6 +250,36 @@ we cannot guarantee zero repeated traffic. `--cache-status --speaker Asmaa`
 always remains safe to run without an internet connection. Only after it
 passes should you synthesize and play the sample.
 
+### Try the approved Asmaa voice in the local service
+
+After listening to all three Asmaa samples, enable the voice explicitly. The
+service uses the existing separate `.venv-okal-tts-lab` and model cache, with
+Hub offline mode forced for every synthesis. It never downloads at runtime.
+Add these values once to `~/.config/okal/voice.env`, using the actual absolute
+path to your checkout:
+
+```ini
+OKAL_VOICETUT_ENABLED=1
+OKAL_VOICETUT_SPEAKER=Asmaa
+OKAL_VOICETUT_PYTHON=/home/okal/Projects/okal/.venv-okal-tts-lab/bin/python
+```
+
+Then install the updated service code and verify it locally:
+
+```bash
+bash scripts/install-local-voice.sh
+okal voice doctor
+okal voice say 'مساء الخير يا بيتر'
+```
+
+Only Asmaa's reference clip is cached by the one-speaker download command.
+If the opt-in voice fails, the response text remains visible and the service
+reports a TTS error instead of unexpectedly substituting `espeak-ng`.
+Each speech request currently starts the isolated renderer and reloads its
+weights; measure end-to-end reply delay before making it the default. To revert
+without deleting any downloaded files, set `OKAL_VOICETUT_ENABLED=0` and
+restart `okal-voice.service`.
+
 If setup stopped at `torchaudio` with Python 3.13, pull the updated script
 and rerun `--setup`. The old CUDA 12.1 index had a compatible `torch` wheel
 but no matching `torchaudio` wheel. The lab now installs the matching
