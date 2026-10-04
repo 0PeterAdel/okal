@@ -252,24 +252,29 @@ passes should you synthesize and play the sample.
 
 ### Try the approved Asmaa voice in the local service
 
-After listening to all three Asmaa samples, enable the voice explicitly. The
-service uses the existing separate `.venv-okal-tts-lab` and model cache, with
-Hub offline mode forced for every synthesis. It never downloads at runtime.
-Add these values once to `~/.config/okal/voice.env`, using the actual absolute
-path to your checkout:
+After listening to the Asmaa samples, enable the voice explicitly. The service
+uses the existing separate `.venv-okal-tts-lab` and model cache, with Hub
+offline mode forced for every synthesis. It never downloads at runtime.
+Typing bare `OKAL_VOICETUT_...=...` assignments into a shell does not persist
+them for the user service; `okal voice doctor` still shows the old provider.
+From the checkout root, run this repeatable command instead:
+
+```bash
+git pull --ff-only
+bash scripts/enable-voicetut-voice.sh
+okal voice say 'مساء الخير يا بيتر'
+```
+
+The enable command checks the cached Asmaa files without network access,
+installs current service code, writes these settings once into the owner-only
+`~/.config/okal/voice.env`, restarts the user service, and runs `okal voice
+doctor`. Verify `PASS Local TTS: VoiceTut` and `PASS VoiceTut cache: Asmaa`.
+The equivalent manual settings, using the actual absolute checkout path, are:
 
 ```ini
 OKAL_VOICETUT_ENABLED=1
 OKAL_VOICETUT_SPEAKER=Asmaa
 OKAL_VOICETUT_PYTHON=/home/okal/Projects/okal/.venv-okal-tts-lab/bin/python
-```
-
-Then install the updated service code and verify it locally:
-
-```bash
-bash scripts/install-local-voice.sh
-okal voice doctor
-okal voice say 'مساء الخير يا بيتر'
 ```
 
 Only Asmaa's reference clip is cached by the one-speaker download command.
