@@ -67,5 +67,17 @@ class LoopbackPolicyTests(unittest.TestCase):
         with patch.dict("os.environ", {"OKAL_CONVERSATION_MODEL": "command-r7b-arabic"}):
             self.assertEqual(VoiceConfig.from_env().conversation_model, "command-r7b-arabic")
 
+    def test_voicetut_requires_explicit_opt_in(self):
+        self.assertFalse(VoiceConfig().voicetut_enabled)
+        with patch.dict("os.environ", {
+            "OKAL_VOICETUT_ENABLED": "1",
+            "OKAL_VOICETUT_PYTHON": "/home/okal/Projects/okal/.venv-okal-tts-lab/bin/python",
+            "OKAL_VOICETUT_SPEAKER": "Asmaa",
+        }):
+            config = VoiceConfig.from_env()
+        self.assertTrue(config.voicetut_enabled)
+        self.assertEqual(config.voicetut_speaker, "Asmaa")
+
+
 if __name__ == "__main__":
     unittest.main()
