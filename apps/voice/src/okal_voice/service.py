@@ -85,6 +85,8 @@ class VoiceService:
             return {"ok": True, "state": self.store.read().as_dict()}
         if command == "say":
             return self.say(str(request.get("text", "")).strip())
+        if command == "ask":
+            return self.ask(str(request.get("text", "")).strip())
         if command == "quit":
             self.cancel()
             return {"ok": True, "message": "stopping", "stop": True}
@@ -117,6 +119,32 @@ class VoiceService:
             return self.cancel()
 
     def say(self, text: str) -> dict:
+        """Speak the supplied text verbatim without invoking the intent router."""
+        text = " ".join(text.strip().split())
+        if not text:
+            return {"ok": False, "error": "text is required"}
+        with self._lock:
+            if self.phase is not VoicePhase.IDLE:
+                return {"ok": False, "error": "voice session is busy"}
+            self.session_id = uuid.uuid4().hex
+            self._cancel.clear()
+            language = _reply_language(text, "mixed")
+            self._publish(VoicePhase.SPEAKING, text=text, language=language)
+
+            def work() -> None:
+                try:
+                    self.tts.speak(text, language)
+                except ProviderError as exc:
+                    self._publish(VoicePhase.ERROR, text=f"{text} — TTS unavailable: {exc}", language=language)
+                    return
+                if not self._cancel.is_set():
+                    self._publish(VoicePhase.IDLE, text=text, language=language)
+
+            self._pipeline = threading.Thread(target=work, daemon=True, name="okal-voice-say")
+            self._pipeline.start()
+            return {"ok": True, "phase": VoicePhase.SPEAKING.value}
+
+    def ask(self, text: str) -> dict:
         text = " ".join(text.strip().split())
         if not text:
             self._publish(VoicePhase.BLOCKED, text="Empty request — الطلب فارغ")
