@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import statistics
 import subprocess
@@ -309,6 +310,50 @@ class SilmaTts:
             output.unlink(missing_ok=True)
 
 
+class VoiceTutTts:
+    """Run the opt-in Egyptian voice in its isolated Python environment."""
+
+    def __init__(self, config: VoiceConfig):
+        self.config = config
+
+    def speak(self, text: str, language: str) -> str:
+        from .tts_lab import SPEAKERS, check_cache
+
+        python = self.config.voicetut_python
+        speaker = self.config.voicetut_speaker
+        if not python or not python.is_file() or not os.access(python, os.X_OK):
+            raise ProviderError("VoiceTut Python is missing; set OKAL_VOICETUT_PYTHON to the existing lab environment")
+        if speaker not in SPEAKERS:
+            raise ProviderError(f"VoiceTut speaker must be one of: {', '.join(SPEAKERS)}")
+        _, missing = check_cache((speaker,))
+        if missing:
+            raise ProviderError("VoiceTut cache incomplete: " + ", ".join(missing))
+        player = shutil.which("pw-play")
+        if not player:
+            raise ProviderError("pw-play is not installed")
+        with tempfile.NamedTemporaryFile(prefix="okal-voicetut-", suffix=".wav", delete=False) as handle:
+            output = Path(handle.name)
+        try:
+            package_root = str(Path(__file__).resolve().parent.parent)
+            env = os.environ.copy()
+            env["PYTHONPATH"] = package_root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+            env["HF_HUB_OFFLINE"] = "1"
+            generated = subprocess.run(
+                [str(python), "-m", "okal_voice.tts_worker", "--speaker", speaker, "--output", str(output)],
+                input=text[:4000], capture_output=True, text=True, timeout=120, env=env,
+            )
+            if generated.returncode != 0 or not output.is_file() or output.stat().st_size == 0:
+                raise ProviderError((generated.stderr or "VoiceTut produced no audio").strip()[-500:])
+            played = subprocess.run([player, str(output)], capture_output=True, text=True, timeout=120)
+            if played.returncode != 0:
+                raise ProviderError((played.stderr or "audio playback failed").strip())
+            return "voicetut-tts"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProviderError(f"VoiceTut subprocess failed: {exc}") from exc
+        finally:
+            output.unlink(missing_ok=True)
+
+
 class LocalTts:
     def __init__(self, config: VoiceConfig):
         self.config = config
@@ -317,6 +362,8 @@ class LocalTts:
         text = " ".join(text.strip().split())
         if not text:
             raise ProviderError("cannot speak empty text")
+        if self.config.voicetut_enabled:
+            return VoiceTutTts(self.config).speak(text, language)
         if self.config.silma_enabled and self.config.silma_ref_audio:
             try:
                 return SilmaTts(self.config).speak(text, language)
