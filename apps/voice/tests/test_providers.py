@@ -178,25 +178,39 @@ class SttSelectionTests(unittest.TestCase):
 
 
 class VoiceTutTests(unittest.TestCase):
-    def test_opt_in_renders_offline_in_isolated_python_and_plays_private_wav(self):
-        calls = []
+    def test_opt_in_reuses_offline_renderer_and_plays_private_wav(self):
+        process = mock.Mock()
+        process.poll.return_value = None
+        process.stdin = mock.Mock()
+        process.stdout = mock.Mock()
+        requests = []
 
-        def run(command, **kwargs):
-            calls.append((command, kwargs))
-            if "okal_voice.tts_worker" in command:
-                Path(command[-1]).write_bytes(b"RIFFwave")
-            return SimpleNamespace(returncode=0, stderr="")
+        def message(_timeout):
+            if not requests:
+                requests.append("ready")
+                return {"ready": True}
+            request = json.loads(process.stdin.write.call_args[0][0])
+            requests.append(request)
+            Path(request["output"]).write_bytes(b"RIFFwave")
+            return {"ok": True}
 
         config = VoiceConfig(voicetut_enabled=True, voicetut_python=Path("/bin/true"))
         with mock.patch("okal_voice.tts_lab.check_cache", return_value=(Path("/cache"), [])), \
              mock.patch("okal_voice.providers.shutil.which", return_value="/usr/bin/pw-play"), \
-             mock.patch("okal_voice.providers.subprocess.run", side_effect=run):
-            self.assertEqual(LocalTts(config).speak("أهلاً يا بيتر", "ar"), "voicetut-tts")
-        self.assertEqual(calls[0][0][:5], ["/bin/true", "-m", "okal_voice.tts_worker", "--speaker", "Asmaa"])
-        self.assertEqual(calls[0][1]["env"]["HF_HUB_OFFLINE"], "1")
-        self.assertEqual(calls[0][1]["input"], "أهلاً يا بيتر")
-        self.assertEqual(calls[1][0][0], "/usr/bin/pw-play")
-        self.assertFalse(Path(calls[0][0][-1]).exists())
+             mock.patch("okal_voice.providers.subprocess.Popen", return_value=process) as popen, \
+             mock.patch("okal_voice.providers.subprocess.run", return_value=SimpleNamespace(returncode=0, stderr="")) as run, \
+             mock.patch("okal_voice.providers.VoiceTutTts._message", side_effect=message):
+            tts = LocalTts(config)
+            self.assertEqual(tts.speak("أهلاً يا بيتر", "ar"), "voicetut-tts")
+            self.assertEqual(tts.speak("مساء الخير", "ar"), "voicetut-tts")
+            tts.close()
+        self.assertEqual(popen.call_count, 1)
+        self.assertEqual(popen.call_args.args[0], ["/bin/true", "-m", "okal_voice.tts_worker", "--speaker", "Asmaa", "--serve"])
+        self.assertEqual(popen.call_args.kwargs["env"]["HF_HUB_OFFLINE"], "1")
+        self.assertEqual([request["text"] for request in requests[1:]], ["أهلاً يا بيتر", "مساء الخير"])
+        self.assertEqual(run.call_count, 2)
+        self.assertFalse(Path(requests[1]["output"]).exists())
+        process.terminate.assert_called_once()
 
     def test_missing_cache_does_not_start_worker_or_playback(self):
         config = VoiceConfig(voicetut_enabled=True, voicetut_python=Path("/bin/true"))
