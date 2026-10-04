@@ -9,8 +9,8 @@ OUT_DIR="${3:-voice-lab-qwencleo-gguf}"
 PYTHON_BIN="$ROOT_DIR/.venv-okal-voice/bin/python"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 RUNTIME_DIR="$DATA_HOME/okal/tools/audiocpp-v0.9.0-cuda"
-SERVER="$(find "$RUNTIME_DIR" -type f -name audiocpp_server -print -quit 2>/dev/null || true)"
-[[ -x "$SERVER" ]] || { echo "Runtime missing; run bash scripts/prepare-qwencleo-gguf.sh --download-runtime" >&2; exit 2; }
+SERVER="${OKAL_AUDIOCPP_SERVER:-$(find "$RUNTIME_DIR" -type f -name audiocpp_server -print -quit 2>/dev/null || true)}"
+[[ -x "$SERVER" ]] || { echo "audio.cpp server missing or not executable: $SERVER" >&2; exit 2; }
 [[ -x "$PYTHON_BIN" ]] || { echo "Voice Lab Python is missing; run bash scripts/setup-local-voice-stack.sh --stt-only" >&2; exit 2; }
 # Reuse the CUDA libraries already installed for faster-whisper in this venv.
 # The audio.cpp executable runs outside Python, so it needs these paths explicitly.
