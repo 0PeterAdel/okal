@@ -49,6 +49,30 @@ MODEL="$(bash scripts/prepare-qwencleo-gguf.sh --model-path)" || {
   exit 2
 }
 [[ -f "$MODEL" ]] || { echo "Model missing; run bash scripts/prepare-qwencleo-gguf.sh --download-model" >&2; exit 2; }
+# Hugging Face's snapshot file is a symlink to an extensionless blob. audio.cpp
+# resolves symlinks before selecting the GGUF tensor loader, so expose the same
+# inode under a .gguf filename. A hard link uses no additional model storage.
+MODEL="$("$PYTHON_BIN" - "$MODEL" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).resolve(strict=True)
+if source.suffix.lower() == ".gguf":
+    print(source)
+else:
+    target = source.with_name(source.name + ".gguf")
+    if target.exists():
+        if not target.samefile(source):
+            raise SystemExit(f"GGUF hard link points to different data: {target}")
+    else:
+        try:
+            os.link(source, target)
+        except OSError as exc:
+            raise SystemExit(f"Could not make local GGUF hard link: {exc}") from exc
+    print(target)
+PY
+)"
 if "$PYTHON_BIN" - <<'PY'
 import socket
 with socket.socket() as sock:
