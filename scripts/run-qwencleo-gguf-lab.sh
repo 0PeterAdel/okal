@@ -11,6 +11,29 @@ DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 RUNTIME_DIR="$DATA_HOME/okal/tools/audiocpp-v0.9.0-cuda"
 SERVER="$(find "$RUNTIME_DIR" -type f -name audiocpp_server -print -quit 2>/dev/null || true)"
 [[ -x "$SERVER" ]] || { echo "Runtime missing; run bash scripts/prepare-qwencleo-gguf.sh --download-runtime" >&2; exit 2; }
+[[ -x "$PYTHON_BIN" ]] || { echo "Voice Lab Python is missing; run bash scripts/setup-local-voice-stack.sh --stt-only" >&2; exit 2; }
+# Reuse the CUDA libraries already installed for faster-whisper in this venv.
+# The audio.cpp executable runs outside Python, so it needs these paths explicitly.
+site_packages="$("$PYTHON_BIN" -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
+cublas_dir="$site_packages/nvidia/cublas/lib"
+[[ -f "$cublas_dir/libcublas.so.12" ]] || {
+  echo "CUDA 12 cuBLAS is missing from the voice environment; run .venv-okal-voice/bin/python -m pip install '.[cuda]'" >&2
+  exit 2
+}
+cuda_lib_dirs=("$(dirname "$SERVER")")
+for lib_dir in "$site_packages"/nvidia/{cublas,cudnn,cuda_runtime,cuda_nvrtc,cufft}/lib; do
+  [[ -d "$lib_dir" ]] && cuda_lib_dirs+=("$lib_dir")
+done
+cuda_paths="$(IFS=:; echo "${cuda_lib_dirs[*]}")"
+export LD_LIBRARY_PATH="$cuda_paths${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+if command -v ldd >/dev/null; then
+  missing="$(ldd "$SERVER" 2>&1 | awk '/not found/ {print $1}')"
+  if [[ -n "$missing" ]]; then
+    echo "audio.cpp still needs shared libraries: $missing" >&2
+    echo "The downloaded model and runtime are cached; no re-download is needed." >&2
+    exit 2
+  fi
+fi
 [[ -d "$AUDIO_DIR" ]] || { echo "Audio directory missing: $AUDIO_DIR" >&2; exit 2; }
 MODEL="$(bash scripts/prepare-qwencleo-gguf.sh --model-path)" || {
   echo "Model missing; run bash scripts/prepare-qwencleo-gguf.sh --download-model" >&2
