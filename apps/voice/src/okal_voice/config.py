@@ -50,6 +50,7 @@ class VoiceConfig:
     whisper_bin: str = "whisper-cli"
     whisper_model: Path = _data_home() / "okal/models/whisper/ggml-large-v3-turbo-q5_0.bin"
     audiocpp_endpoint: str = "http://127.0.0.1:18080"
+    audiocpp_prompt: str = ""
     ollama_endpoint: str = "http://127.0.0.1:11434"
     router_model: str = "qwen3:0.6b"
     conversation_model: str | None = None
@@ -108,6 +109,7 @@ class VoiceConfig:
             audiocpp_endpoint=validate_loopback_endpoint(
                 os.environ.get("OKAL_AUDIOCPP_ENDPOINT", "http://127.0.0.1:18080")
             ),
+            audiocpp_prompt=os.environ.get("OKAL_AUDIOCPP_PROMPT", "").strip(),
             ollama_endpoint=endpoint,
             router_model=os.environ.get("OKAL_ROUTER_MODEL", "qwen3:0.6b"),
             conversation_model=os.environ.get("OKAL_CONVERSATION_MODEL", "").strip() or None,
