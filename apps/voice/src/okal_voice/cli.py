@@ -105,14 +105,25 @@ def doctor(config: VoiceConfig) -> tuple[int, list[dict]]:
         add("Router model", False, config.router_model)
         if config.conversation_model:
             add("Conversation model", False, config.conversation_model)
+    if config.voicetut_enabled:
+        from .tts_lab import SPEAKERS, check_cache
+
+        interpreter = config.voicetut_python
+        python_ready = bool(interpreter and interpreter.is_file() and os.access(interpreter, os.X_OK))
+        add("VoiceTut Python", python_ready, str(interpreter or "set OKAL_VOICETUT_PYTHON"))
+        if config.voicetut_speaker in SPEAKERS:
+            _, missing = check_cache((config.voicetut_speaker,))
+            add("VoiceTut cache", not missing, ", ".join(missing) if missing else config.voicetut_speaker)
+        else:
+            add("VoiceTut cache", False, f"unsupported speaker: {config.voicetut_speaker}")
     piper = shutil.which(config.piper_bin)
     espeak = shutil.which(config.espeak_bin)
     silma_ready = bool(config.silma_enabled and config.silma_ref_audio and config.silma_ref_audio.is_file()
                        and config.silma_ref_text and importlib.util.find_spec("silma_tts"))
     piper_ready = bool(piper and any(model and model.is_file() for model in
                                      (config.piper_ar_model, config.piper_en_model)))
-    add("Local TTS", bool(silma_ready or piper_ready or espeak),
-        "SILMA" if silma_ready else ("Piper" if piper_ready else (espeak or "configure SILMA reference or install a local fallback")))
+    add("Local TTS", bool(config.voicetut_enabled or silma_ready or piper_ready or espeak),
+        "VoiceTut" if config.voicetut_enabled else ("SILMA" if silma_ready else ("Piper" if piper_ready else (espeak or "configure SILMA reference or install a local fallback"))))
     return (0 if all(item["ok"] for item in checks) else 1), checks
 
 
