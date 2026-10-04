@@ -143,6 +143,23 @@ class VoiceServiceTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(self.service.phase, VoicePhase.BLOCKED)
 
+    def test_arabic_greeting_remains_egyptian_when_router_answers_in_english(self):
+        self.router.route = lambda _: RouteDecision(
+            RouteKind.CONVERSATION, "en", "English greeting", "May you have a peaceful day, Peter.", 0.8
+        )
+        self.service.say("مساء الخير يا بيتر")
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(self.tts.calls, [("مساء النور يا بيتر، أنا معاك. تحب نبدأ بإيه؟", "ar")])
+        self.assertEqual(self.store.read().language, "ar")
+
+    def test_english_reply_keeps_english(self):
+        self.router.route = lambda _: RouteDecision(
+            RouteKind.CONVERSATION, "ar", "تحية", "Good evening, Peter.", 0.8
+        )
+        self.service.say("Good evening, Peter")
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(self.tts.calls, [("Good evening, Peter.", "en")])
+
     def test_opt_in_conversation_uses_large_model_only_for_chat(self):
         conversation = FakeConversation()
         self.service.conversation = conversation
@@ -157,6 +174,7 @@ class VoiceServiceTests(unittest.TestCase):
         self.wait_for(VoicePhase.IDLE)
         self.assertEqual(conversation.calls, ["مساء الخير"])
         self.assertEqual(self.tts.calls[-1][0], "فهمت طلبك")
+
 
 if __name__ == "__main__":
     unittest.main()
