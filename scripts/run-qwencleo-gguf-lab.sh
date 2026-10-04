@@ -159,4 +159,13 @@ for filename in sys.argv[1:]:
             print(f'  {label}: norm WER={case["normalized_wer"]:.3f}, critical={case["critical_term_recall"]}, {case["transcript"]}')
         else:
             print(f'  {label}: FAILED: {case.get("error", "unknown error")}')
+baseline = {case["id"]: case for case in json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["cases"]}
+context = {case["id"]: case for case in json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))["cases"]}
+print("Context changes versus automatic language selection:")
+for case_id, before in baseline.items():
+    after = context[case_id]
+    if before.get("transcript") == after.get("transcript"):
+        continue
+    print(f'  {case_id}: {before.get("transcript", before.get("error"))}')
+    print(f'       -> {after.get("transcript", after.get("error"))}')
 PY
