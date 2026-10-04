@@ -280,8 +280,16 @@ OKAL_VOICETUT_PYTHON=/home/okal/Projects/okal/.venv-okal-tts-lab/bin/python
 Only Asmaa's reference clip is cached by the one-speaker download command.
 If the opt-in voice fails, the response text remains visible and the service
 reports a TTS error instead of unexpectedly substituting `espeak-ng`.
-Each speech request currently starts the isolated renderer and reloads its
-weights; measure end-to-end reply delay before making it the default. To revert
+The first request after service restart loads Asmaa's weights into the isolated
+renderer. The process stays loaded for later requests and is stopped with the
+service. This saves repeated loading time but keeps roughly the lab's 2 GB of
+GPU memory in use while idle. The router receives an explicit Egyptian Arabic
+instruction; if it still answers an Arabic-only greeting in English, the
+service replaces that text with a short Egyptian Arabic greeting before speech.
+`okal voice say` accepts the request asynchronously: the initial JSON response
+only confirms routing has started. Compare the overlay text and audio after it
+finishes; repeat once to check the warm renderer. No model download is needed.
+To revert
 without deleting any downloaded files, set `OKAL_VOICETUT_ENABLED=0` and
 restart `okal-voice.service`.
 
