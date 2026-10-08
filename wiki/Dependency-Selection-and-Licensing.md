@@ -25,7 +25,7 @@ Licenses below describe the upstream code repository as reviewed for this plan; 
 | OpenJarvis | local model/runtime patterns | Evaluate adapter | Apache-2.0; do not make it a second control plane |
 | DeerFlow | long-horizon research worker | Evaluate adapter post-MVP | MIT; worker under kernel grants |
 | OpenClaw | channels/gateway patterns | Reference or optional adapter | MIT; Okal remains authority |
-| Hermes Agent | general agent runtime | Evaluate against alternatives | inspect pinned release and transitive licenses |
+| Hermes Agent | independent local agent profiles and first-use CLI | Pilot as separate process; no core code copied | MIT upstream; verify pinned release and transitive licenses before packaging |
 | OpenHands | coding runtime | Evaluate for showcase; keep a built-in fallback | inspect pinned release; isolate workspace execution |
 | codebase-memory-mcp | code graph/context | Adopt for prototype, benchmark before lock-in | MIT; derived index remains rebuildable |
 | Unlimited OCR | Arabic/document OCR | Evaluate GPU worker | verify repository and model-weight terms separately |
@@ -38,6 +38,8 @@ Licenses below describe the upstream code repository as reviewed for this plan; 
 | LiteLLM | model-provider gateway | Adopt behind Okal interface | MIT; pin and test provider behavior |
 | Temporal | durable workflow engine | Evaluate when kernel durability needs it | MIT; avoid premature operational weight |
 | Activepieces | automation connector runtime | Evaluate optional worker | Community Edition MIT; verify individual pieces |
+| Postiz | social post review, scheduling, analytics | Evaluate optional isolated service after draft pilot | AGPL-3.0; current self-hosting requires PostgreSQL, Redis, Temporal, provider credentials |
+| Mixpost Lite | narrower social scheduling candidate | Evaluate only for supported free platforms | MIT upstream Lite; verify platform scope and API/MCP in Lite before adoption |
 | Node-RED | visual automation | Optional isolated | Apache-2.0; never bypass grants |
 | n8n | automation ecosystem | Optional external integration | source-available Sustainable Use License; not core FOSS dependency |
 | SkillSpector | skill security analysis | Adopt as one scanner | Apache-2.0; defense in depth, not sole approval |
