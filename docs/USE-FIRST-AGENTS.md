@@ -40,12 +40,12 @@ instructions, not an authorization mechanism or an imported skill catalog.
    8 GB VRAM laptop, start with an actual 64K serving window and expect
    possible CPU offload. Create a local model alias without downloading
    another copy of the weights:
-   
+
    ```bash
-   printf 'FROM qwen3.5:4b\\nPARAMETER num_ctx 64000\\n' > /tmp/okal-ollama.Modelfile
+   printf 'FROM qwen3.5:4b\nPARAMETER num_ctx 64000\n' > /tmp/okal-ollama.Modelfile
    ollama create okal-qwen3.5-4b-64k -f /tmp/okal-ollama.Modelfile
    ```
-   
+
    Select `http://127.0.0.1:11434/v1`, no API key, and the model
    `okal-qwen3.5-4b-64k` in each Hermes profile. Enter `64000` when
    Hermes asks for context length. After a short chat, `ollama ps` must
