@@ -31,13 +31,28 @@ instructions, not an authorization mechanism or an imported skill catalog.
 
 ## Prepare the pilot
 
-1. Run `ollama list`. Use a model already cached and verify one normal CLI
-   chat first. For an existing Qwen3.5 9B installation, Hermes' custom
-   provider points at `http://127.0.0.1:11434/v1` with model
-   `qwen3.5:9b`. Check the current upstream
+1. Run `ollama list`. Hermes requires at least 64,000 tokens of
+   **effective** context for agent work. The previously cached
+   `qwen3:0.6b` reports 40,960 tokens and is rejected at startup; do not
+   claim it has a larger window. If no cached model meets the requirement,
+   download one measured candidate, `ollama pull qwen3.5:4b`. Ollama lists
+   its Q4 model at roughly 3.4 GB with a 256K model window. On the reference
+   8 GB VRAM laptop, start with an actual 64K serving window and expect
+   possible CPU offload. Create a local model alias without downloading
+   another copy of the weights:
+   
+   ```bash
+   printf 'FROM qwen3.5:4b\\nPARAMETER num_ctx 64000\\n' > /tmp/okal-ollama.Modelfile
+   ollama create okal-qwen3.5-4b-64k -f /tmp/okal-ollama.Modelfile
+   ```
+   
+   Select `http://127.0.0.1:11434/v1`, no API key, and the model
+   `okal-qwen3.5-4b-64k` in each Hermes profile. Enter `64000` when
+   Hermes asks for context length. After a short chat, `ollama ps` must
+   show 64K in the CONTEXT column. Stop if it shows a smaller window or
+   the laptop cannot load it. See the upstream
    [local Ollama guide](https://hermes-agent.nousresearch.com/docs/guides/local-ollama-setup)
-   for installation and `hermes model` configuration. Do not download a
-   second model for this pilot.
+   for the serving-context requirement.
 2. Install Hermes using its [official Linux installation guide](https://hermes-agent.nousresearch.com/docs/getting-started/installation),
    inspect its install script first, and test `hermes chat` with a harmless
    question. It is a separate app in `~/.hermes`, not a Python dependency of
