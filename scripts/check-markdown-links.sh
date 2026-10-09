@@ -41,6 +41,6 @@ while IFS= read -r -d '' file; do
     echo "Broken local Markdown link in ${file#./}: $target" >&2
     broken=1
   done < <(grep -oE '\]\([^)]*\)' "$file" || true)
-done < <(find . -type f -name '*.md' -not -path './.git/*' -print0)
+done < <(git ls-files -z -- '*.md')
 
 exit "$broken"
