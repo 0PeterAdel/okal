@@ -20,6 +20,11 @@ class SocialDraftChecks(unittest.TestCase):
         (self.root / "README.md").write_text("Okal is a local-first assistant.\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         subprocess.run(["git", "-C", str(self.root), "add", "README.md"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.root), "-c", "user.name=Test", "-c",
+             "user.email=test@example.invalid", "commit", "-qm", "Initial source"],
+            check=True,
+        )
         self.draft = self.root / "draft.json"
         self.data = {
             "platform": "x",
@@ -67,6 +72,17 @@ class SocialDraftChecks(unittest.TestCase):
         result = self.run_check()
         self.assertNotEqual(0, result.returncode)
         self.assertIn("claim is absent", result.stderr)
+
+    def test_uncommitted_source_edit_is_not_trusted(self):
+        (self.root / "README.md").write_text(
+            "Okal is a local-first assistant.\nThe API published a post.\n", encoding="utf-8"
+        )
+        self.data["text"] = "The API published a post."
+        self.data["evidence"][0].update(
+            claim="The API published a post.", quote="The API published a post."
+        )
+        result = self.run_check()
+        self.assertNotEqual(0, result.returncode)
 
 
 if __name__ == "__main__":
