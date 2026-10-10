@@ -160,8 +160,10 @@ a tracked repository source path, and a verbatim quotation from that file:
 ```
 
 Run `python3 scripts/check-social-draft.py path/to/draft.json`. A nonzero exit
-means a missing or invented literal quotation, an untracked/outside source,
-or an evidence claim absent from the text. A passing exit only proves the
+means a quotation absent from the source at the current commit (`HEAD`), an
+untracked/outside source, or an evidence claim absent from the text. Working
+tree and staged edits cannot add evidence until committed. This also means a
+source introduced after the last commit is not yet eligible. A passing exit only proves the
 listed strings exist: it cannot tell whether a quote *supports* the claim,
 identify omitted claims, check wording or X's weighted character limit, or
 approve publication. The owner must review **every** factual assertion and
