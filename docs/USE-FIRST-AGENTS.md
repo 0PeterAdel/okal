@@ -9,9 +9,11 @@ operator reviews every draft. A later Postiz adapter may schedule an approved
 draft; neither a voice transcript nor an agent's claim is publication approval.
 
 This is a proposed integration path, not a claim that the existing Okal voice
-service executes tools. PRs #10 (voice), #11 (STT acceptance), and #12
-(transcript review) are separate draft work. The recordings and their scoring
-remain prerequisites before voice can request an action.
+service executes tools. PR #10 has merged as a classification-only experimental
+slice; #11 (STT acceptance) and #12 (transcript review) are separate draft
+work. The owner's first 40-command acceptance trial did not clear the Arabic
+and mixed-command gate. Further review and scoped action approval are required
+before voice can request an action.
 
 ## Choice
 
@@ -110,7 +112,22 @@ the basis of this pilot.
 The setup script never replaces an existing profile's `SOUL.md`. If a profile
 was created before the strengthened templates, review the diff against the
 installed file and deliberately update that profile yourself. A repo pull
-alone does not change the running profile instructions.
+alone does not change the running profile instructions. For a reviewed
+research-profile update, preserve the installed file first:
+
+```bash
+diff -u ~/.hermes/profiles/okal-research/SOUL.md agents/profiles/okal-research/SOUL.md || true
+cp -p ~/.hermes/profiles/okal-research/SOUL.md ~/.hermes/profiles/okal-research/SOUL.md.before-grounding
+install -m 600 agents/profiles/okal-research/SOUL.md ~/.hermes/profiles/okal-research/SOUL.md
+```
+
+The 2026-10-10 voice-document test exposed a grounding failure: research
+summarized the original SILMA design as if it were the installed voice, despite
+the later VoiceTut Asmaa opt-in section and the owner's current doctor output.
+The strengthened research profile must distinguish plans, repository features,
+and live configuration, and identify missing runtime evidence instead of
+guessing. Repeat a read-only, cited status summary before trusting it in a
+daily workflow.
 
 ## Expand only after the first use
 

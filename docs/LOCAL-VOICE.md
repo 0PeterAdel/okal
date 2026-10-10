@@ -4,14 +4,24 @@ This first slice provides an offline voice entry point without granting a model
 authority to execute capabilities. Press `SUPER + SHIFT + O` once to capture and
 again to transcribe and route. The Omarchy overlay is visual-only and click-through.
 
+This guide contains initial design choices, setup examples, and later optional
+trials. They are not all active on a particular installation. Run `okal voice
+doctor` to inspect the current providers, and check the user's voice settings
+before claiming which model is active. On the owner's reported installation,
+VoiceTut Asmaa was enabled and the doctor reported it as the local TTS provider;
+other installations may use different voices. The 40-command acceptance trial
+did not establish the required Arabic and mixed-command accuracy, so
+recognition remains experimental and the voice slice remains
+classification-only. Do not infer action execution from successful routing.
+
 ## Local pipeline
 
 ```text
 PipeWire capture
   → faster-whisper / CTranslate2 (Egyptian Arabic + English code-switching)
   → strict Ollama route (qwen3:0.6b, classification only)
-  → SILMA TTS v1 (authorized local reference voice)
-  → Piper / espeak-ng fallback
+  → configured local TTS (VoiceTut Asmaa after opt-in, or another local provider)
+  → configured local fallback
                                       ↓
                          classification-only route event
 ```
@@ -27,7 +37,11 @@ larger local Ollama model. Task, dictation, clarify, and blocked routes are
 never sent to it. Both Ollama requests use `keep_alive=0` so their GPU memory
 can be released before speech synthesis. The trial has no tool access.
 
-## Selected local profile
+## Initial design profile (check the installed providers)
+
+The following table records the original design selection, not a live inventory.
+Later sections describe the separate VoiceTut Asmaa opt-in. Verify the actual
+provider with `okal voice doctor`.
 
 | Concern | Current choice | Reason |
 |---|---|---|
@@ -35,7 +49,7 @@ can be released before speech synthesis. The trial has no tool access.
 | STT | `faster-whisper` + Egyptian/code-switching Whisper | Optimized for Egyptian Arabic mixed with English; CUDA FP16 by default |
 | STT fallback | whisper.cpp `large-v3-turbo-q5_0` | Existing portable fallback while the specialized model is prepared |
 | Router | Ollama `qwen3:0.6b`, non-thinking | Tiny local classifier; strict JSON; no tools |
-| TTS | SILMA TTS v1 | 150M bilingual Arabic/English local model; voice cloning requires consent |
+| TTS design candidate | SILMA TTS v1 | 150M bilingual Arabic/English local model; voice cloning requires consent |
 | TTS fallback | Piper → `espeak-ng` | Local fallback chain; lower quality is explicit |
 | UI | Omarchy Shell panel | Native themed overlay; no input interception |
 
@@ -693,6 +707,6 @@ CUDA toolkit already installed at `/opt/cuda` on Omarchy. Keep the v0.9.0 execut
 the individual transcripts and command terms before considering any backend
 change.
 
-On the owner's 12 recorded holdout commands, QwenCleo Q8 with automatic language selection finished 12/12: Arabic normalized WER 0.283, English 0.074, mixed 0.496; median latencies were around 0.37–0.50 seconds on this run. Forcing Arabic gave the same Arabic and mixed transcripts and slightly different English text. The reference-language hints pass improved `commits` in one English command, but those labels are unavailable to a live assistant. The fixed-context holdout run completed 12/12 on the same recordings. Compared with auto without context, mean normalized WER improved from 0.283 to 0.258 (Arabic), 0.074 to 0.037 (English), and 0.496 to 0.393 (mixed); mean critical-term recall rose from 0.625 to 0.875, 0.833 to 1.0, and 0.458 to 0.646 respectively. The context recovered `commits` in English and `pull request` in mixed speech, but `اقفل` still became `اكلم`, `README` remained unrecognized in a mixed clip, and `الاجتماع تأجل` changed to the less faithful `الاجتماعات أجل`. The context candidate is therefore useful for an optional live transcription trial, not a reliable action trigger. Preserve the default STT and keep PR #10 in Draft until new natural-command recordings and an end-to-end review show that verbs and targets are preserved.
+On the owner's 12 recorded holdout commands, QwenCleo Q8 with automatic language selection finished 12/12: Arabic normalized WER 0.283, English 0.074, mixed 0.496; median latencies were around 0.37–0.50 seconds on this run. Forcing Arabic gave the same Arabic and mixed transcripts and slightly different English text. The reference-language hints pass improved `commits` in one English command, but those labels are unavailable to a live assistant. The fixed-context holdout run completed 12/12 on the same recordings. Compared with auto without context, mean normalized WER improved from 0.283 to 0.258 (Arabic), 0.074 to 0.037 (English), and 0.496 to 0.393 (mixed); mean critical-term recall rose from 0.625 to 0.875, 0.833 to 1.0, and 0.458 to 0.646 respectively. The context recovered `commits` in English and `pull request` in mixed speech, but `اقفل` still became `اكلم`, `README` remained unrecognized in a mixed clip, and `الاجتماع تأجل` changed to the less faithful `الاجتماعات أجل`. The context candidate is therefore useful for an optional live transcription trial, not a reliable action trigger. Preserve the default STT. PR #10 has since merged as a classification-only experimental slice; the separate acceptance review has not authorized automatic actions.
 
 `OKAL_STT_BACKEND=audiocpp` and `OKAL_AUDIOCPP_ENDPOINT` exist only for an explicitly started local server. The default installed STT and the selected VoiceTut Asmaa voice stay as configured.
