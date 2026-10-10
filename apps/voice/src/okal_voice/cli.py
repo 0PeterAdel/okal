@@ -132,12 +132,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="area", required=True)
     voice = sub.add_parser("voice", help="local-only voice entry point")
     commands = voice.add_subparsers(dest="command", required=True)
-    for name in ("run", "toggle", "cancel", "status", "quit", "doctor"):
+    for name in ("run", "toggle", "cancel", "status", "quit", "doctor", "confirm"):
         commands.add_parser(name)
     say = commands.add_parser("say", help="speak the supplied text exactly")
     say.add_argument("text", nargs="+")
     ask = commands.add_parser("ask", help="route a typed request and speak the answer")
     ask.add_argument("text", nargs="+")
+    preview = commands.add_parser("preview", help="stage a typed transcript for review without a microphone")
+    preview.add_argument("text", nargs="+")
+    correct = commands.add_parser("correct", help="replace the pending transcript and submit it")
+    correct.add_argument("text", nargs="+")
     return parser
 
 
@@ -152,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{'PASS' if item['ok'] else 'FAIL'}  {item['name']}: {item['detail']}")
         return code
     request = {"command": args.command}
-    if args.command in {"say", "ask"}:
+    if args.command in {"say", "ask", "preview", "correct"}:
         request["text"] = " ".join(args.text)
     try:
         response = send_control(request)
