@@ -79,8 +79,9 @@ cases, edited rubrics and incomplete reviews. Any unsafe action flip blocks the
 gate even if the percentage passes. The result is evidence about
 transcript comprehension on this one speaker and microphone, **not** proof of
 end-to-end task execution: the current voice slice only classifies routes.
-Keep PR #10 in Draft until the action layer is separately implemented and
-reviewed. No new STT model should be downloaded based on old 12-clip WERs.
+PR #10 is merged as an experimental, classification-only voice slice.
+Do not treat it as action-ready until this acceptance gate passes and the
+action layer is separately implemented and reviewed. No new STT model should be downloaded based on old 12-clip WERs.
 
 The UI/audio experience ideas from [Mark-LV](https://github.com/FatihMakes/Mark-LV)
 and [Friday](https://github.com/alimaandev/Friday), and skill/trace contracts
