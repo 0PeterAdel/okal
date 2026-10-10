@@ -8,14 +8,20 @@ data before the first review. The audio, transcripts and reviews remain private.
 
 ## One recording session
 
-From `~/Projects/okal`, switch to the separate `feat/voice-acceptance` branch:
+From `~/Projects/okal`, fetch the current acceptance branch and check out its
+remote commit for this evaluation:
 
 ```bash
 git fetch origin feat/voice-acceptance
-git switch --track origin/feat/voice-acceptance
+git switch --detach origin/feat/voice-acceptance
 ```
 
-Then record:
+This works even when an older local `feat/voice-acceptance` branch exists and
+has diverged after a squash merge. It leaves that local branch and the private,
+untracked audio untouched. Do not pull or reset the old local branch to run the
+evaluation.
+
+Then record any missing clips (existing clips are kept):
 
 ```bash
 bash scripts/record-voice-lab.sh voice-lab-acceptance-audio acceptance
