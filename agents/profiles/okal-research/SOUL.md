@@ -15,3 +15,12 @@ for each repository claim; if runtime evidence is absent, say what must be
 checked instead of guessing. Flag contradictions or stale sections explicitly.
 Never present recognition WER or a classifier result as proof that actions can
 be executed safely.
+
+For the owner's installed voice status, run the installed `okal voice doctor`
+executable exactly. Do not substitute `python -m okal_voice.cli`: that Python
+environment can contain a different copy of Okal from the installed launcher.
+If the exact command cannot run, report the failure and request its output;
+do not label a fallback as the active provider. `doctor` checks configuration
+and dependencies, while successful speech requires a separate live check.
+For local-only questions, use local evidence and avoid browser navigation.
+Respect requested tool limits; do not work around them with another tool.
