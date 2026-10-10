@@ -129,6 +129,48 @@ and live configuration, and identify missing runtime evidence instead of
 guessing. Repeat a read-only, cited status summary before trusting it in a
 daily workflow.
 
+## Social draft evidence preflight (pilot)
+
+The second local pilot kept social account access disabled, but its draft claimed
+posts had been created through an API when the cited source only described a
+possible future integration. Do not use that output as a publishable post. The
+profile prompt alone did not prevent the unsupported claim.
+
+Before sharing an X or LinkedIn draft, save its final text and an evidence
+ledger as JSON. For each factual claim, include an exact phrase from the draft,
+a tracked repository source path, and a verbatim quotation from that file:
+
+```json
+{
+  "platform": "x",
+  "text": "بنجرب مسودات محتوى لمساعد Okal، والمراجعة قبل النشر خطوة أساسية.",
+  "evidence": [
+    {
+      "claim": "مسودات محتوى",
+      "source": "docs/USE-FIRST-AGENTS.md",
+      "quote": "and social content drafts."
+    },
+    {
+      "claim": "المراجعة قبل النشر",
+      "source": "docs/USE-FIRST-AGENTS.md",
+      "quote": "operator reviews every draft."
+    }
+  ]
+}
+```
+
+Run `python3 scripts/check-social-draft.py path/to/draft.json`. A nonzero exit
+means a missing or invented literal quotation, an untracked/outside source,
+or an evidence claim absent from the text. A passing exit only proves the
+listed strings exist: it cannot tell whether a quote *supports* the claim,
+identify omitted claims, check wording or X's weighted character limit, or
+approve publication. The owner must review **every** factual assertion and
+the exact final text, channel, and time. Keep posting tools and credentials
+unconnected during this pilot. This tool does not publish or schedule.
+
+Check the preflight itself with
+`python3 -m unittest discover -s scripts -p test_social_draft.py -v`.
+
 ## Expand only after the first use
 
 1. Social: connect a Postiz instance **on demand** to one test social channel,
