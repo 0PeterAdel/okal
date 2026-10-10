@@ -16,6 +16,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venv-okal-voice/
+.venv-okal-tts-lab/
+.venv-okal-stt-*/
 venv/
 htmlcov/
 .coverage
@@ -60,3 +63,8 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+voice-lab-audio/
+voice-lab-*-audio/
+voice-lab-*.json
+voice-lab-tts/
+voice-lab-tournament/
