@@ -73,6 +73,7 @@ class VoiceService:
         self._lock = threading.RLock()
         self._cancel = threading.Event()
         self._pipeline: threading.Thread | None = None
+        self._pending: tuple[str, str] | None = None
         self._publish(VoicePhase.IDLE)
 
     def handle(self, request: dict) -> dict:
@@ -87,6 +88,12 @@ class VoiceService:
             return self.say(str(request.get("text", "")).strip())
         if command == "ask":
             return self.ask(str(request.get("text", "")).strip())
+        if command == "preview":
+            return self.preview(str(request.get("text", "")))
+        if command == "correct":
+            return self.confirm(str(request.get("text", "")))
+        if command == "confirm":
+            return self.confirm()
         if command == "quit":
             self.cancel()
             return {"ok": True, "message": "stopping", "stop": True}
@@ -116,7 +123,37 @@ class VoiceService:
                     return {"ok": False, "error": "audio is too short"}
                 self._start_pipeline(audio_path)
                 return {"ok": True, "phase": VoicePhase.TRANSCRIBING.value}
+            if self.phase is VoicePhase.REVIEWING:
+                return self.confirm()
             return self.cancel()
+
+    def preview(self, text: str) -> dict:
+        """Stage a typed transcript so the review flow can be tried without audio."""
+        text = " ".join(text.split())
+        if not text or len(text) > 800:
+            return {"ok": False, "error": "transcript must be 1–800 characters"}
+        with self._lock:
+            if self.phase is not VoicePhase.IDLE:
+                return {"ok": False, "error": "voice session is busy"}
+            self.session_id = uuid.uuid4().hex
+            self._cancel.clear()
+            self._pending = (text, _reply_language(text, "unknown"))
+            self._publish(VoicePhase.REVIEWING, text=text, language=self._pending[1])
+            return {"ok": True, "phase": VoicePhase.REVIEWING.value, "transcript": text}
+
+    def confirm(self, correction: str | None = None) -> dict:
+        with self._lock:
+            if self.phase is not VoicePhase.REVIEWING or self._pending is None:
+                return {"ok": False, "error": "no transcript awaiting review"}
+            if correction is not None:
+                correction = " ".join(correction.split())
+                if not correction or len(correction) > 800:
+                    return {"ok": False, "error": "correction must be 1–800 characters"}
+            original, language = self._pending
+            text = correction if correction is not None else original
+            self._pending = None
+            self._start_routing(text, _reply_language(text, language))
+            return {"ok": True, "phase": VoicePhase.ROUTING.value, "transcript": text}
 
     def say(self, text: str) -> dict:
         """Speak the supplied text verbatim without invoking the intent router."""
@@ -160,6 +197,7 @@ class VoiceService:
     def cancel(self) -> dict:
         with self._lock:
             self._cancel.set()
+            self._pending = None
             if self.capture.active:
                 self.capture.cancel()
             self._publish(VoicePhase.IDLE, text="Cancelled — تم الإلغاء")
@@ -171,8 +209,16 @@ class VoiceService:
         def work() -> None:
             try:
                 transcript, language = self.stt.transcribe(audio_path)
-                if self._cancel.is_set():
-                    return
+                with self._lock:
+                    if self._cancel.is_set():
+                        return
+                    if not transcript.strip():
+                        self._publish(VoicePhase.BLOCKED, text="No speech recognized — لم أتعرف على كلام")
+                        return
+                    if self.config.review_transcript:
+                        self._pending = (transcript, language)
+                        self._publish(VoicePhase.REVIEWING, text=transcript, language=language)
+                        return
                 self._route_and_speak(transcript, language)
             except ProviderError as exc:
                 self._publish(VoicePhase.ERROR, text=str(exc))

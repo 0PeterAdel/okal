@@ -693,6 +693,28 @@ CUDA toolkit already installed at `/opt/cuda` on Omarchy. Keep the v0.9.0 execut
 the individual transcripts and command terms before considering any backend
 change.
 
-On the owner's 12 recorded holdout commands, QwenCleo Q8 with automatic language selection finished 12/12: Arabic normalized WER 0.283, English 0.074, mixed 0.496; median latencies were around 0.37–0.50 seconds on this run. Forcing Arabic gave the same Arabic and mixed transcripts and slightly different English text. The reference-language hints pass improved `commits` in one English command, but those labels are unavailable to a live assistant. The fixed-context holdout run completed 12/12 on the same recordings. Compared with auto without context, mean normalized WER improved from 0.283 to 0.258 (Arabic), 0.074 to 0.037 (English), and 0.496 to 0.393 (mixed); mean critical-term recall rose from 0.625 to 0.875, 0.833 to 1.0, and 0.458 to 0.646 respectively. The context recovered `commits` in English and `pull request` in mixed speech, but `اقفل` still became `اكلم`, `README` remained unrecognized in a mixed clip, and `الاجتماع تأجل` changed to the less faithful `الاجتماعات أجل`. The context candidate is therefore useful for an optional live transcription trial, not a reliable action trigger. Preserve the default STT and keep PR #10 in Draft until new natural-command recordings and an end-to-end review show that verbs and targets are preserved.
+## Review a transcript before routing
+
+The microphone normally routes recognized text immediately. To pause after
+transcription, add `OKAL_VOICE_REVIEW_TRANSCRIPT=1` to
+`~/.config/okal/voice.env` and restart the user service. The orb then shows
+the recognized text. Press `SUPER + SHIFT + O` again, or run
+`okal voice confirm`, to submit it. Use `okal voice correct 'corrected text'`
+to replace it, or `okal voice cancel` to discard it. This reviews text only;
+the router remains classification-only and does not execute desktop actions.
+
+Try the same review flow without a microphone (the flag is not required):
+
+```bash
+okal voice preview 'افتح البرواز'
+okal voice status
+okal voice correct 'افتح المتصفح'
+```
+
+`preview` creates a pending sample but does not route it until confirmation
+or correction. `correct` requires a pending transcript; an empty correction
+is rejected. The current orb is click-through, so corrections use the CLI.
+
+On the owner's 12 recorded holdout commands, QwenCleo Q8 with automatic language selection finished 12/12: Arabic normalized WER 0.283, English 0.074, mixed 0.496; median latencies were around 0.37–0.50 seconds on this run. Forcing Arabic gave the same Arabic and mixed transcripts and slightly different English text. The reference-language hints pass improved `commits` in one English command, but those labels are unavailable to a live assistant. The fixed-context holdout run completed 12/12 on the same recordings. Compared with auto without context, mean normalized WER improved from 0.283 to 0.258 (Arabic), 0.074 to 0.037 (English), and 0.496 to 0.393 (mixed); mean critical-term recall rose from 0.625 to 0.875, 0.833 to 1.0, and 0.458 to 0.646 respectively. The context recovered `commits` in English and `pull request` in mixed speech, but `اقفل` still became `اكلم`, `README` remained unrecognized in a mixed clip, and `الاجتماع تأجل` changed to the less faithful `الاجتماعات أجل`. The context candidate is therefore useful for an optional live transcription trial, not a reliable action trigger. Preserve the default STT. PR #10 is merged as an experimental, classification-only voice slice; new natural-command recordings and an end-to-end review still need to show that verbs and targets are preserved before actions are enabled.
 
 `OKAL_STT_BACKEND=audiocpp` and `OKAL_AUDIOCPP_ENDPOINT` exist only for an explicitly started local server. The default installed STT and the selected VoiceTut Asmaa voice stay as configured.

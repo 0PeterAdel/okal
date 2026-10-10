@@ -19,6 +19,7 @@ Item {
   readonly property bool fresh: updatedAt > 0 && clock - updatedAt < 900
   readonly property bool visiblePhase: phase === "listening"
                                      || phase === "transcribing"
+                                     || phase === "reviewing"
                                      || phase === "routing"
                                      || phase === "speaking"
                                      || phase === "blocked"
@@ -181,7 +182,7 @@ Item {
         wrapMode: Text.WordWrap
         maximumLineCount: 2
         elide: Text.ElideRight
-        text: root.label
+        text: root.phase === "reviewing" ? "سمعت: " + root.label : root.label
         color: Color.foreground
         font.pixelSize: 14
       }
@@ -193,6 +194,15 @@ Item {
         color: root.tint
         font.pixelSize: 11
         font.letterSpacing: 2
+      }
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: core.bottom
+        anchors.topMargin: 68
+        visible: root.phase === "reviewing"
+        text: "SUPER + SHIFT + O للتأكيد · okal voice correct للتصحيح"
+        color: Color.foreground
+        font.pixelSize: 11
       }
     }
   }

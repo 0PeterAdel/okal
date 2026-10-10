@@ -111,6 +111,33 @@ class VoiceServiceTests(unittest.TestCase):
         route = self.store.route_path.read_text(encoding="utf-8")
         self.assertIn('"authority":"classification-only"', route)
 
+    def test_review_gate_pauses_microphone_before_router_and_accepts_hotkey(self):
+        self.service.config = VoiceConfig(review_transcript=True)
+        self.service.toggle()
+        self.service.toggle()
+        self.wait_for(VoicePhase.REVIEWING)
+        self.assertEqual(self.router.calls, [])
+        self.assertEqual(self.store.read().text, "مساء الخير")
+        self.assertEqual(self.service.toggle()["phase"], "routing")
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(self.router.calls, ["مساء الخير"])
+
+    def test_preview_corrects_before_routing_without_microphone(self):
+        self.assertEqual(self.service.handle({"command": "preview", "text": "افتح البرواز"})["phase"], "reviewing")
+        self.assertEqual(self.router.calls, [])
+        self.assertEqual(self.service.handle({"command": "correct", "text": "افتح المتصفح"})["transcript"], "افتح المتصفح")
+        self.wait_for(VoicePhase.IDLE)
+        self.assertEqual(self.router.calls, ["افتح المتصفح"])
+        self.assertIn('"transcript":"افتح المتصفح"', self.store.route_path.read_text(encoding="utf-8"))
+
+    def test_cancel_and_invalid_correction_do_not_route(self):
+        self.service.preview("نص تجريبي")
+        self.assertFalse(self.service.confirm("   ")["ok"])
+        self.assertEqual(self.service.phase, VoicePhase.REVIEWING)
+        self.service.cancel()
+        self.assertFalse(self.service.confirm()["ok"])
+        self.assertEqual(self.router.calls, [])
+
     def test_short_audio_is_blocked_and_not_routed(self):
         self.capture.duration = 0.1
         self.service.toggle()
