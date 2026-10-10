@@ -76,12 +76,41 @@ okal-code: Inspect a disposable checkout and propose one testable fix; show the 
 okal-social: Draft two Egyptian Arabic posts about a project update; return drafts only.
 ```
 
-The pilot passes when all three profiles answer, no social account is
-connected, the code proposal is reviewable in an isolated checkout, and
-stopping any agent does not stop Okal voice. Profile isolation is not an OS
-sandbox: Hermes' local terminal tools still have the operator's filesystem
-permissions. Use a disposable checkout for code; do not attach posting tools,
-tokens, or a real browser session to the social profile in this pilot.
+The pilot passes when all three profiles answer, the research answer is
+traceable to files actually read, the code proposal correctly describes the
+current lines and a reproducible failure, and social drafts make only
+source-backed claims. No social account is connected, the code proposal is
+reviewable in an isolated checkout, and stopping any agent does not stop Okal
+voice. Profile isolation is not an OS sandbox: Hermes' local terminal tools
+still have the operator's filesystem permissions. Use a disposable checkout
+for code; do not attach posting tools, tokens, or a real browser session to
+the social profile in this pilot.
+
+### First local pilot result (2026-10-10)
+
+The operator configured all three profiles against the same locally cached
+`okal-qwen3.5-4b-64k:latest` model. Ollama reported 64,000 context tokens and
+22% CPU / 78% GPU placement. Research read `README.md` and `AGENTS.md` and
+returned an answer with both files as sources. The code profile read
+`scripts/setup-agent-profiles.sh` but misidentified the meaning of lines 36–37:
+the script backs up an existing `SOUL.md` on fresh profile creation; it does
+not depend on a preexisting `SOUL.md.before-okal`. The proposed fix and test
+did not address a demonstrated failure. The social profile read `README.md`
+and produced drafts without publishing, but a privacy claim exceeded what the
+source establishes. **Tool calls and fast replies passed; code correctness and
+publication-quality grounding did not.** These are observations from three
+short tasks, not a general benchmark of the model.
+
+Use research for operator-reviewed reading and social for operator-reviewed
+drafts. Use a stronger coding assistant for actual changes until this code
+task passes the source-and-reproduction gate in a disposable checkout. Do not
+route a voice transcript to any profile or connect publishing credentials on
+the basis of this pilot.
+
+The setup script never replaces an existing profile's `SOUL.md`. If a profile
+was created before the strengthened templates, review the diff against the
+installed file and deliberately update that profile yourself. A repo pull
+alone does not change the running profile instructions.
 
 ## Expand only after the first use
 
