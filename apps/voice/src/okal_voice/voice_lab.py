@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .config import VoiceConfig
 from .providers import ProviderError, build_stt
+from .acceptance_cases import PROMPTS as ACCEPTANCE_CASES
 
 CASES = [
     ("ar_01", "افتح لي المتصفح وخلي الصفحة دي قدامي"),
@@ -60,7 +61,12 @@ VOCABULARY_CASES = [
     ("mix_05", "افتح التيرمنال واعرض آخر سبع commits"),
 ]
 
-SUITES = {"baseline": CASES, "holdout": HOLDOUT_CASES, "vocabulary": VOCABULARY_CASES}
+SUITES = {
+    "baseline": CASES,
+    "holdout": HOLDOUT_CASES,
+    "vocabulary": VOCABULARY_CASES,
+    "acceptance": ACCEPTANCE_CASES,
+}
 
 CRITICAL_VOCAB = (
     "pull request", "git status", "VS Code", "GitHub", "Wi-Fi", "README",

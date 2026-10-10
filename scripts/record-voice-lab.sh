@@ -7,7 +7,8 @@ case "$SUITE" in
   baseline) default_dir="$ROOT_DIR/voice-lab-audio" ;;
   holdout) default_dir="$ROOT_DIR/voice-lab-holdout-audio" ;;
   vocabulary) default_dir="$ROOT_DIR/voice-lab-vocabulary-audio" ;;
-  *) echo "Unknown Voice Lab suite: $SUITE (expected baseline, holdout, or vocabulary)" >&2; exit 2 ;;
+  acceptance) default_dir="$ROOT_DIR/voice-lab-acceptance-audio" ;;
+  *) echo "Unknown Voice Lab suite: $SUITE (expected baseline, holdout, vocabulary, or acceptance)" >&2; exit 2 ;;
 esac
 OUT_DIR="${1:-$default_dir}"
 umask 077
@@ -34,6 +35,11 @@ trap 'exit 143' TERM
 case_lines="$(PYTHONPATH="$ROOT_DIR/apps/voice/src" python3 -m okal_voice.voice_lab --suite "$SUITE" --list-cases)"
 while IFS=$'\t' read -r case_id phrase <&3; do
   audio_path="$OUT_DIR/$case_id.wav"
+  if [[ "$SUITE" == "acceptance" && -s "$audio_path" ]] && \
+    ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$audio_path" >/dev/null 2>&1; then
+    printf 'Keeping existing %s.wav (remove that file to re-record it).\n' "$case_id"
+    continue
+  fi
   while :; do
     printf '\n[%s] Say exactly:\n%s\nPress Enter to record, then Enter to stop.\n' "$case_id" "$phrase"
     read -r
