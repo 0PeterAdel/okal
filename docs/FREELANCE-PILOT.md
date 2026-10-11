@@ -45,10 +45,12 @@ From the same checkout and virtual environment used above:
 
 ```bash
 .venv-okal-freelance/bin/python scripts/freelance-mostaql.py accounts
+# Later, if you need another site: accounts --site khamsat
+# Or: accounts --site freelancer
 ```
 
-This opens Mostaql, Khamsat and Freelancer in one visible browser. Complete
-each login and any CAPTCHA yourself, then press Enter in the terminal to
+This opens **Mostaql only** in one visible browser. Complete
+login and any CAPTCHA yourself, then press Enter in the terminal to
 close the browser cleanly. Cookies and other browser data are stored locally
 at `~/.local/share/okal/freelance/browser/`. Later `scan` and `apply`
 reopen this exact directory. You do **not** need to copy browser profile
@@ -58,6 +60,14 @@ use another local AI process, configure it to use this same directory only
 when this pilot browser is closed. The directory contains account sessions:
 keep it private and out of Git or shared archives. Visible browser operation
 does not guarantee a platform will treat automation as human activity.
+The browser now uses the actual resizable window size instead of a fixed
+1280x720 page viewport. In a tiling desktop, maximize the window with your
+desktop shortcut if needed. The profile can hold multiple accounts, but open
+and sign in to **one platform at a time**. If Hsoub displays its login attempt
+limit, stop retrying and wait for the site to allow another attempt; no
+browser setting or automation should try to evade that limit. Google Search's
+unusual traffic page concerns Google/network traffic and does not on its own
+establish that Mostaql blocked the account. Do not run automated Google searches.
 
 ## First application
 
@@ -87,6 +97,9 @@ retrying an uncertain submission. Check the project/account page for the
 actual submitted proposal. If the site form changed, the script stops; fill
 that proposal manually and report the field names/labels so the adapter can
 be updated. A failure, CAPTCHA, or login prompt is not a successful bid.
+The pilot waits for the visible project links and form fields to load, then
+stops if they are missing or login redirects away from the project. It does
+not repeat login attempts or submission clicks automatically.
 The `history.json` and drafts contain private project and proposal data.
 Do not share them or commit them to Git. Subsequent buyer messages and
 follow-up are entirely manual.
