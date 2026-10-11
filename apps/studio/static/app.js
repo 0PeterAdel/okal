@@ -53,6 +53,7 @@ let awaitingReply = false;
 let lastCompletedSession = "";
 let toastTimer = null;
 let displayName = "بيتر";
+let chosenTheme = "mint";
 const activity = [];
 
 function node(tag, className, text) {
@@ -195,7 +196,7 @@ function renderSettings() {
   motion.type = "button";
   motion.addEventListener("click",() => {
     const reduced = document.body.classList.toggle("reduce-motion");
-    localStorage.setItem("okal-motion",reduced ? "off" : "on");
+    try { localStorage.setItem("okal-motion",reduced ? "off" : "on"); } catch (_) { /* optional preference */ }
     motion.textContent = reduced ? "تشغيل" : "إيقاف";
   });
   append(motionRow,append(node("div"),node("span","","الحركة الهادئة"),node("small","","تقليل حركة العناصر المتوهجة")),motion);
@@ -330,7 +331,7 @@ async function sendVoice(command,text) {
 }
 async function sendPrompt() {
   const text = input.value.trim();
-  if (!text) return;
+  if (!text || document.getElementById("sendButton").disabled) return;
   if (!voice.available) { showToast("شغّل خدمة صوت Okal أولاً؛ النص محفوظ في الخانة."); return; }
   try {
     document.getElementById("sendButton").disabled = true;
@@ -368,9 +369,8 @@ async function toggleMic() {
   } catch (error) { awaitingReply = false; showToast(error.message); }
 }
 function markTheme() {
-  const theme = localStorage.getItem("okal-theme") || "mint";
   document.querySelectorAll("[data-theme]").forEach(button =>
-    button.classList.toggle("selected",button.dataset.theme === theme));
+    button.classList.toggle("selected",button.dataset.theme === chosenTheme));
 }
 function applyTheme(theme) {
   const choices = {
@@ -378,11 +378,12 @@ function applyTheme(theme) {
     lilac:["#c5bbf5","#eae4ff","181,164,242"],
     amber:["#f0d5a1","#fff0d1","240,204,151"]
   };
-  const selected = choices[theme] || choices.mint;
+  chosenTheme = Object.hasOwn(choices,theme) ? theme : "mint";
+  const selected = choices[chosenTheme];
   document.documentElement.style.setProperty("--mint",selected[0]);
   document.documentElement.style.setProperty("--mint-bright",selected[1]);
   orb.style.setProperty("--orb-color",selected[2]);
-  localStorage.setItem("okal-theme",theme);
+  try { localStorage.setItem("okal-theme",chosenTheme); } catch (_) { /* optional preference */ }
   markTheme();
 }
 function updateClock() {
@@ -416,10 +417,10 @@ input.addEventListener("input",() => {
   input.style.height = Math.min(input.scrollHeight,100) + "px";
 });
 try {
-  displayName = localStorage.getItem("okal-name") || displayName;
+  displayName = (localStorage.getItem("okal-name") || displayName).slice(0,24);
   if (localStorage.getItem("okal-motion") === "off") document.body.classList.add("reduce-motion");
   applyTheme(localStorage.getItem("okal-theme") || "mint");
-} catch (_) { /* Storage may be disabled; the default remains usable. */ }
+} catch (_) { applyTheme("mint"); }
 updateClock();
 setInterval(updateClock,30000);
 poll();
