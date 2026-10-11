@@ -71,6 +71,22 @@ establish that Mostaql blocked the account. Do not run automated Google searches
 
 ## First application
 
+The first `scan` creates the private per-site configuration
+`~/.local/share/okal/freelance/sites/mostaql.json` with this listing:
+
+```json
+{
+  "projects_url": "https://mostaql.com/projects?category=development,ai-machine-learning,support&sort=latest"
+}
+```
+
+You can change the filters in that file later. The pilot checks that the URL
+is an HTTPS Mostaql `/projects` page before opening it. This configuration
+only selects the listing; the private profile's services and exclusions still
+filter individual projects. Other platforms can get their own site files when
+their distinct discovery and application flows are implemented. Account sign-in
+for Khamsat and Freelancer does not enable their submission flows.
+
 ```bash
 py=.venv-okal-freelance/bin/python
 "$py" scripts/freelance-mostaql.py scan --limit 5
