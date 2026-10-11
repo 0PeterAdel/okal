@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 
 
 HOME = Path.home() / ".local/share/okal/freelance"
-PROJECTS = "https://mostaql.com/projects"
+PROJECTS = "https://mostaql.com/projects?category=development,ai-machine-learning,support&sort=latest"
 ACCOUNT_SITES = (
     ("Mostaql", "https://mostaql.com"),
     ("Khamsat", "https://khamsat.com"),
@@ -51,6 +51,29 @@ def project_url(url: str) -> str:
 
 def project_id(url: str) -> str:
     return re.match(r"https://mostaql.com/project/(\d+)", project_url(url)).group(1)
+
+
+def project_listing_url(url: str) -> str:
+    """Accept a listing and filters only from Mostaql itself."""
+    if not isinstance(url, str):
+        raise ValueError("Mostaql projects_url must be a string")
+    parsed = urlparse(url)
+    if (parsed.scheme != "https" or parsed.hostname not in ("mostaql.com", "www.mostaql.com")
+            or parsed.path != "/projects" or parsed.params or parsed.fragment
+            or parsed.username or parsed.password or parsed.port is not None):
+        raise ValueError("Expected an HTTPS Mostaql /projects listing URL with optional filters")
+    return url
+
+
+def mostaql_listing(state: Path) -> str:
+    path = state / "sites" / "mostaql.json"
+    if not path.exists():
+        save(path, {"projects_url": PROJECTS})
+        print(f"Created site settings: {path}")
+    config = load(path)
+    if not isinstance(config, dict):
+        raise ValueError(f"Expected a JSON object in {path}")
+    return project_listing_url(config.get("projects_url"))
 
 
 def profile_check(profile: dict) -> None:
@@ -143,13 +166,14 @@ def inspect(page, url: str) -> dict:
 
 
 def cmd_scan(args, state: Path, profile: dict) -> None:
+    listing = mostaql_listing(state)
     playwright, context, lock = browser_context(state)
     try:
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto(PROJECTS, wait_until="domcontentloaded")
+        page.goto(listing, wait_until="domcontentloaded")
         print("إذا طلب تسجيل الدخول، سجّل بنفسك في نافذة المتصفح ثم اضغط Enter هنا.")
         input()
-        page.goto(PROJECTS, wait_until="domcontentloaded")
+        page.goto(listing, wait_until="domcontentloaded")
         if urlparse(page.url).hostname not in ("mostaql.com", "www.mostaql.com"):
             raise RuntimeError(f"Browser is at {urlparse(page.url).hostname}; complete site login manually before scanning")
         try:
