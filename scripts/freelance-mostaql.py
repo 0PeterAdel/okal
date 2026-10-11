@@ -100,6 +100,7 @@ def cmd_scan(args, state: Path, profile: dict) -> None:
         page.goto(PROJECTS, wait_until="domcontentloaded")
         print("إذا طلب تسجيل الدخول، سجّل بنفسك في نافذة المتصفح ثم اضغط Enter هنا.")
         input()
+        page.goto(PROJECTS, wait_until="domcontentloaded")
         links = page.locator('a[href*="/project/"]').evaluate_all(
             "els => [...new Set(els.map(a => a.href))]"
         )
