@@ -13,6 +13,40 @@ spec.loader.exec_module(pilot)
 
 
 class FreelancerPilotTests(unittest.TestCase):
+    def test_mostaql_listing_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            self.assertEqual(pilot.mostaql_listing(state), pilot.PROJECTS)
+            path = state / "sites" / "mostaql.json"
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            custom = "https://mostaql.com/projects?category=development,ai-machine-learning,support&sort=latest"
+            pilot.save(path, {"projects_url": custom})
+            self.assertEqual(pilot.mostaql_listing(state), custom)
+
+    def test_listing_rejects_other_domains_and_paths(self):
+        for url in ("http://mostaql.com/projects", "https://mostaql.com.evil.org/projects",
+                    "https://mostaql.com@evil.org/projects", "https://mostaql.com/project/123",
+                    "https://mostaql.com/projects#other", "https://mostaql.com:444/projects", None):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                pilot.project_listing_url(url)
+
+    def test_scan_uses_saved_listing_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            selected = "https://mostaql.com/projects?category=development&sort=latest"
+            pilot.save(state / "sites" / "mostaql.json", {"projects_url": selected})
+            page = MagicMock()
+            page.url = selected
+            page.locator.return_value.evaluate_all.return_value = []
+            context = MagicMock()
+            context.pages = [page]
+            with patch.object(pilot, "browser_context", return_value=(MagicMock(), context, MagicMock())), \
+                 patch("builtins.input", return_value=""):
+                pilot.cmd_scan(SimpleNamespace(limit=5), state, {"services": ["بايثون"], "exclude_terms": []})
+            self.assertEqual(page.goto.call_count, 2)
+            self.assertTrue(all(call.args[0] == selected for call in page.goto.call_args_list))
+            self.assertEqual(pilot.load(state / "queue.json")["projects"], [])
+
     def test_only_project_urls_on_mostaql(self):
         self.assertEqual(pilot.project_id("https://mostaql.com/project/12345-a-job?ref=x"), "12345")
         for url in ("http://mostaql.com/project/123", "https://mostaql.com.evil.org/project/123",
