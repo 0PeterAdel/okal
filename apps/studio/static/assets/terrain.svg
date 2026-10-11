@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img" aria-label="منظر تجريدي من التلال">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#263452"/><stop offset=".58" stop-color="#597c89"/><stop offset="1" stop-color="#b0a69e"/></linearGradient><linearGradient id="h" x2=".2" y2="1"><stop stop-color="#98a59c"/><stop offset="1" stop-color="#28465a"/></linearGradient></defs>
+  <rect width="600" height="400" fill="url(#s)"/><circle cx="422" cy="158" r="72" fill="#e8cfb2" opacity=".92"/>
+  <path d="M0 244Q135 194 255 249T600 219v181H0z" fill="#5d7980"/><path d="M0 288Q120 224 225 280T470 262Q540 250 600 274v126H0z" fill="url(#h)"/>
+  <path d="M0 353Q125 265 244 337T600 302v98H0z" fill="#28475b"/><path d="M0 394Q158 321 300 389T600 350v50H0z" fill="#19364b"/>
+  <g fill="none" stroke="#b9d2c4" stroke-opacity=".36" stroke-width="2"><path d="M18 344Q123 278 232 338T591 314"/><path d="M31 363Q138 302 233 356T588 336"/><path d="M48 381Q149 327 250 375T597 360"/></g>
+</svg>

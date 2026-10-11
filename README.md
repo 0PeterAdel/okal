@@ -27,6 +27,7 @@ Wiki have passed.
 - [Security model](wiki/Security-and-Threat-Model.md)
 - [Architecture decisions](wiki/Architecture-Decision-Records.md)
 - [Use-first agent pilot](docs/USE-FIRST-AGENTS.md)
+- [Okal Studio local interface](docs/OKAL-STUDIO.md)
 
 ## Core promises
 
