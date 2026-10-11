@@ -37,14 +37,14 @@ def project_url(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname not in ("mostaql.com", "www.mostaql.com"):
         raise ValueError("Only HTTPS Mostaql project URLs are accepted")
-    match = re.match(r"^/projects/(\d+)(?:/[^/?#]*)?/?$", parsed.path)
+    match = re.match(r"^/project/(\d+)(?:-[^/?#]+)?/?$", parsed.path)
     if not match or any(part in (".", "..") for part in parsed.path.split("/")):
-        raise ValueError("Expected a Mostaql project URL under /projects/<number>")
+        raise ValueError("Expected a Mostaql project URL under /project/<number>-<title>")
     return f"https://mostaql.com{parsed.path.rstrip('/')}"
 
 
 def project_id(url: str) -> str:
-    return re.match(r"https://mostaql.com/projects/(\d+)", project_url(url)).group(1)
+    return re.match(r"https://mostaql.com/project/(\d+)", project_url(url)).group(1)
 
 
 def profile_check(profile: dict) -> None:
@@ -100,7 +100,7 @@ def cmd_scan(args, state: Path, profile: dict) -> None:
         page.goto(PROJECTS, wait_until="domcontentloaded")
         print("إذا طلب تسجيل الدخول، سجّل بنفسك في نافذة المتصفح ثم اضغط Enter هنا.")
         input()
-        links = page.locator('a[href*="/projects/"]').evaluate_all(
+        links = page.locator('a[href*="/project/"]').evaluate_all(
             "els => [...new Set(els.map(a => a.href))]"
         )
         rows = []

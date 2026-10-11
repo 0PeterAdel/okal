@@ -11,10 +11,10 @@ spec.loader.exec_module(pilot)
 
 class FreelancerPilotTests(unittest.TestCase):
     def test_only_project_urls_on_mostaql(self):
-        self.assertEqual(pilot.project_id("https://mostaql.com/projects/12345/a-job?ref=x"), "12345")
-        for url in ("http://mostaql.com/projects/123", "https://mostaql.com.evil.org/projects/123",
-                    "https://mostaql.com/login", "https://mostaql.com/projects/../../login",
-                    "https://mostaql.com/projects/123/.."):
+        self.assertEqual(pilot.project_id("https://mostaql.com/project/12345-a-job?ref=x"), "12345")
+        for url in ("http://mostaql.com/project/123", "https://mostaql.com.evil.org/project/123",
+                    "https://mostaql.com/login", "https://mostaql.com/projects/123",
+                    "https://mostaql.com/project/../../login", "https://mostaql.com/project/123/.."):
             with self.assertRaises(ValueError):
                 pilot.project_url(url)
 

@@ -44,7 +44,7 @@ py=.venv-okal-freelance/bin/python
 "$py" scripts/freelance-mostaql.py scan --limit 5
 # In the dedicated Chromium window, sign in to Mostaql yourself, then Enter.
 # Alternatively add a project URL you picked in the browser:
-# "$py" scripts/freelance-mostaql.py add 'https://mostaql.com/projects/123456/example'
+# "$py" scripts/freelance-mostaql.py add 'https://mostaql.com/project/123456-example'
 cat "$HOME/.local/share/okal/freelance/queue.json"
 "$py" scripts/freelance-mostaql.py draft PROJECT_ID
 ```
