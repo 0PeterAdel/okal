@@ -1,7 +1,9 @@
 # Freelance proposal pilot: Mostaql first
 
 This pilot runs on the owner's laptop and uses a **separate Chromium browser
-profile** for Mostaql. Sign in yourself once. The script does not handle
+profile** for Mostaql. The same profile can hold manual sign-ins for Khamsat
+and Freelancer, though project scanning and submission are implemented only
+for Mostaql. Sign in yourself once. The script does not handle
 passwords, copy Firefox cookies, bypass CAPTCHA, send messages, or follow up.
 It does not run unattended. Khamsat has a different selling flow; Freelancer
 has different bid fields and limits. Neither is connected in this pilot.
@@ -36,6 +38,26 @@ To create a separate Hermes identity for later style conversations, run
 Choose the existing Ollama model with `hermes -p okal-freelance model`.
 The pilot script does not give Hermes direct access to the account; all
 submissions go through the reviewed local browser flow below.
+
+## Sign in to the dedicated browser
+
+From the same checkout and virtual environment used above:
+
+```bash
+.venv-okal-freelance/bin/python scripts/freelance-mostaql.py accounts
+```
+
+This opens Mostaql, Khamsat and Freelancer in one visible browser. Complete
+each login and any CAPTCHA yourself, then press Enter in the terminal to
+close the browser cleanly. Cookies and other browser data are stored locally
+at `~/.local/share/okal/freelance/browser/`. Later `scan` and `apply`
+reopen this exact directory. You do **not** need to copy browser profile
+files into the repository or into Hermes. Close the browser before another
+command uses the profile; the script refuses concurrent access. If you later
+use another local AI process, configure it to use this same directory only
+when this pilot browser is closed. The directory contains account sessions:
+keep it private and out of Git or shared archives. Visible browser operation
+does not guarantee a platform will treat automation as human activity.
 
 ## First application
 

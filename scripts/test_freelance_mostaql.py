@@ -1,4 +1,5 @@
 import importlib.util
+import fcntl
 from pathlib import Path
 import tempfile
 import unittest
@@ -35,6 +36,14 @@ class FreelancerPilotTests(unittest.TestCase):
             pilot.save(path, {"proposal": "نص خاص"})
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(pilot.load(path)["proposal"], "نص خاص")
+
+    def test_browser_profile_rejects_concurrent_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = Path(directory) / ".browser.lock"
+            with lock_path.open("w") as locked:
+                fcntl.flock(locked, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with self.assertRaisesRegex(RuntimeError, "already open"):
+                    pilot.browser_context(Path(directory))
 
 
 if __name__ == "__main__":

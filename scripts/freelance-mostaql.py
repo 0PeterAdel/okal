@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,11 @@ from urllib.request import Request, urlopen
 
 HOME = Path.home() / ".local/share/okal/freelance"
 PROJECTS = "https://mostaql.com/projects"
+ACCOUNT_SITES = (
+    ("Mostaql", "https://mostaql.com"),
+    ("Khamsat", "https://khamsat.com"),
+    ("Freelancer", "https://www.freelancer.com"),
+)
 
 
 def save(path: Path, data: dict) -> None:
@@ -69,9 +75,21 @@ def match_project(profile: dict, title: str, description: str) -> bool:
 
 
 def browser_context(state: Path):
+    state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    state.chmod(0o700)
+    (state / "browser").mkdir(exist_ok=True, mode=0o700)
+    (state / "browser").chmod(0o700)
+    lock_fd = os.open(state / ".browser.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    lock = os.fdopen(lock_fd, "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        lock.close()
+        raise RuntimeError("The freelance browser profile is already open. Close it before starting another command") from exc
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
+        lock.close()
         raise RuntimeError("Install browser dependency: python -m pip install playwright") from exc
     playwright = sync_playwright().start()
     kwargs = {"user_data_dir": str(state / "browser"), "headless": False, "locale": "ar-EG"}
@@ -81,8 +99,25 @@ def browser_context(state: Path):
         context = playwright.chromium.launch_persistent_context(**kwargs)
     except Exception:
         playwright.stop()
+        lock.close()
         raise
-    return playwright, context
+    return playwright, context, lock
+
+
+def cmd_accounts(args, state: Path) -> None:
+    """Open the same persistent browser profile for manual site sign-in."""
+    playwright, context, lock = browser_context(state)
+    try:
+        for name, url in ACCOUNT_SITES:
+            page = context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            print(f"Opened {name}: {page.url}")
+        print("Sign in manually in the open tabs and solve any site prompts yourself.")
+        input("When finished, press Enter here to close the browser and save the session. ")
+    finally:
+        context.close()
+        playwright.stop()
+        lock.close()
 
 
 def inspect(page, url: str) -> dict:
@@ -94,7 +129,7 @@ def inspect(page, url: str) -> dict:
 
 
 def cmd_scan(args, state: Path, profile: dict) -> None:
-    playwright, context = browser_context(state)
+    playwright, context, lock = browser_context(state)
     try:
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(PROJECTS, wait_until="domcontentloaded")
@@ -124,11 +159,12 @@ def cmd_scan(args, state: Path, profile: dict) -> None:
     finally:
         context.close()
         playwright.stop()
+        lock.close()
 
 
 def cmd_add(args, state: Path, profile: dict) -> None:
     url = project_url(args.url)
-    playwright, context = browser_context(state)
+    playwright, context, lock = browser_context(state)
     try:
         page = context.pages[0] if context.pages else context.new_page()
         item = inspect(page, url)
@@ -140,6 +176,7 @@ def cmd_add(args, state: Path, profile: dict) -> None:
     finally:
         context.close()
         playwright.stop()
+        lock.close()
 
 
 def ollama(prompt: str, model: str) -> str:
@@ -214,7 +251,7 @@ def cmd_apply(args, state: Path, profile: dict) -> None:
     history = load(history_path) if history_path.exists() else {}
     if args.id in history:
         raise ValueError("An attempt is already recorded. Check the site before any retry")
-    playwright, context = browser_context(state)
+    playwright, context, lock = browser_context(state)
     try:
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
@@ -262,6 +299,7 @@ def cmd_apply(args, state: Path, profile: dict) -> None:
     finally:
         context.close()
         playwright.stop()
+        lock.close()
 
 
 def main() -> int:
@@ -270,6 +308,7 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     scan = sub.add_parser("scan", help="Find a small number of matching Mostaql projects")
     scan.add_argument("--limit", type=int, default=5)
+    sub.add_parser("accounts", help="Open the persistent browser for manual sign-in")
     add = sub.add_parser("add", help="Add a project URL you found yourself")
     add.add_argument("url")
     draft = sub.add_parser("draft", help="Draft for an ID from queue.json")
@@ -283,6 +322,9 @@ def main() -> int:
         parser.error("limit must be between 1 and 20")
     try:
         state = args.state.expanduser().resolve()
+        if args.command == "accounts":
+            cmd_accounts(args, state)
+            return 0
         profile = load(state / "profile.json")
         profile_check(profile)
         {"scan": cmd_scan, "add": cmd_add, "draft": cmd_draft, "apply": cmd_apply}[args.command](args, state, profile)
