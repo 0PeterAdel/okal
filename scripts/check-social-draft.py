@@ -57,10 +57,17 @@ def check(draft_path: Path, root: Path) -> list[str]:
         if tracked.returncode:
             errors.append(f"{label} source is not tracked by git")
             continue
+        committed = subprocess.run(
+            ["git", "-C", str(root), "show", f"HEAD:{source}"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+        )
+        if committed.returncode:
+            errors.append(f"{label} source has no committed version at HEAD")
+            continue
         try:
-            content = target.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            errors.append(f"{label} source is not readable UTF-8 text")
+            content = committed.stdout.decode("utf-8")
+        except UnicodeDecodeError:
+            errors.append(f"{label} committed source is not readable UTF-8 text")
             continue
         if quote not in content:
             errors.append(f"{label} quote is absent from {source}")
