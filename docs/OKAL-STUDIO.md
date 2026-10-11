@@ -29,7 +29,7 @@ A local producer can atomically write UTF-8 JSON to `$XDG_RUNTIME_DIR/okal/studi
 | `text` | `body`, optional `highlights` string array | 8,000 characters, 6 highlights |
 | `chart` | `series` of `{ "label": string, "value": number }`, optional `unit` | 12 values between 0 and 100 |
 | `gallery` | `images` of `{ "src": string, "alt": string, "caption": string }` | 8 local images |
-| `steps` | `steps` of `{ "title": string, "detail": string, "state": "done" | "active" | "waiting" }` | 8 steps |
+| `steps` | `steps` entries with `title`, `detail`, and `state` (`done`, `active`, or `waiting`) | 8 steps |
 
 Example, using actual measured data supplied by the publisher:
 
