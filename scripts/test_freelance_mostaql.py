@@ -3,6 +3,8 @@ import fcntl
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 
 spec = importlib.util.spec_from_file_location("pilot", Path(__file__).with_name("freelance-mostaql.py"))
@@ -44,6 +46,36 @@ class FreelancerPilotTests(unittest.TestCase):
                 fcntl.flock(locked, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 with self.assertRaisesRegex(RuntimeError, "already open"):
                     pilot.browser_context(Path(directory))
+
+    def test_browser_uses_real_resizable_window(self):
+        with patch.dict(pilot.os.environ, {"OKAL_FREELANCE_CHROMIUM": "/usr/bin/chromium"}):
+            options = pilot.browser_window_options(Path("/tmp/okal-test"))
+        self.assertTrue(options["no_viewport"])
+        self.assertIn("--start-maximized", options["args"])
+        self.assertEqual(options["executable_path"], "/usr/bin/chromium")
+
+    def test_accounts_opens_only_requested_site(self):
+        page = MagicMock()
+        page.url = "https://khamsat.com"
+        context = MagicMock()
+        context.pages = [page]
+        playwright = MagicMock()
+        lock = MagicMock()
+        with patch.object(pilot, "browser_context", return_value=(playwright, context, lock)), \
+             patch("builtins.input", return_value=""):
+            pilot.cmd_accounts(SimpleNamespace(site="khamsat"), Path("/tmp/okal-test"))
+        page.goto.assert_called_once_with("https://khamsat.com", wait_until="domcontentloaded", timeout=30000)
+        context.new_page.assert_not_called()
+        context.close.assert_called_once()
+
+    def test_form_field_waits_for_dynamic_visibility(self):
+        field = MagicMock()
+        field.count.return_value = 1
+        self.assertIs(pilot.one(field, "proposal"), field)
+        field.first.wait_for.assert_called_once_with(state="visible", timeout=10000)
+        field.count.return_value = 2
+        with self.assertRaisesRegex(RuntimeError, "unique proposal"):
+            pilot.one(field, "proposal")
 
 
 if __name__ == "__main__":
