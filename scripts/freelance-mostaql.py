@@ -74,6 +74,16 @@ def match_project(profile: dict, title: str, description: str) -> bool:
     )
 
 
+def browser_window_options(state: Path) -> dict:
+    # Let the page use the actual resizable window, not Playwright's 1280x720 viewport.
+    options = {"user_data_dir": str(state / "browser"), "headless": False,
+               "locale": "ar-EG", "no_viewport": True,
+               "args": ["--start-maximized"]}
+    if os.environ.get("OKAL_FREELANCE_CHROMIUM"):
+        options["executable_path"] = os.environ["OKAL_FREELANCE_CHROMIUM"]
+    return options
+
+
 def browser_context(state: Path):
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     state.chmod(0o700)
@@ -92,11 +102,8 @@ def browser_context(state: Path):
         lock.close()
         raise RuntimeError("Install browser dependency: python -m pip install playwright") from exc
     playwright = sync_playwright().start()
-    kwargs = {"user_data_dir": str(state / "browser"), "headless": False, "locale": "ar-EG"}
-    if os.environ.get("OKAL_FREELANCE_CHROMIUM"):
-        kwargs["executable_path"] = os.environ["OKAL_FREELANCE_CHROMIUM"]
     try:
-        context = playwright.chromium.launch_persistent_context(**kwargs)
+        context = playwright.chromium.launch_persistent_context(**browser_window_options(state))
     except Exception:
         playwright.stop()
         lock.close()
@@ -108,11 +115,11 @@ def cmd_accounts(args, state: Path) -> None:
     """Open the same persistent browser profile for manual site sign-in."""
     playwright, context, lock = browser_context(state)
     try:
-        for name, url in ACCOUNT_SITES:
-            page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            print(f"Opened {name}: {page.url}")
-        print("Sign in manually in the open tabs and solve any site prompts yourself.")
+        name, url = next((name, url) for name, url in ACCOUNT_SITES if name.lower() == args.site)
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        print(f"Opened {name}: {page.url}")
+        print("Sign in manually. If the site reports a login attempt limit, stop and try later.")
         input("When finished, press Enter here to close the browser and save the session. ")
     finally:
         context.close()
@@ -122,6 +129,13 @@ def cmd_accounts(args, state: Path) -> None:
 
 def inspect(page, url: str) -> dict:
     page.goto(project_url(url), wait_until="domcontentloaded", timeout=30000)
+    try:
+        same_project = project_id(page.url) == project_id(url)
+    except ValueError:
+        same_project = False
+    if not same_project:
+        raise RuntimeError("The browser left the intended Mostaql project. Complete login or site prompts manually")
+    page.locator("body").wait_for(state="visible", timeout=15000)
     title = page.locator("h1").first.inner_text().strip() if page.locator("h1").count() else page.title()
     # Read visible page text, never hidden form data or account cookies.
     description = page.locator("body").inner_text(timeout=15000)[:10000]
@@ -136,6 +150,12 @@ def cmd_scan(args, state: Path, profile: dict) -> None:
         print("إذا طلب تسجيل الدخول، سجّل بنفسك في نافذة المتصفح ثم اضغط Enter هنا.")
         input()
         page.goto(PROJECTS, wait_until="domcontentloaded")
+        if urlparse(page.url).hostname not in ("mostaql.com", "www.mostaql.com"):
+            raise RuntimeError(f"Browser is at {urlparse(page.url).hostname}; complete site login manually before scanning")
+        try:
+            page.locator('a[href*="/project/"]').first.wait_for(state="visible", timeout=15000)
+        except Exception as exc:
+            raise RuntimeError("No project links appeared. Check the visible site page and try later; no retry loop will run") from exc
         links = page.locator('a[href*="/project/"]').evaluate_all(
             "els => [...new Set(els.map(a => a.href))]"
         )
@@ -152,7 +172,7 @@ def cmd_scan(args, state: Path, profile: dict) -> None:
                 if match_project(profile, item["title"], item["description"]):
                     rows.append(item)
                     print(f'{len(rows)}. {item["title"]}: {canonical}')
-            except Exception as exc:
+            except ValueError as exc:
                 print(f"Skipping unreadable project: {exc}", file=sys.stderr)
         save(state / "queue.json", {"projects": rows, "checked_at": datetime.now(timezone.utc).isoformat()})
         print(f"Saved {len(rows)} candidates to {state / 'queue.json'}")
@@ -217,6 +237,10 @@ def cmd_draft(args, state: Path, profile: dict) -> None:
 
 
 def one(locator, name: str):
+    try:
+        locator.first.wait_for(state="visible", timeout=10000)
+    except Exception as exc:
+        raise RuntimeError(f"Could not find a visible {name} field; leave this bid for manual entry") from exc
     count = locator.count()
     if count != 1:
         raise RuntimeError(f"Cannot identify unique {name} field ({count} matches); leave this bid for manual entry")
@@ -293,7 +317,6 @@ def cmd_apply(args, state: Path, profile: dict) -> None:
                             "proposal": draft["proposal"], "price_usd": draft["price_usd"], "delivery_days": draft["delivery_days"]}
         save(history_path, history)
         button.click()
-        page.wait_for_timeout(1500)
         print(f"Submit click finished at {page.url}. Verify the bid in your account. Attempt recorded in {history_path}.")
         input("Press Enter to close the browser after checking the result.")
     finally:
@@ -308,7 +331,9 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     scan = sub.add_parser("scan", help="Find a small number of matching Mostaql projects")
     scan.add_argument("--limit", type=int, default=5)
-    sub.add_parser("accounts", help="Open the persistent browser for manual sign-in")
+    accounts = sub.add_parser("accounts", help="Open one site for manual sign-in in the persistent browser")
+    accounts.add_argument("--site", choices=[name.lower() for name, _ in ACCOUNT_SITES],
+                          default="mostaql")
     add = sub.add_parser("add", help="Add a project URL you found yourself")
     add.add_argument("url")
     draft = sub.add_parser("draft", help="Draft for an ID from queue.json")
