@@ -91,6 +91,9 @@ your local password manager or a private environment file, never in Git:
 export OKAL_POSTIZ_API_URL='https://api.postiz.com/public/v1'
 export OKAL_POSTIZ_API_KEY='paste-private-key-locally'
 export OKAL_POSTIZ_X_INTEGRATION_ID='connected-x-integration-id'
+curl -fsS -H "Authorization: $OKAL_POSTIZ_API_KEY" \
+  "$OKAL_POSTIZ_API_URL/integrations" |
+  python3 -c 'import json,sys; print([(x["id"], x["profile"]) for x in json.load(sys.stdin) if x["identifier"] == "x"])'
 python3 scripts/postiz-x-draft.py draft.json
 python3 scripts/postiz-x-draft.py draft.json --create-draft
 ```
@@ -113,8 +116,9 @@ The career agent can rank verified facts for that listing or specify
 `fact_ids` to choose them explicitly. The CV tool never invents a claim:
 
 ```bash
-python3 -m pip install reportlab
-python3 scripts/prepare-job-application.py \
+python3 -m venv .venv-okal-agents
+.venv-okal-agents/bin/python -m pip install 'reportlab>=4,<5'
+.venv-okal-agents/bin/python scripts/prepare-job-application.py \
   --profile "$HOME/.config/okal/owner-profile.json" \
   --job "$HOME/.config/okal/job.private.json" \
   --out-dir "$HOME/.local/share/okal/applications/example-role"

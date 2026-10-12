@@ -16,7 +16,7 @@ never rewrite those facts as new achievements.
 From the Okal repository run:
 
 ```bash
-python3 scripts/prepare-job-application.py \
+.venv-okal-agents/bin/python scripts/prepare-job-application.py \
   --profile "$HOME/.config/okal/owner-profile.json" \
   --job /path/to/private/job.json \
   --out-dir /path/to/private/new-job-directory
