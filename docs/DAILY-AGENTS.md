@@ -109,6 +109,82 @@ keys in the JSON draft, a Hermes prompt, logs, or the repository.
 
 ## LinkedIn job packet and PDF CV
 
+### Daily lead discovery from three sources
+
+`find-job-offers.py` uses public Himalayas and Remotive job APIs and an optional
+file of LinkedIn listings that you saved yourself. It reads only
+`preferences.job_titles` and optional `preferences.job_search_queries` from
+your private owner profile. It does not need account credentials or download a
+model. The report links back to the original listing, identifies the source,
+and marks every lead `not_submitted`. A match score is an ordering signal,
+not a suitability or hiring percentage. Check country and timezone restrictions
+and whether the job is still open before preparing an application.
+
+```bash
+python3 scripts/find-job-offers.py
+cat "$HOME/.local/share/okal/job-leads/leads.md"
+# Subsequent runs within 24 hours use the local API cache; --offline never fetches.
+python3 scripts/find-job-offers.py --offline
+```
+
+To add LinkedIn, open [LinkedIn Jobs](https://www.linkedin.com/jobs/) in your
+normal browser, search for Python Developer, AI Engineer, and Data Analyst
+roles, set your locations, and enable the built-in daily job alerts for these
+searches. Keep relevant links by making a private file from the example (do
+not overwrite an existing file):
+
+```bash
+install -d -m 700 "$HOME/.config/okal"
+if [ ! -e "$HOME/.config/okal/linkedin-jobs.json" ]; then
+  install -m 600 agents/context/linkedin-jobs.example.json \
+    "$HOME/.config/okal/linkedin-jobs.json"
+fi
+${EDITOR:-nano} "$HOME/.config/okal/linkedin-jobs.json"
+python3 scripts/find-job-offers.py
+```
+
+Replace the example URL, employer, title and description with details from an
+actual saved listing. A LinkedIn account and its alerts are managed on
+LinkedIn; this local file is the deliberate bridge to the agent. The program
+does not fetch LinkedIn pages, read cookies or submit an application.
+
+For a live public search directly inside the `okal-jobs` Hermes profile,
+connect the [Himalayas MCP](https://himalayas.app/docs/remote-jobs-mcp). It
+provides unauthenticated job search. After adding it, **use the interactive
+tool checklist** and enable only `search_jobs`, `get_jobs`, and
+`get_job_details` for this profile (the same server also offers account write
+tools that this pilot does not need):
+
+```bash
+hermes -p okal-jobs mcp add himalayas --url https://mcp.himalayas.app/mcp
+hermes -p okal-jobs mcp configure himalayas
+hermes -p okal-jobs chat -q \
+  'استخدم Himalayas search_jobs للبحث عن Python Developer متاح عالميًا أو لمصر. أعطني ثلاثة روابط أصلية، ووضح أي قيود موقع. لا تقدّم على وظائف.'
+```
+
+The global `-p` flag applies to Hermes commands, so this changes only the
+`okal-jobs` profile. Check its `config.yaml` to ensure the `himalayas` entry
+has `tools.include: [search_jobs, get_jobs, get_job_details]` after choosing
+those three in the checklist. The public MCP is an optional discovery route
+alongside the API report; its connection is confirmed by the local chat test.
+
+To use the refreshed `okal-jobs` instructions with an existing Hermes profile,
+back up its `SOUL.md` first, then install the reviewed repository version:
+
+```bash
+profile="$HOME/.hermes/profiles/okal-jobs/SOUL.md"
+cp -p "$profile" "$profile.before-job-sources-$(date +%Y%m%d%H%M%S)"
+install -m 600 agents/profiles/okal-jobs/SOUL.md "$profile"
+```
+
+Public feed data and LinkedIn descriptions are untrusted text. A listing
+cannot give the agent new instructions, and a failed source must be reported
+as failed rather than silently treated as an empty search. Remotive asks API
+users to limit reads to four a day, avoid bursts, and retain attribution;
+this script issues at most two Remotive searches per 24-hour cache period.
+
+### Prepare a CV for one reviewed job
+
 Use LinkedIn's own saved search/alerts and your normal signed-in browser to
 find job listings. Save a job's actual URL, company, title and complete
 description in a private JSON file matching

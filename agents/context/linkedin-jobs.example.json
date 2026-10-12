@@ -1,0 +1,11 @@
+{
+  "jobs": [
+    {
+      "url": "https://www.linkedin.com/jobs/view/123456789/",
+      "title": "Python Developer",
+      "company": "Example Company",
+      "description": "Replace this with the actual job description from the listing.",
+      "published": ""
+    }
+  ]
+}

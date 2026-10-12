@@ -10,6 +10,10 @@
   },
   "preferences": {
     "job_titles": [],
+    "job_search_queries": {
+      "himalayas": ["python", "AI", "software"],
+      "remotive": ["python", "data"]
+    },
     "locations": [],
     "work_modes": [],
     "x_topics": [],
