@@ -89,7 +89,8 @@ your local password manager or a private environment file, never in Git:
 
 ```bash
 export OKAL_POSTIZ_API_URL='https://api.postiz.com/public/v1'
-export OKAL_POSTIZ_API_KEY='paste-private-key-locally'
+read -rsp 'Postiz API key: ' OKAL_POSTIZ_API_KEY; printf '\n'
+export OKAL_POSTIZ_API_KEY
 export OKAL_POSTIZ_X_INTEGRATION_ID='connected-x-integration-id'
 curl -fsS -H "Authorization: $OKAL_POSTIZ_API_KEY" \
   "$OKAL_POSTIZ_API_URL/integrations" |
