@@ -41,6 +41,30 @@ class JobDiscoveryTests(unittest.TestCase):
         job["url"] = "https://bad.example/remote-jobs/software-dev/test-1"
         self.assertIsNone(offers.normalize_remotive(job))
 
+    def test_country_allowlist_and_generic_engineer_do_not_make_a_lead(self):
+        base = dict(id=1, title="Software Engineer / AI Code Trainer (Python)",
+                    company_name="Example", description="Python",
+                    url="https://remotive.com/remote-jobs/software-dev/example-1")
+        restricted = dict(base, candidate_required_location="USA, UK, India, Pakistan")
+        self.assertIsNone(offers.normalize_remotive(restricted))
+        excluded = dict(base, candidate_required_location="Worldwide excluding Egypt")
+        self.assertIsNone(offers.normalize_remotive(excluded))
+        unknown = dict(base, candidate_required_location="")
+        self.assertIsNone(offers.normalize_remotive(unknown))
+        worldwide = dict(base, candidate_required_location="Worldwide")
+        self.assertIsNotNone(offers.score_job(offers.normalize_remotive(worldwide),
+                                              ["Python Developer", "AI Engineer"]))
+        desk = dict(worldwide, title="Tier III Service Desk Engineer")
+        self.assertIsNone(offers.score_job(offers.normalize_remotive(desk),
+                                            ["Python Developer", "AI Engineer"]))
+
+    def test_himalayas_metadata_seniority_blocks_staff_role(self):
+        job = offers.normalize_himalayas(dict(
+            title="AI Engineer", companyName="Example", seniority=["Staff"],
+            applicationLink="https://himalayas.app/companies/example/jobs/ai-engineer",
+            locationRestrictions=[]))
+        self.assertIsNone(offers.score_job(job, ["AI Engineer"]))
+
     def test_linkedin_only_owner_saved_real_job_urls(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "links.json"

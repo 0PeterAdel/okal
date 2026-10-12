@@ -25,6 +25,7 @@ CACHE_SECONDS = 24 * 60 * 60
 MAX_BYTES = 8 * 1024 * 1024
 SENIOR_TITLE = re.compile(r"\b(senior|sr\.?|principal|staff|lead|director|head of|manager)\b", re.I)
 STOPWORDS = {"and", "the", "for", "of", "applied", "junior", "entry", "level"}
+ROLE_WORDS = {"developer", "engineer", "analyst", "scientist", "programmer"}
 
 
 class PlainText(HTMLParser):
@@ -104,11 +105,17 @@ def normalize_remotive(job):
     title, company = job.get("title"), job.get("company_name")
     if not isinstance(title, str) or not isinstance(company, str) or not title.strip() or not company.strip():
         return None
-    required = job.get("candidate_required_location") or "not specified"
-    location = (
-        "worldwide (check listing)" if str(required).casefold() in {"worldwide", "anywhere"}
-        else str(required) + " (check eligibility)"
-    )
+    required = str(job.get("candidate_required_location") or "").strip()
+    # Remotive often publishes country allowlists. Do not rank a role whose
+    # stated locations exclude the owner's country, or whose location is unknown.
+    if re.search(r"\b(?:except|excluding|not available in)\b[^.;]*\b(?:Egypt|EG)\b", required, re.I):
+        return None
+    if required.casefold() in {"worldwide", "anywhere", "anywhere in the world", "global"}:
+        location = "worldwide (check listing)"
+    elif re.search(r"\bEgypt\b", required, re.I):
+        location = required + " (Egypt listed; check listing)"
+    else:
+        return None
     return {
         "source": "Remotive", "source_url": job["url"],
         "id": str(job.get("id") or job["url"]), "title": title.strip(),
@@ -178,12 +185,18 @@ def write_private(path, content):
 
 def score_job(job, titles):
     title = job["title"].casefold()
-    if SENIOR_TITLE.search(title) and not any(SENIOR_TITLE.search(t) for t in titles):
+    seniority = job.get("seniority") or []
+    if isinstance(seniority, str):
+        seniority = [seniority]
+    if (SENIOR_TITLE.search(title) or any(SENIOR_TITLE.search(str(s)) for s in seniority)) \
+            and not any(SENIOR_TITLE.search(t) for t in titles):
         return None
     tokens = set(re.findall(r"[a-z]{2,}", " ".join(titles).casefold())) - STOPWORDS
-    matches = sorted(t for t in tokens if re.search(r"\b" + re.escape(t) + r"\b", title))
-    if not matches:
+    role = sorted(t for t in ROLE_WORDS.intersection(tokens) if re.search(r"\b" + t + r"\b", title))
+    specialty = sorted(t for t in tokens - ROLE_WORDS if re.search(r"\b" + re.escape(t) + r"\b", title))
+    if not role or not specialty:
         return None
+    matches = specialty + role
     score = len(matches) * 2
     if re.search(r"\b(junior|entry|graduate|intern|trainee)\b", title):
         score += 3

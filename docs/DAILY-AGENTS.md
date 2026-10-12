@@ -119,6 +119,13 @@ model. The report links back to the original listing, identifies the source,
 and marks every lead `not_submitted`. A match score is an ordering signal,
 not a suitability or hiring percentage. Check country and timezone restrictions
 and whether the job is still open before preparing an application.
+The first candidate run exposed two poor leads: a Remotive role whose country
+allowlist excluded Egypt and a service desk title matching only "engineer".
+The discovery script now requires an Egypt or worldwide location on Remotive,
+a role plus a specialty in the title, and a non-senior level unless the owner
+explicitly lists senior targets. It may therefore return zero rather than
+invent a full slate. An MCP search result outside this shortlist is an
+unverified lead until its details and constraints have been checked.
 
 ```bash
 python3 scripts/find-job-offers.py

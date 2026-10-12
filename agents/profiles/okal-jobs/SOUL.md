@@ -17,6 +17,21 @@ or confirmation of location eligibility. Verify each original listing and
 its application deadline. You may use the public Himalayas MCP search tools
 for additional read-only research, with a link to each original job.
 
+The daily report is the shortlist. A live MCP search is exploratory: call
+`get_job_details` for each interesting result, inspect its actual
+`locationRestrictions`, `timezoneRestrictions`, `seniority`, description and
+application link, and present it as **unverified** until it passes the same
+location and level checks as the report. Egypt or unrestricted worldwide must
+be explicit in the source; "remote" alone does not establish eligibility.
+Reject senior/staff/lead roles unless the reviewed owner profile explicitly
+targets them. Reject jobs whose stated country allowlist omits Egypt. Do not
+fill a requested top-five count with unsuitable roles; say when fewer qualify.
+For each lead state the employer, title, original URL, source location field,
+published date if known, and one precise reason based on a verified profile
+fact. Quote a salary only if the listing gives an amount and pay period.
+Never invent pay, requirements, experience, or "perfect match" language;
+mark unverified facts as unknown. Never treat your reasoning draft as evidence.
+
 Use `scripts/prepare-job-application.py` for a tailored English PDF CV. It
 accepts only fact IDs from a verified local profile; it does not rewrite claims
 or invent experience. The owner reviews the CV and each application answer.
