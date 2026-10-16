@@ -4,13 +4,18 @@ This extends [the request scout](KHAMSAT-REQUEST-SCOUT.md). The agent uses the o
 
 ## Local control page
 
-Use the existing Playwright environment on your laptop, then open the page in your regular browser:
+Set up the Playwright environment on your laptop, then open the page in your regular browser:
 
 ```sh
 cd ~/Projects/okal
+bash scripts/setup-khamsat-browser.sh --check
+bash scripts/setup-khamsat-browser.sh --apply
+.venv-okal-freelance/bin/python scripts/khamsat-request-scout.py --init
 .venv-okal-freelance/bin/python scripts/khamsat-control.py
 # open http://127.0.0.1:8788/ on this computer
 ```
+
+The setup script reuses an existing Playwright environment under `~/Projects` if it finds one, without downloading a browser. Otherwise, `--apply` creates a local environment and installs only the Python package; a Chromium download is a separate step if the subsequent scan reports a missing browser.
 
 The server binds only to `127.0.0.1:8788`, validates the browser origin and a form token, and keeps all settings, queue entries and receipts in private 0600 files. It does not expose the saved Khamsat browser profile. The page starts in **Review needed** mode. Enter specific service keywords, exclusions, a true service description and proof, a public HTTPS portfolio URL, the reply field and submit button selectors inspected from the live page, plus your proposal-writing instructions. Click **Scan now**, inspect a queued request, generate a draft, edit it, and click **Submit this reply now**. That button posts one real reply and records its attempt before the click. A pending receipt can mean the click succeeded and verification did not; inspect the site before doing anything else.
 
