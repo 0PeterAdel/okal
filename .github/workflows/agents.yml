@@ -1,0 +1,31 @@
+name: Agent workflows
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "agents/**"
+      - "scripts/check-social-draft.py"
+      - "scripts/postiz-x-draft.py"
+      - "scripts/prepare-job-application.py"
+      - "scripts/test_agent_workflows.py"
+      - "scripts/test_social_draft.py"
+      - "scripts/setup-agent-profiles.sh"
+      - ".github/workflows/agents.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install 'reportlab>=4,<5'
+      - run: python -m unittest discover -s scripts -p 'test_social_draft.py' -v
+      - run: python -m unittest discover -s scripts -p 'test_agent_workflows.py' -v
+      - run: bash -n scripts/setup-agent-profiles.sh
