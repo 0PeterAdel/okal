@@ -1,0 +1,7 @@
+[Unit]
+Description=Read incoming Gmail and write a private local digest
+
+[Service]
+Type=oneshot
+ExecStart=%h/Projects/okal/.venv-okal-gmail/bin/python %h/Projects/okal/scripts/okal-gmail-digest.py --digest
+
