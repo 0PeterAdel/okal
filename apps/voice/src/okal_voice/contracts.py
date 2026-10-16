@@ -18,6 +18,7 @@ class VoicePhase(StrEnum):
     IDLE = "idle"
     LISTENING = "listening"
     TRANSCRIBING = "transcribing"
+    REVIEWING = "reviewing"
     ROUTING = "routing"
     SPEAKING = "speaking"
     BLOCKED = "blocked"
