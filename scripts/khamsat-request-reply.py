@@ -80,15 +80,17 @@ def controls(page) -> list[dict]:
 
 
 def open_browser(profile: Path):
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import Error as PlaywrightError, sync_playwright
 
     play = sync_playwright().start()
     options = {"user_data_dir": str(profile), "headless": False,
                "locale": "ar-EG", "no_viewport": True, "args": ["--start-maximized"]}
-    if os.environ.get("OKAL_FREELANCE_CHROMIUM"):
-        options["executable_path"] = os.environ["OKAL_FREELANCE_CHROMIUM"]
     try:
+        options["executable_path"] = scout.browser_executable(play.chromium.executable_path)
         return play, play.chromium.launch_persistent_context(**options)
+    except PlaywrightError as exc:
+        play.stop()
+        raise RuntimeError(f"Chromium could not start: {str(exc).splitlines()[0]}") from exc
     except Exception:
         play.stop()
         raise

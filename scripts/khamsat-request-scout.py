@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 from urllib.parse import urlparse
 
 
@@ -81,10 +82,33 @@ def merge_queue(old: list[dict], found: list[dict]) -> list[dict]:
     return list(by_id.values())[-200:]
 
 
+def browser_executable(playwright_default: str) -> str:
+    """Reuse a working local Chromium binary before suggesting a download."""
+    override = os.environ.get("OKAL_FREELANCE_CHROMIUM")
+    if override:
+        path = Path(override).expanduser()
+        if not path.is_file() or not os.access(path, os.X_OK):
+            raise RuntimeError(f"OKAL_FREELANCE_CHROMIUM is not executable: {path}")
+        return str(path)
+    if Path(playwright_default).is_file() and os.access(playwright_default, os.X_OK):
+        return playwright_default
+    for name in ("chromium", "chromium-browser", "google-chrome-stable", "google-chrome", "brave-browser"):
+        path = shutil.which(name)
+        if path:
+            return path
+    cache = Path.home() / ".cache/ms-playwright"
+    for candidate in sorted(cache.glob("chromium-*/chrome-linux*/chrome"), reverse=True):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    raise RuntimeError("Chromium is missing. Install a system Chromium browser or run "
+                       ".venv-okal-freelance/bin/python -m playwright install chromium once; "
+                       "your Khamsat profile and settings will not be erased")
+
+
 def scan(state: Path, profile: Path, config: dict, limit: int) -> None:
     if not profile.is_dir():
         raise RuntimeError(f"Saved local browser profile not found: {profile}")
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import Error as PlaywrightError, sync_playwright
 
     state.mkdir(mode=0o700, parents=True, exist_ok=True)
     lock_path = profile.parent / ".browser.lock"
@@ -97,9 +121,11 @@ def scan(state: Path, profile: Path, config: dict, limit: int) -> None:
         with sync_playwright() as playwright:
             options = {"user_data_dir": str(profile), "headless": False,
                        "locale": "ar-EG", "no_viewport": True, "args": ["--start-maximized"]}
-            if os.environ.get("OKAL_FREELANCE_CHROMIUM"):
-                options["executable_path"] = os.environ["OKAL_FREELANCE_CHROMIUM"]
-            context = playwright.chromium.launch_persistent_context(**options)
+            options["executable_path"] = browser_executable(playwright.chromium.executable_path)
+            try:
+                context = playwright.chromium.launch_persistent_context(**options)
+            except PlaywrightError as exc:
+                raise RuntimeError(f"Chromium could not start: {str(exc).splitlines()[0]}") from exc
             try:
                 page = context.pages[0] if context.pages else context.new_page()
                 page.goto(LISTING, wait_until="domcontentloaded", timeout=30000)

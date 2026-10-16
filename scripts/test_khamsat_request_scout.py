@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 spec = importlib.util.spec_from_file_location(
@@ -42,6 +43,23 @@ class KhamsatScoutTests(unittest.TestCase):
         old = [{"id": "1", "title": "keep"}, {"id": "2", "title": "old"}]
         new = [{"id": "2", "title": "updated"}, {"id": "3", "title": "new"}]
         self.assertEqual(scout.merge_queue(old, new), [old[0], new[0], new[1]])
+
+    def test_reuses_system_browser_when_playwright_revision_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / "chromium"
+            binary.write_text("browser")
+            binary.chmod(0o755)
+            with patch.dict(scout.os.environ, {"OKAL_FREELANCE_CHROMIUM": ""}), \
+                 patch.object(scout.shutil, "which", side_effect=lambda name: str(binary) if name == "chromium" else None):
+                self.assertEqual(scout.browser_executable(str(Path(tmp) / "missing")), str(binary))
+
+    def test_missing_browser_reports_one_install_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict(scout.os.environ, {"OKAL_FREELANCE_CHROMIUM": ""}), \
+                 patch.object(scout.shutil, "which", return_value=None), \
+                 patch.object(scout.Path, "home", return_value=Path(tmp)):
+                with self.assertRaisesRegex(RuntimeError, "playwright install chromium"):
+                    scout.browser_executable(str(Path(tmp) / "missing"))
 
 
 if __name__ == "__main__":
