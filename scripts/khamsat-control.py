@@ -104,7 +104,7 @@ def candidate(rid: str) -> dict:
     return found[0]
 
 
-def preview(rid: str) -> None:
+def preview(rid: str) -> str:
     item = candidate(rid)
     _, receipts = candidates()
     if rid in receipts:
@@ -112,13 +112,19 @@ def preview(rid: str) -> None:
     cfg = reply.instructions(dry_run=True)
     if not scout.matches(item["title"] + " " + item.get("visible_text", ""), cfg):
         raise ValueError("This request does not match your current rules")
-    proposal = reply.compose(item, cfg)
+    proposal = reply.generate(item, cfg)
+    warning = ""
+    try:
+        reply.valid_reply(proposal, cfg)
+    except ValueError as exc:
+        warning = str(exc)
     drafts = private_json(DRAFTS, {"requests": {}})
     drafts.setdefault("requests", {})[rid] = {
-        "url": item["url"], "text": proposal,
+        "url": item["url"], "text": proposal, "validation_error": warning,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     scout.save(DRAFTS, drafts)
+    return warning
 
 
 def submit_reviewed(rid: str, text: str) -> list[str]:
@@ -224,6 +230,8 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
                 parts.append(f'<form method="post" action="/preview" class="inline">{hidden}<input type="hidden" name="id" value="{rid}"><button class="alt">جهّز ردًا للمراجعة</button></form>')
             draft = drafts.get(rid)
             if draft and draft.get("url") == item["url"]:
+                if draft.get("validation_error"):
+                    parts.append(f'<p class="notice error" role="status">المسودة تحتاج تعديل قبل الإرسال: {e(draft["validation_error"])}</p>')
                 parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم أرسله لهذا الطلب فقط</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p><button type="submit">إرسال الرد الآن</button></p></form>')
         parts.append('</article>')
     if not rows:
@@ -306,8 +314,9 @@ class Handler(BaseHTTPRequestHandler):
                 scout.scan(scout.STATE, scout.PROFILE, scout.settings(scout.CONFIG), 10)
                 message = "اكتمل الفحص. راجع الطلبات أسفل الصفحة."
             elif self.path == "/preview":
-                preview(form.get("id", ""))
-                message = "جهزت الرد. راجعه أسفل الصفحة قبل الإرسال."
+                warning = preview(form.get("id", ""))
+                message = ("جهزت مسودة تحتاج تعديلًا قبل الإرسال: " + warning if warning else
+                           "جهزت الرد. راجعه أسفل الصفحة قبل الإرسال.")
             else:
                 results = submit_reviewed(form.get("id", ""), form.get("text", ""))
                 message = "\n".join(results) or "لم يُرسل رد. راجع الطابور."

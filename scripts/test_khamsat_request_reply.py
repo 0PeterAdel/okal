@@ -53,7 +53,7 @@ class ReplyTests(unittest.TestCase):
     def test_reply_without_portfolio_is_valid_but_unapproved_link_fails(self):
         text = "أقدر أساعدك في تصميم أداة Python للأتمتة، ونبدأ بتحديد المدخلات والمخرجات المطلوبة قبل التنفيذ."
         reply.valid_reply(text, {"portfolio_url": ""})
-        with self.assertRaisesRegex(ValueError, "failed validation"):
+        with self.assertRaisesRegex(ValueError, "رابطًا غير"):
             reply.valid_reply(text + " https://example.com/unapproved", {"portfolio_url": ""})
 
     def test_prompt_uses_verified_profile_without_static_service_or_link(self):
@@ -68,6 +68,11 @@ class ReplyTests(unittest.TestCase):
                                                    "proof": "غير موثق"}), response)
         self.assertIn("بنيت أداة أتمتة Python", captured[0])
         self.assertNotIn("غير موثق", captured[0])
+
+    def test_auto_generation_still_rejects_invalid_reply(self):
+        with patch.object(reply, "generate", return_value="رد قصير"):
+            with self.assertRaisesRegex(ValueError, "طول الرد"):
+                reply.compose(ITEM, {"portfolio_url": ""})
 
     def test_duplicate_request_cannot_be_sent(self):
         with self.assertRaisesRegex(ValueError, "already been attempted"):
@@ -111,7 +116,7 @@ class ReplyTests(unittest.TestCase):
         page = MagicMock()
         page.locator.return_value.inner_text.return_value = ITEM["title"]
         with patch.object(reply, "visit"), patch.object(reply.scout, "save") as save:
-            with self.assertRaisesRegex(ValueError, "failed validation"):
+            with self.assertRaisesRegex(ValueError, "طول الرد"):
                 reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16",
                                  dry_run=False, reply_override="ok")
             save.assert_not_called()
