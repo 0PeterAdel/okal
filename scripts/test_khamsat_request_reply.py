@@ -1,6 +1,8 @@
 """Offline checks for response identity, fail-closed form and pending receipt."""
 
 import importlib.util
+from io import BytesIO
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -20,21 +22,52 @@ VALID = "يمكنني تطوير واجهة Python المطلوبة اعتماد
 
 
 class ReplyTests(unittest.TestCase):
-    def test_missing_private_reply_settings_explains_control_page(self):
+    def test_missing_reply_settings_use_review_defaults(self):
         with tempfile.TemporaryDirectory() as td, patch.object(reply, "SETTINGS", Path(td) / "missing.json"), \
              patch.object(reply.scout, "settings", return_value={}):
-            with self.assertRaisesRegex(ValueError, "احفظ إعدادات الرد من صفحة التحكم"):
-                reply.instructions(dry_run=True)
+            cfg = reply.instructions(dry_run=True)
+            self.assertEqual(cfg["authorization"], "review")
+            self.assertFalse(cfg["enabled"])
+            self.assertEqual(cfg["portfolio_url"], "")
 
-    def test_preview_needs_proof_but_not_form_selectors(self):
+    def test_preview_needs_no_service_proof_link_or_form_selectors(self):
         with tempfile.TemporaryDirectory() as td:
             settings = Path(td) / "reply.json"
-            reply.scout.save(settings, {"service": "Python", "proof": "مشروع موثق",
-                                        "portfolio_url": "https://example.com/work"})
+            reply.scout.save(settings, {"authorization": "review"})
             with patch.object(reply, "SETTINGS", settings), patch.object(reply.scout, "settings", return_value={}):
-                self.assertEqual(reply.instructions(dry_run=True)["service"], "Python")
+                self.assertEqual(reply.instructions(dry_run=True)["portfolio_url"], "")
                 with self.assertRaisesRegex(ValueError, "reply_selector"):
                     reply.instructions(reviewed=True)
+
+    def test_only_verified_sourced_owner_facts_are_used(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "owner.json"
+            reply.scout.save(path, {"facts": [
+                {"text": "بنيت أداة أتمتة Python", "verified": True, "source": "CV"},
+                {"text": "أدير حملات تسويق عالمية", "verified": False, "source": "note"},
+                {"text": "خبرة غير موثقة", "verified": True, "source": ""},
+            ]})
+            with patch.object(reply, "OWNER_PROFILE", path):
+                self.assertEqual(reply.profile_facts(), ["بنيت أداة أتمتة Python"])
+
+    def test_reply_without_portfolio_is_valid_but_unapproved_link_fails(self):
+        text = "أقدر أساعدك في تصميم أداة Python للأتمتة، ونبدأ بتحديد المدخلات والمخرجات المطلوبة قبل التنفيذ."
+        reply.valid_reply(text, {"portfolio_url": ""})
+        with self.assertRaisesRegex(ValueError, "failed validation"):
+            reply.valid_reply(text + " https://example.com/unapproved", {"portfolio_url": ""})
+
+    def test_prompt_uses_verified_profile_without_static_service_or_link(self):
+        response = "أقدر أساعدك في أتمتة الخطوات باستخدام Python. نبدأ بتحديد المدخلات والمخرجات المطلوبة ونختبر أول مسار قبل التوسع."
+        captured = []
+        def fake_urlopen(request, timeout):
+            captured.append(json.loads(request.data)["prompt"])
+            return BytesIO(json.dumps({"response": response}).encode())
+        with patch.object(reply, "profile_facts", return_value=["بنيت أداة أتمتة Python"]), \
+             patch.object(reply, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual(reply.compose(ITEM, {"portfolio_url": "", "service": "غير موثق",
+                                                   "proof": "غير موثق"}), response)
+        self.assertIn("بنيت أداة أتمتة Python", captured[0])
+        self.assertNotIn("غير موثق", captured[0])
 
     def test_duplicate_request_cannot_be_sent(self):
         with self.assertRaisesRegex(ValueError, "already been attempted"):

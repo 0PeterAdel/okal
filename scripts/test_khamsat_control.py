@@ -28,20 +28,26 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(config["authorization"], "review")
         with self.assertRaisesRegex(ValueError, "Confirm autonomous"):
             control.validate_settings(self.form | {"authorization": "auto"})
-        _, auto = control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes"})
+        with patch.object(control.reply, "profile_facts", return_value=["Verified Python project"]):
+            _, auto = control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes"})
         self.assertTrue(auto["enabled"])
 
-    def test_page_prompts_to_save_reply_settings_before_preview(self):
+    def test_page_uses_owner_profile_for_preview_without_reply_settings(self):
         with tempfile.TemporaryDirectory() as td, \
              patch.object(control.scout, "CONFIG", Path(td) / "watch.json"), \
              patch.object(control.reply, "SETTINGS", Path(td) / "reply.json"), \
+             patch.object(control.reply, "OWNER_PROFILE", Path(td) / "owner.json"), \
              patch.object(control, "DRAFTS", Path(td) / "drafts.json"), \
              patch.object(control, "candidates", return_value=(
                  [{"url": "https://khamsat.com/community/requests/123-python", "title": "Python"}], {})):
             page = control.render("token")
-            self.assertIn("حفظ الإعدادات", page)
-            self.assertIn("لتحضير رد:", page)
+            self.assertIn("ملفك المحلي", page)
             self.assertNotIn('action="/preview"', page)
+            control.scout.save(Path(td) / "owner.json", {"facts": []})
+            page = control.render("token")
+            self.assertIn('action="/preview"', page)
+            self.assertIn("رابط معرض الأعمال HTTPS (اختياري)", page)
+            self.assertNotIn("الخدمة التي تقدمها فعلًا", page)
 
     def test_same_page_origin_variants_and_cross_site_rejection(self):
         for headers in (
@@ -60,8 +66,11 @@ class ControlTests(unittest.TestCase):
     def test_limits_and_proof_are_validated_before_auto(self):
         with self.assertRaisesRegex(ValueError, "Daily limit"):
             control.validate_settings(self.form | {"max_per_day": "6"})
-        with self.assertRaisesRegex(ValueError, "real proof"):
-            control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes", "proof": ""})
+        with patch.object(control.reply, "profile_facts", return_value=["Verified Python project"]):
+            with self.assertRaisesRegex(ValueError, "Inspect the live reply"):
+                control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes", "reply_selector": ""})
+        _, cfg = control.validate_settings(self.form | {"service": "", "proof": "", "portfolio_url": ""})
+        self.assertEqual(cfg["portfolio_url"], "")
         with self.assertRaisesRegex(ValueError, "Portfolio"):
             control.validate_settings(self.form | {"portfolio_url": "http://example.com"})
 

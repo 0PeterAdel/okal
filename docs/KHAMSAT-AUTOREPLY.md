@@ -1,6 +1,6 @@
 # Local Khamsat response pilot
 
-This extends [the request scout](KHAMSAT-REQUEST-SCOUT.md). The agent uses the owner's saved local browser session, checks new community requests, writes a short answer grounded in your private proof and service description, then can **click the actual reply button**. On Khamsat community requests this is a public reply to a request, not a formal order or an accepted project. It never solves CAPTCHAs or attempts to hide automation. Keep your laptop session signed in and running.
+This extends [the request scout](KHAMSAT-REQUEST-SCOUT.md). The agent uses the owner's saved local browser session, checks new community requests, writes a short answer grounded in verified facts from the private owner profile and the particular request, then can **click the actual reply button**. On Khamsat community requests this is a public reply to a request, not a formal order or an accepted project. It never solves CAPTCHAs or attempts to hide automation. Keep your laptop session signed in and running.
 
 ## Local control page
 
@@ -19,7 +19,7 @@ The setup script reuses an existing Playwright environment under `~/Projects` if
 
 If the Python package is present but Playwright's expected Chromium revision was removed, the scout tries a system Chromium/Chrome or an existing cached Chromium binary before asking you to download anything. An explicit `OKAL_FREELANCE_CHROMIUM=/absolute/path/to/chromium` overrides discovery for a local terminal test. If none is available, use `.venv-okal-freelance/bin/python -m playwright install chromium` once; cached login/profile data is separate from the browser executable. Browser startup errors are shown in the control page instead of returning an empty HTTP response.
 
-The server binds only to `127.0.0.1:8788`, validates the browser origin and a form token, and keeps all settings, queue entries and receipts in private 0600 files. It does not expose the saved Khamsat browser profile. The page starts in **Review needed** mode. Enter specific service keywords, exclusions, a true service description and proof, a public HTTPS portfolio URL, the reply field and submit button selectors inspected from the live page, plus your proposal-writing instructions. Click **Scan now**, inspect a queued request, generate a draft, edit it, and click **Submit this reply now**. That button posts one real reply and records its attempt before the click. A pending receipt can mean the click succeeded and verification did not; inspect the site before doing anything else.
+The server binds only to `127.0.0.1:8788`, validates the browser origin and a form token, and keeps all settings, queue entries and receipts in private 0600 files. It does not expose the saved Khamsat browser profile. The page starts in **Review needed** mode. It reads sourced work facts marked `verified: true` from `~/.config/okal/owner-profile.json` (0600), without passing identity or contact fields to the model. The agent infers which facts fit each request; a separate service or proof field is not required. The public HTTPS portfolio link is optional. Set service keywords and exclusions, use or edit the supplied Egyptian Arabic writing template, and later enter the reply field and submit button selectors inspected from the live page. Click **Scan now**, inspect a queued request, generate a draft, edit it, and click **Submit this reply now**. That button posts one real reply and records its attempt before the click. A pending receipt can mean the click succeeded and verification did not; inspect the site before doing anything else.
 
 Choose **Allow** and tick the explicit authorization checkbox to submit matching queued requests without individual review. The daily cap is 1–5. Never enable it before one reviewed live reply confirms the form and the generated content. The page defaults to Review needed when the private reply file does not exist, even if a timer is running. Returning to Review needed stops autonomous replies on the next tick. The written instructions are included as a bounded context to the local model; the request content itself remains untrusted data.
 
@@ -41,7 +41,7 @@ First run the scout `--init` and `--scan` on your laptop, and verify its queue c
 .venv-okal-freelance/bin/python scripts/khamsat-request-reply.py --inspect 'https://khamsat.com/community/requests/123456-title'
 ```
 
-Save the control page settings first: describe a service you actually deliver, add specific proof of your work and a public HTTPS portfolio link. This creates private `~/.config/okal/khamsat-reply.json` (0600). The preview needs these details but does not need form selectors. If the file does not exist yet, the page explains what to enter and keeps the preview button hidden. Do not invent proof or a link.
+The preview does not require a reply-settings file or a portfolio link. It requires the private owner profile with at least one sourced, verified work fact; if missing, the page explains which profile to review and hides preview. The default template asks for a concise, warm, specific reply and a practical first step, with no invented experience, project, timeline, price or outside-platform contact. Save changes on the control page to create `~/.config/okal/khamsat-reply.json` (0600). A model-produced reply still needs human review before the first live send.
 
 Before sending, the inspector prints only form control labels/attributes. Identify **one specific visible reply field and one submit button**, then enter their CSS selectors in the local control page. Example shape, with selectors replaced from your actual page:
 
@@ -49,11 +49,9 @@ Before sending, the inspector prints only form control labels/attributes. Identi
 {
   "authorization": "review",
   "enabled": false,
-  "proposal_instructions": "اكتب ردًا مختصرًا وودودًا يستند إلى دليل عملي حقيقي",
+  "proposal_instructions": "اكتب بالمصري المهني الودود، واربط عرضك بهذا الطلب باستخدام حقائق عملي الموثقة فقط",
   "scan_interval_minutes": 30,
-  "service": "تطوير أدوات Python وتحليل البيانات",
-  "proof": "رابط ووصف مشروع عملي تحققت منه بنفسي",
-  "portfolio_url": "https://example.com/my-work",
+  "portfolio_url": "",
   "reply_selector": "textarea[name='REPLACE_FROM_INSPECTION']",
   "submit_selector": "button[type='submit'][name='REPLACE_FROM_INSPECTION']",
   "max_per_day": 2,

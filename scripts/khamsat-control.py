@@ -27,14 +27,7 @@ reply = sibling("khamsat-request-reply.py", "khamsat_reply_control")
 DRAFTS = scout.STATE / "drafts.json"
 HOST = "127.0.0.1"
 PORT = 8788
-DEFAULT_REPLY = {
-    "authorization": "review", "enabled": False, "max_per_day": 2,
-    "scan_interval_minutes": 30,
-    "service": "", "proof": "", "portfolio_url": "",
-    "reply_selector": "", "submit_selector": "",
-    "proposal_instructions": "اكتب بالعربية الطبيعية. اذكر كيف ستنفذ الطلب بإيجاز، واستند إلى عملي المثبت فقط.",
-    "ollama_model": "okal-qwen3.5-4b-64k",
-}
+DEFAULT_REPLY = reply.DEFAULT_REPLY | {"scan_interval_minutes": 30}
 
 
 def private_json(path: Path, default: dict) -> dict:
@@ -69,23 +62,23 @@ def validate_settings(form: dict[str, str]) -> tuple[dict, dict]:
     context = form.get("proposal_instructions", "").strip()
     if not context or len(context) > 3000:
         raise ValueError("Proposal instructions must be 1–3000 characters")
-    service = form.get("service", "").strip()
-    proof = form.get("proof", "").strip()
     portfolio = form.get("portfolio_url", "").strip()
     field = form.get("reply_selector", "").strip()
     button = form.get("submit_selector", "").strip()
-    if mode == "auto" and not all((service, proof, portfolio, field, button)):
-        raise ValueError("Add real proof, portfolio and inspected form selectors before auto mode")
+    if mode == "auto" and not all((field, button)):
+        raise ValueError("Inspect the live reply field and submit button before auto mode")
+    if mode == "auto":
+        reply.profile_facts()
     if portfolio:
         uri = urlparse(portfolio)
         if uri.scheme != "https" or not uri.hostname or uri.username or uri.password:
             raise ValueError("Portfolio must be a public HTTPS link")
-    if any(len(x) > 2000 for x in (service, proof)) or any(len(x) > 200 for x in (field, button)):
+    if any(len(x) > 200 for x in (field, button)):
         raise ValueError("A setting is too long")
     watch = {"keywords": keywords, "exclude_terms": excludes}
     config = DEFAULT_REPLY | {
         "authorization": mode, "enabled": mode == "auto", "max_per_day": days,
-        "scan_interval_minutes": interval, "service": service, "proof": proof,
+        "scan_interval_minutes": interval,
         "portfolio_url": portfolio, "reply_selector": field, "submit_selector": button,
         "proposal_instructions": context,
         "ollama_model": form.get("ollama_model", DEFAULT_REPLY["ollama_model"]).strip(),
@@ -185,10 +178,7 @@ form.inline{display:inline-block;margin:5px 8px 5px 0}.row{display:grid;grid-tem
 def render(token: str, notice: str = "", error: bool = False) -> str:
     watch = private_json(scout.CONFIG, scout.DEFAULT_CONFIG)
     config = DEFAULT_REPLY | private_json(reply.SETTINGS, DEFAULT_REPLY)
-    draft_ready = reply.SETTINGS.is_file() and all(
-        isinstance(config.get(key), str) and config[key].strip()
-        for key in ("service", "proof", "portfolio_url")
-    )
+    draft_ready = reply.OWNER_PROFILE.is_file() and not reply.OWNER_PROFILE.is_symlink()
     rows, receipts = candidates()
     drafts = private_json(DRAFTS, {"requests": {}}).get("requests", {})
     e = lambda x: escape(str(x), quote=True)
@@ -199,22 +189,20 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
     if notice:
         parts.append(f'<div class="notice {"error" if error else ""}" role="status">{e(notice)}</div>')
     if not draft_ready:
-        parts.append('<div class="notice" role="status">لتحضير رد: اكتب خدمتك ودليل عمل حقيقي ورابط معرض أعمال HTTPS في «قواعد التشغيل»، ثم اضغط «حفظ الإعدادات». لا تحتاج محددات حقل الرد وزر الإرسال إلا عند الإرسال.</div>')
+        parts.append('<div class="notice" role="status">لتحضير رد بناءً على خبرتك: راجع ملفك المحلي ~/.config/okal/owner-profile.json وحدد حقائق عمل موثقة فيه. لا يلزم إدخال رابط معرض أعمال أو دليل منفصل. محددات النموذج مطلوبة للإرسال فقط.</div>')
     parts.append('<div class="grid"><section class="card"><h2>قواعد التشغيل</h2><p class="muted">اختر وضع الصلاحية أولًا. في المراجعة لن يضغط Okal إرسال إلا بعد موافقتك على رد بعينه.</p>')
     parts.append(f'<form method="post" action="/settings">{hidden}<label for="auth">الصلاحية</label><select id="auth" name="authorization"><option value="review" {"selected" if config.get("authorization") != "auto" else ""}>Review needed — مراجعة كل رد</option><option value="auto" {"selected" if config.get("authorization") == "auto" else ""}>Allow — إرسال تلقائي للطلبات المطابقة</option></select>')
     parts.append('<label><input type="checkbox" name="confirm_auto" value="yes"> أفوّض الإرسال التلقائي إذا اخترت Allow، مع الحد اليومي والقواعد أدناه</label>')
     fields = [("keywords", "الخدمات والوظائف المستهدفة (سطر لكل كلمة)", "\n".join(watch.get("keywords", []))),
               ("exclude_terms", "استبعاد", "\n".join(watch.get("exclude_terms", []))),
-              ("service", "الخدمة التي تقدمها فعلًا", config.get("service", "")),
-              ("proof", "دليل عمل حقيقي ومحدد", config.get("proof", "")),
-              ("portfolio_url", "رابط معرض الأعمال HTTPS", config.get("portfolio_url", "")),
-              ("proposal_instructions", "تعليمات كتابة الرد (سياق ثابت)", config.get("proposal_instructions", "")),
+              ("portfolio_url", "رابط معرض الأعمال HTTPS (اختياري)", config.get("portfolio_url", "")),
+              ("proposal_instructions", "قالب كتابة الرد (قابل للتعديل)", config.get("proposal_instructions", "")),
               ("reply_selector", "حقل الرد بعد فحص الصفحة", config.get("reply_selector", "")),
               ("submit_selector", "زر الإرسال بعد فحص الصفحة", config.get("submit_selector", "")),
               ("ollama_model", "موديل Ollama المحلي", config.get("ollama_model", ""))]
     for name, label, value in fields:
         parts.append(f'<label for="{name}">{e(label)}</label>')
-        if name in ("keywords", "exclude_terms", "proof", "proposal_instructions"):
+        if name in ("keywords", "exclude_terms", "proposal_instructions"):
             parts.append(f'<textarea id="{name}" name="{name}">{e(value)}</textarea>')
         else:
             parts.append(f'<input id="{name}" name="{name}" value="{e(value)}">')
