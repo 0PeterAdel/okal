@@ -185,6 +185,10 @@ form.inline{display:inline-block;margin:5px 8px 5px 0}.row{display:grid;grid-tem
 def render(token: str, notice: str = "", error: bool = False) -> str:
     watch = private_json(scout.CONFIG, scout.DEFAULT_CONFIG)
     config = DEFAULT_REPLY | private_json(reply.SETTINGS, DEFAULT_REPLY)
+    draft_ready = reply.SETTINGS.is_file() and all(
+        isinstance(config.get(key), str) and config[key].strip()
+        for key in ("service", "proof", "portfolio_url")
+    )
     rows, receipts = candidates()
     drafts = private_json(DRAFTS, {"requests": {}}).get("requests", {})
     e = lambda x: escape(str(x), quote=True)
@@ -194,6 +198,8 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
              f'<header><div><div class="eyebrow">OKAL / KHAMSAT CONTROL</div><h1>فرص مناسبة. قرار واضح.</h1><p class="intro">راقب طلبات المجتمع، راجع الردود أو فوّض الإرسال ضمن حدودك. الإعدادات وسجل الردود محفوظان على جهازك.</p></div><span class="badge">{e(badge)}</span></header>']
     if notice:
         parts.append(f'<div class="notice {"error" if error else ""}" role="status">{e(notice)}</div>')
+    if not draft_ready:
+        parts.append('<div class="notice" role="status">لتحضير رد: اكتب خدمتك ودليل عمل حقيقي ورابط معرض أعمال HTTPS في «قواعد التشغيل»، ثم اضغط «حفظ الإعدادات». لا تحتاج محددات حقل الرد وزر الإرسال إلا عند الإرسال.</div>')
     parts.append('<div class="grid"><section class="card"><h2>قواعد التشغيل</h2><p class="muted">اختر وضع الصلاحية أولًا. في المراجعة لن يضغط Okal إرسال إلا بعد موافقتك على رد بعينه.</p>')
     parts.append(f'<form method="post" action="/settings">{hidden}<label for="auth">الصلاحية</label><select id="auth" name="authorization"><option value="review" {"selected" if config.get("authorization") != "auto" else ""}>Review needed — مراجعة كل رد</option><option value="auto" {"selected" if config.get("authorization") == "auto" else ""}>Allow — إرسال تلقائي للطلبات المطابقة</option></select>')
     parts.append('<label><input type="checkbox" name="confirm_auto" value="yes"> أفوّض الإرسال التلقائي إذا اخترت Allow، مع الحد اليومي والقواعد أدناه</label>')
@@ -226,7 +232,8 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
             status = "لم يُرسل"
         parts.append(f'<article class="item"><strong>{e(item.get("title", "طلب"))}</strong> · <small>{e(status)}</small><p><a href="{e(item["url"])}" target="_blank" rel="noopener noreferrer">{e(item["url"])}</a></p>')
         if rid not in receipts and config.get("authorization") == "review":
-            parts.append(f'<form method="post" action="/preview" class="inline">{hidden}<input type="hidden" name="id" value="{rid}"><button class="alt">جهّز ردًا للمراجعة</button></form>')
+            if draft_ready:
+                parts.append(f'<form method="post" action="/preview" class="inline">{hidden}<input type="hidden" name="id" value="{rid}"><button class="alt">جهّز ردًا للمراجعة</button></form>')
             draft = drafts.get(rid)
             if draft and draft.get("url") == item["url"]:
                 parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم أرسله لهذا الطلب فقط</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p><button type="submit">إرسال الرد الآن</button></p></form>')

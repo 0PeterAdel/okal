@@ -20,6 +20,22 @@ VALID = "يمكنني تطوير واجهة Python المطلوبة اعتماد
 
 
 class ReplyTests(unittest.TestCase):
+    def test_missing_private_reply_settings_explains_control_page(self):
+        with tempfile.TemporaryDirectory() as td, patch.object(reply, "SETTINGS", Path(td) / "missing.json"), \
+             patch.object(reply.scout, "settings", return_value={}):
+            with self.assertRaisesRegex(ValueError, "احفظ إعدادات الرد من صفحة التحكم"):
+                reply.instructions(dry_run=True)
+
+    def test_preview_needs_proof_but_not_form_selectors(self):
+        with tempfile.TemporaryDirectory() as td:
+            settings = Path(td) / "reply.json"
+            reply.scout.save(settings, {"service": "Python", "proof": "مشروع موثق",
+                                        "portfolio_url": "https://example.com/work"})
+            with patch.object(reply, "SETTINGS", settings), patch.object(reply.scout, "settings", return_value={}):
+                self.assertEqual(reply.instructions(dry_run=True)["service"], "Python")
+                with self.assertRaisesRegex(ValueError, "reply_selector"):
+                    reply.instructions(reviewed=True)
+
     def test_duplicate_request_cannot_be_sent(self):
         with self.assertRaisesRegex(ValueError, "already been attempted"):
             reply.submit_one(MagicMock(), ITEM, CFG, {"requests": {"123456": {"status": "pending"}}},

@@ -31,6 +31,18 @@ class ControlTests(unittest.TestCase):
         _, auto = control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes"})
         self.assertTrue(auto["enabled"])
 
+    def test_page_prompts_to_save_reply_settings_before_preview(self):
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(control.scout, "CONFIG", Path(td) / "watch.json"), \
+             patch.object(control.reply, "SETTINGS", Path(td) / "reply.json"), \
+             patch.object(control, "DRAFTS", Path(td) / "drafts.json"), \
+             patch.object(control, "candidates", return_value=(
+                 [{"url": "https://khamsat.com/community/requests/123-python", "title": "Python"}], {})):
+            page = control.render("token")
+            self.assertIn("حفظ الإعدادات", page)
+            self.assertIn("لتحضير رد:", page)
+            self.assertNotIn('action="/preview"', page)
+
     def test_same_page_origin_variants_and_cross_site_rejection(self):
         for headers in (
             {"Origin": "http://127.0.0.1:8788", "Sec-Fetch-Site": "same-origin"},

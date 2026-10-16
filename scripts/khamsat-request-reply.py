@@ -26,12 +26,17 @@ OLLAMA = "http://127.0.0.1:11434/api/generate"
 
 def instructions(*, dry_run: bool = False, reviewed: bool = False) -> dict:
     cfg = scout.settings(scout.CONFIG)
-    if SETTINGS.is_symlink() or SETTINGS.stat().st_mode & 0o077:
+    if not SETTINGS.exists():
+        raise ValueError("احفظ إعدادات الرد من صفحة التحكم أولًا: الخدمة، دليل عمل حقيقي، ورابط معرض أعمال HTTPS")
+    if SETTINGS.is_symlink() or not SETTINGS.is_file() or SETTINGS.stat().st_mode & 0o077:
         raise ValueError("Private reply settings must be a regular 0600 file")
     data = scout.load(SETTINGS)
-    for key in ("service", "proof", "portfolio_url", "reply_selector", "submit_selector"):
+    required = ["service", "proof", "portfolio_url"]
+    if not dry_run:
+        required.extend(("reply_selector", "submit_selector"))
+    for key in required:
         if not isinstance(data.get(key), str) or not data[key].strip():
-            raise ValueError(f"Set {key} in private khamsat-reply.json")
+            raise ValueError(f"أكمل {key} في إعدادات الرد بصفحة التحكم قبل المتابعة")
     uri = urlparse(data["portfolio_url"])
     if uri.scheme != "https" or not uri.hostname or uri.username or uri.password:
         raise ValueError("portfolio_url must be a public HTTPS link")

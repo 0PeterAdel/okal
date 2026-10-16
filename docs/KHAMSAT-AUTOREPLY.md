@@ -41,7 +41,9 @@ First run the scout `--init` and `--scan` on your laptop, and verify its queue c
 .venv-okal-freelance/bin/python scripts/khamsat-request-reply.py --inspect 'https://khamsat.com/community/requests/123456-title'
 ```
 
-The inspector prints only form control labels/attributes. Identify **one specific visible reply field and one submit button**, then enter their CSS selectors in the local control page. It writes the private `~/.config/okal/khamsat-reply.json` (0600). Example shape, with selectors replaced from your actual page:
+Save the control page settings first: describe a service you actually deliver, add specific proof of your work and a public HTTPS portfolio link. This creates private `~/.config/okal/khamsat-reply.json` (0600). The preview needs these details but does not need form selectors. If the file does not exist yet, the page explains what to enter and keeps the preview button hidden. Do not invent proof or a link.
+
+Before sending, the inspector prints only form control labels/attributes. Identify **one specific visible reply field and one submit button**, then enter their CSS selectors in the local control page. Example shape, with selectors replaced from your actual page:
 
 ```json
 {
