@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" role="img" aria-label="تشكيل ضوئي تجريدي">
+  <defs>
+    <radialGradient id="sky"><stop stop-color="#426b83"/><stop offset=".58" stop-color="#243450"/><stop offset="1" stop-color="#101b2d"/></radialGradient>
+    <radialGradient id="glow"><stop stop-color="#f5e7b9"/><stop offset=".21" stop-color="#c0e8d9"/><stop offset=".55" stop-color="#78abbb" stop-opacity=".55"/><stop offset="1" stop-color="#78abbb" stop-opacity="0"/></radialGradient>
+    <linearGradient id="arch" x2="1" y2="1"><stop stop-color="#93cbc8"/><stop offset=".4" stop-color="#29475d"/><stop offset="1" stop-color="#16263a"/></linearGradient>
+  </defs>
+  <rect width="600" height="800" fill="url(#sky)"/>
+  <circle cx="300" cy="375" r="245" fill="url(#glow)"/>
+  <path d="M95 800V324C95 206 186 106 300 106s205 100 205 218v476h-65V332c0-82-62-147-140-147s-140 65-140 147v468z" fill="url(#arch)" opacity=".95"/>
+  <path d="M142 800V333c0-95 69-169 158-169s158 74 158 169v467" fill="none" stroke="#b4ece2" stroke-opacity=".33" stroke-width="3"/>
+  <path d="M198 800V346c0-63 45-108 102-108s102 45 102 108v454" fill="none" stroke="#d8efdc" stroke-opacity=".32"/>
+  <circle cx="300" cy="377" r="57" fill="#f5ecd4" opacity=".83"/><circle cx="300" cy="377" r="92" fill="none" stroke="#dff8e8" stroke-opacity=".52"/>
+  <path d="M0 702Q150 640 300 712T600 702v98H0z" fill="#152638" opacity=".74"/>
+  <g fill="#d9f4e5" opacity=".8"><circle cx="158" cy="140" r="2"/><circle cx="456" cy="182" r="2"/><circle cx="82" cy="465" r="1.5"/><circle cx="524" cy="484" r="1.5"/></g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img" aria-label="دوائر مدارية تجريدية">
+  <defs><radialGradient id="b"><stop stop-color="#2e667a"/><stop offset=".7" stop-color="#1b2d48"/><stop offset="1" stop-color="#101c30"/></radialGradient><radialGradient id="p"><stop stop-color="#f7efcf"/><stop offset=".38" stop-color="#a7d5cc"/><stop offset="1" stop-color="#4e8da2"/></radialGradient></defs>
+  <rect width="600" height="400" fill="url(#b)"/><g fill="none" stroke="#9bcbd0" stroke-opacity=".43"><circle cx="300" cy="204" r="76"/><circle cx="300" cy="204" r="125"/><circle cx="300" cy="204" r="176"/><ellipse cx="300" cy="204" rx="253" ry="84" transform="rotate(-22 300 204)"/><path d="M300 15v378M34 204h532" stroke-opacity=".18"/></g>
+  <circle cx="300" cy="204" r="41" fill="url(#p)"/><circle cx="417" cy="160" r="8" fill="#d5e4d7"/><circle cx="140" cy="270" r="5" fill="#d6bb9d"/><circle cx="481" cy="108" r="3" fill="#d2ebde"/>
+  <g fill="#e1eee6" opacity=".65"><circle cx="63" cy="51" r="2"/><circle cx="548" cy="58" r="2"/><circle cx="513" cy="336" r="2"/><circle cx="79" cy="345" r="2"/></g>
+</svg>

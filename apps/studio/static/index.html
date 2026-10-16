@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d18">
+  <meta name="okal-csrf" content="__OKAL_CSRF__">
+  <title>Okal Studio — مساحة تفكيرك</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="التنقل">
+      <div class="brand-mark" aria-label="Okal"><span class="brand-spark"></span><span>O</span></div>
+      <nav class="rail-nav" aria-label="الأقسام">
+        <button class="rail-button selected" data-view="home" aria-label="الرئيسية" aria-current="page" title="الرئيسية">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg><span>الرئيسية</span>
+        </button>
+        <button class="rail-button" data-view="canvas" aria-label="المساحة" title="المساحة">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M10 9v12"/></svg><span>المساحة</span>
+        </button>
+        <button class="rail-button" data-view="activity" aria-label="النشاط" title="النشاط">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16M5 15l4-4 3 2 6-7 2 2"/></svg><span>النشاط</span>
+        </button>
+        <button class="rail-button" data-view="agents" aria-label="الوكلاء" title="الوكلاء">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0M3 6l2-2m14 0 2 2"/></svg><span>الوكلاء</span>
+        </button>
+      </nav>
+      <div class="rail-bottom">
+        <button class="rail-button" data-view="settings" aria-label="الإعدادات" title="الإعدادات">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></svg><span>الإعدادات</span>
+        </button>
+        <div class="rail-avatar" aria-label="حسابك">P</div>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <header class="topbar">
+        <div class="identity">
+          <span class="identity-kicker">YOUR INTELLIGENCE SPACE</span>
+          <div class="identity-line"><strong>okal<span class="identity-period">.</span></strong><span class="identity-divider"></span><span>الاستوديو</span></div>
+        </div>
+        <div class="topbar-actions">
+          <span class="local-chip"><span class="local-dot"></span> يعمل على جهازك</span>
+          <div class="topbar-clock" id="clock" aria-label="الوقت">--:--</div>
+          <button class="icon-button top-settings" data-view="settings" aria-label="افتح الإعدادات" title="الإعدادات">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="presence" aria-labelledby="greeting">
+          <div class="presence-top">
+            <span class="eyebrow"><span class="eyebrow-line"></span>مساحتك الخاصة · الإصدار التجريبي</span>
+            <span class="session-count">جلسة محلية <span class="session-glyph">✳</span></span>
+          </div>
+          <div class="greeting-block">
+            <p class="greeting-intro" id="timeGreeting">مساء الخير، بيتر</p>
+            <h1 id="greeting">كل فكرة<br>تبدأ <em>بسؤال.</em></h1>
+            <p class="greeting-sub">قلّي في بالك إيه. هسمعك، نفكر مع بعض، ونرتّب اللي نقدر نعمله بوضوح.</p>
+          </div>
+
+          <div class="orb-field" id="orbField" data-phase="idle" aria-label="حالة مساعد Okal">
+            <span class="orb-star star-a"></span><span class="orb-star star-b"></span><span class="orb-star star-c"></span>
+            <div class="orb-outer outer-a"></div><div class="orb-outer outer-b"></div>
+            <div class="orb-ellipse ellipse-a"></div><div class="orb-ellipse ellipse-b"></div>
+            <div class="orb-aura"></div><div class="orb-core"><div class="orb-core-inner"></div></div>
+            <div class="orb-wave wave-a"></div><div class="orb-wave wave-b"></div>
+            <button class="orb-action" id="orbAction" aria-label="ابدأ التحدث" title="تحدث مع Okal"></button>
+            <span class="orb-tick tick-top"></span><span class="orb-tick tick-bottom"></span>
+            <div class="orb-caption">
+              <span class="phase-dot" id="phaseDot"></span>
+              <span id="phaseLabel">جاهز لما تكون جاهز</span>
+            </div>
+          </div>
+
+          <div class="presence-bottom">
+            <div class="suggestion-label">نبدأ منين؟ <span>اقتراحات سريعة</span></div>
+            <div class="suggestions">
+              <button class="suggestion" data-demo="chart"><span>◫</span> وريني مخطط</button>
+              <button class="suggestion" data-demo="gallery"><span>▧</span> اعرض صور</button>
+              <button class="suggestion" data-demo="steps"><span>≋</span> رتّب لي خطة</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="canvas-shell" aria-labelledby="canvasHeading">
+          <div class="canvas-header">
+            <div>
+              <span class="canvas-kicker">ADAPTIVE CANVAS / 01</span>
+              <h2 id="canvasHeading">مساحة العرض</h2>
+            </div>
+            <div class="canvas-header-actions">
+              <span class="canvas-source" id="canvasSource">معاينة</span>
+              <button class="icon-button" id="resetCanvas" title="العودة للمساحة الأساسية" aria-label="العودة للمساحة الأساسية">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2-5.3M4 4v5h5"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="canvas-content" id="canvasContent" aria-live="polite">
+            <div class="empty-art">
+              <div class="empty-orbit"><span></span><span></span><span></span></div>
+              <span class="empty-marker">READY FOR WHAT'S NEXT</span>
+            </div>
+            <h3>المساحة دي بتتشكّل<br><i>حسب اللي تحتاجه.</i></h3>
+            <p>كلام، صورة، مخطط، أو خطوات واضحة — اختار معاينة تحت أو ابدأ بطلبك.</p>
+          </div>
+          <div class="canvas-footer">
+            <span><span class="footer-dot"></span> المحتوى المعروض محليًا</span>
+            <span id="canvasFootnote">المعاينات أمثلة تصميمية</span>
+          </div>
+        </section>
+      </main>
+
+      <section class="conversation" aria-label="المحادثة">
+        <div class="conversation-heading"><span>المحادثة</span><button id="clearChat" aria-label="مسح محادثة هذه النافذة">مسح العرض</button></div>
+        <div class="conversation-list" id="conversationList" aria-live="polite">
+          <div class="conversation-empty" id="conversationEmpty">أنا هنا يا بيتر. اسألني كتابةً أو اضغط الميكروفون.</div>
+        </div>
+      </section>
+
+      <footer class="composer-area">
+        <div class="composer">
+          <button class="mic-button" id="micButton" aria-label="ابدأ التحدث" title="ابدأ التحدث">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg>
+          </button>
+          <label class="composer-label" for="promptInput">رسالتك إلى Okal</label>
+          <textarea id="promptInput" rows="1" placeholder="اكتب اللي في بالك... أو اطلب حاجة بالصوت" maxlength="2000" aria-label="اكتب رسالتك"></textarea>
+          <span class="composer-hint">Enter للإرسال</span>
+          <button class="send-button" id="sendButton" aria-label="إرسال الرسالة" title="إرسال"><span>إرسال</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4 4 11l7 2 2 7zM11 13l9-9"/></svg></button>
+        </div>
+        <div class="composer-foot">
+          <span id="connectionLabel"><span class="connection-dot"></span> جاري فحص خدمة الصوت</span>
+          <span>Okal يفصل بين الفهم والتنفيذ · الأوامر لا تُنفّذ من هذه الواجهة بعد</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

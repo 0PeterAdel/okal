@@ -1,0 +1,39 @@
+name: Studio
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/studio/**"
+      - "docs/OKAL-STUDIO.md"
+      - "scripts/run-okal-studio.sh"
+      - ".github/workflows/studio.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/studio/**"
+      - "docs/OKAL-STUDIO.md"
+      - "scripts/run-okal-studio.sh"
+      - ".github/workflows/studio.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  local-studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Test local server and display contract
+        run: python3 -m unittest discover -s apps/studio/tests -v
+      - name: Check JavaScript and launcher
+        run: |
+          node --check apps/studio/static/app.js
+          bash -n scripts/run-okal-studio.sh
+          shellcheck scripts/run-okal-studio.sh
