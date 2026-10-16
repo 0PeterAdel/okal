@@ -148,6 +148,7 @@ def main() -> int:
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--init", action="store_true", help="Create private keyword settings if absent")
     action.add_argument("--scan", action="store_true", help="Inspect the listing once with saved browser")
+    action.add_argument("--list", action="store_true", help="Show saved candidate links offline")
     parser.add_argument("--limit", type=int, default=10, help="Maximum new requests to inspect (1-20)")
     args = parser.parse_args()
     if args.init:
@@ -156,6 +157,13 @@ def main() -> int:
         else:
             save(CONFIG, DEFAULT_CONFIG)
             print(f"Created private settings: {CONFIG}")
+        return 0
+    if args.list:
+        queue = STATE / "queue.json"
+        if not queue.exists():
+            parser.exit(1, f"No saved requests yet: {queue}\n")
+        for row in load(queue).get("requests", []):
+            print(f'{row["title"]}: {row["url"]}')
         return 0
     if not 1 <= args.limit <= 20:
         parser.error("--limit must be between 1 and 20")

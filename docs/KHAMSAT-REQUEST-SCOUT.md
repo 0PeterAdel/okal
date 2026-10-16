@@ -11,6 +11,7 @@ cd ~/Projects/okal
 .venv-okal-freelance/bin/python scripts/khamsat-request-scout.py --init
 ${EDITOR:-nano} "$HOME/.config/okal/khamsat-watch.json"
 .venv-okal-freelance/bin/python scripts/khamsat-request-scout.py --scan
+.venv-okal-freelance/bin/python scripts/khamsat-request-scout.py --list
 ```
 
 The private settings contain keywords and excluded terms; adjust them to services you actually deliver. The queue is `~/.local/share/okal/khamsat/queue.json` with mode `0600`. The script reads at most 10 new candidate pages in one run (adjust `--limit` up to 20), keeps previous candidates, and reports links in the terminal. The browser window is visible. It shares the existing persistent browser profile and lock, but never reads or prints cookies or passwords.
