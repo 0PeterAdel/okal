@@ -1,0 +1,7 @@
+[Unit]
+Description=Publish today's source-grounded Okal post on X
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/Projects/okal/scripts/okal-x-publish.py
+

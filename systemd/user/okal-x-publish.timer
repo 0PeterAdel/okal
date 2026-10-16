@@ -1,0 +1,10 @@
+[Unit]
+Description=Publish one Okal X post daily in Cairo
+
+[Timer]
+OnCalendar=*-*-* 10:00:00 Africa/Cairo
+Persistent=true
+Unit=okal-x-publish.service
+
+[Install]
+WantedBy=timers.target
