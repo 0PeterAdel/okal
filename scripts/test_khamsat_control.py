@@ -31,6 +31,20 @@ class ControlTests(unittest.TestCase):
         _, auto = control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes"})
         self.assertTrue(auto["enabled"])
 
+    def test_same_page_origin_variants_and_cross_site_rejection(self):
+        for headers in (
+            {"Origin": "http://127.0.0.1:8788", "Sec-Fetch-Site": "same-origin"},
+            {"Origin": "null", "Sec-Fetch-Site": "same-origin"},
+            {"Sec-Fetch-Site": "same-origin"},
+        ):
+            self.assertTrue(control.same_page_request(headers))
+        for headers in (
+            {"Origin": "https://example.com"},
+            {"Sec-Fetch-Site": "cross-site"},
+            {"Origin": "null", "Referer": "https://example.com/form"},
+        ):
+            self.assertFalse(control.same_page_request(headers))
+
     def test_limits_and_proof_are_validated_before_auto(self):
         with self.assertRaisesRegex(ValueError, "Daily limit"):
             control.validate_settings(self.form | {"max_per_day": "6"})

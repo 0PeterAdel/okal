@@ -237,6 +237,26 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
     return "".join(parts)
 
 
+def same_page_request(headers) -> bool:
+    """Check available browser metadata; the unguessable form token is checked separately.
+
+    Some browsers omit Origin (or send ``null``) for a same-origin HTML form POST,
+    especially under a strict Referrer-Policy. Never treat that absence as consent:
+    every POST still needs the secret token delivered by the loopback GET page.
+    """
+    expected = f"http://{HOST}:{PORT}"
+    origin = headers.get("Origin")
+    if origin not in (None, "", "null", expected):
+        return False
+    referer = headers.get("Referer")
+    if referer:
+        parsed = urlparse(referer)
+        if f"{parsed.scheme}://{parsed.netloc}" != expected:
+            return False
+    fetch_site = headers.get("Sec-Fetch-Site")
+    return fetch_site in (None, "same-origin", "none")
+
+
 class Handler(BaseHTTPRequestHandler):
     token = secrets.token_urlsafe(32)
 
@@ -271,8 +291,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed() or self.path not in ("/settings", "/scan", "/preview", "/submit"):
             self.send_error(404)
             return
-        if self.headers.get("Origin") != f"http://{HOST}:{PORT}":
-            self.send_error(403, "Origin mismatch")
+        if not same_page_request(self.headers):
+            self.send_error(403, "Cross-site request blocked")
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
