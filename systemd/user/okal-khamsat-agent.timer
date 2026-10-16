@@ -1,0 +1,10 @@
+[Unit]
+Description=Check whether a Khamsat scan is due every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=false
+Unit=okal-khamsat-agent.service
+
+[Install]
+WantedBy=timers.target
