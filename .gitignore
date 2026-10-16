@@ -68,3 +68,7 @@ voice-lab-*-audio/
 voice-lab-*.json
 voice-lab-tts/
 voice-lab-tournament/
+agent-work/
+owner-profile.json
+job.private.json
+.venv-okal-agents/

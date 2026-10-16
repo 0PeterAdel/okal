@@ -28,6 +28,7 @@ Wiki have passed.
 - [Architecture decisions](wiki/Architecture-Decision-Records.md)
 - [Use-first agent pilot](docs/USE-FIRST-AGENTS.md)
 - [Okal Studio local interface](docs/OKAL-STUDIO.md)
+- [Daily social and career workflows](docs/DAILY-AGENTS.md)
 
 ## Core promises
 
