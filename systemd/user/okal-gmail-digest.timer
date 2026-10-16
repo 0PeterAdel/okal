@@ -1,0 +1,10 @@
+[Unit]
+Description=Write a local Gmail digest daily in Cairo
+
+[Timer]
+OnCalendar=*-*-* 20:00:00 Africa/Cairo
+Persistent=true
+Unit=okal-gmail-digest.service
+
+[Install]
+WantedBy=timers.target
