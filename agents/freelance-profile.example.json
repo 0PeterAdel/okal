@@ -1,0 +1,8 @@
+{
+  "services": ["TODO: replace with 3 to 8 exact services or search terms you can deliver"],
+  "exclude_terms": ["casino", "مراهنات"],
+  "proof": ["TODO: replace with a real relevant work sample or portfolio link"],
+  "style_examples": ["اكتب هنا عرضًا سابقًا يعبر عن أسلوبك، بدون بيانات عملاء خاصة"],
+  "min_price_usd": 50,
+  "delivery_days": 7
+}
