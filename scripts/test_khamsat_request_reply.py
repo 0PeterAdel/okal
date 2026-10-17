@@ -63,11 +63,15 @@ class ReplyTests(unittest.TestCase):
             captured.append(json.loads(request.data))
             return BytesIO(json.dumps({"response": response}).encode())
         with patch.object(reply, "profile_facts", return_value=["بنيت أداة أتمتة Python"]), \
+             patch.object(reply, "style_examples", return_value=[{
+                 "request_id": "99", "before": "مسودة قديمة", "after": "صياغة ودودة مختصرة"}]), \
              patch.object(reply, "urlopen", side_effect=fake_urlopen):
             self.assertEqual(reply.compose(ITEM, {"portfolio_url": "", "service": "غير موثق",
                                                    "proof": "غير موثق"}), response)
         self.assertIn("بنيت أداة أتمتة Python", captured[0]["prompt"])
         self.assertNotIn("غير موثق", captured[0]["prompt"])
+        self.assertIn("صياغة ودودة مختصرة", captured[0]["prompt"])
+        self.assertIn("الأسلوب والبناء فقط", captured[0]["prompt"])
         self.assertIs(captured[0]["think"], False)
         self.assertGreaterEqual(captured[0]["options"]["num_predict"], 700)
 
@@ -83,6 +87,16 @@ class ReplyTests(unittest.TestCase):
         with patch.object(reply, "generate", return_value="رد قصير"):
             with self.assertRaisesRegex(ValueError, "طول الرد"):
                 reply.compose(ITEM, {"portfolio_url": ""})
+
+    def test_learning_keeps_last_five_private_edits_and_skips_identical_text(self):
+        with tempfile.TemporaryDirectory() as td, patch.object(reply, "STYLE_MEMORY", Path(td) / "style.json"):
+            self.assertFalse(reply.remember_edit("1", "same", "same"))
+            self.assertFalse(reply.STYLE_MEMORY.exists())
+            for rid in range(1, 7):
+                self.assertTrue(reply.remember_edit(str(rid), "قبل", f"بعد {rid}"))
+            self.assertEqual([row["request_id"] for row in reply.style_examples()],
+                             ["2", "3", "4", "5", "6"])
+            self.assertEqual(reply.STYLE_MEMORY.stat().st_mode & 0o777, 0o600)
 
     def test_duplicate_request_cannot_be_sent(self):
         with self.assertRaisesRegex(ValueError, "already been attempted"):

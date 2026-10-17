@@ -138,7 +138,14 @@ def submit_reviewed(rid: str, text: str) -> list[str]:
         raise ValueError("Preview expired; generate a new one")
     text = text.strip()
     reply.valid_reply(text, cfg)
-    return reply.run(url=item["url"], reply_override=text, reviewed=True)
+    results = reply.run(url=item["url"], reply_override=text, reviewed=True)
+    if any(result == f'Submitted: {item["url"]}' for result in results):
+        try:
+            if reply.remember_edit(rid, draft["text"], text):
+                results.append("حُفظ تعديلك كأسلوب للمسودات القادمة")
+        except (ValueError, OSError, TypeError, KeyError) as exc:
+            results.append(f"تم النشر، لكن تعذّر حفظ تعديل الأسلوب: {exc}")
+    return results
 
 
 def tick() -> str:
@@ -232,7 +239,7 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
             if draft and draft.get("url") == item["url"]:
                 if draft.get("validation_error"):
                     parts.append(f'<p class="notice error" role="status">المسودة تحتاج تعديل قبل الإرسال: {e(draft["validation_error"])}</p>')
-                parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم أرسله لهذا الطلب فقط</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p><button type="submit">إرسال الرد الآن</button></p></form>')
+                parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم أرسله لهذا الطلب فقط</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p class="muted">بعد تأكيد نشر ردك، سيتعلم Okal أسلوب تعديلك للمسودات القادمة فقط.</p><p><button type="submit">إرسال الرد الآن</button></p></form>')
         parts.append('</article>')
     if not rows:
         parts.append('<p class="muted">الطابور فارغ. احفظ المجالات ثم اضغط «افحص الطلبات الآن».</p>')

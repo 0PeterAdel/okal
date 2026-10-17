@@ -110,6 +110,27 @@ class ControlTests(unittest.TestCase):
                 control.submit_reviewed("123", "Some text")
             run.assert_not_called()
 
+    def test_learning_only_after_confirmed_review_submission(self):
+        item = {"id": "123", "url": "https://khamsat.com/community/requests/123-python"}
+        valid = "أقدر أساعدك في بناء أداة Python المطلوبة. نبدأ بتحديد المدخلات والمخرجات ثم ننفذ نسخة أولية قابلة للتجربة."
+        with tempfile.TemporaryDirectory() as td, patch.object(control, "DRAFTS", Path(td) / "drafts.json"), \
+             patch.object(control, "candidate", return_value=item), \
+             patch.object(control.reply, "instructions", return_value={"portfolio_url": ""}), \
+             patch.object(control.reply, "remember_edit") as learn, \
+             patch.object(control.reply, "run") as run:
+            control.scout.save(control.DRAFTS, {"requests": {"123": {
+                "url": item["url"], "text": "مسودة أولى",
+                "created_at": control.datetime.now(control.timezone.utc).isoformat(),
+            }}})
+            run.return_value = []
+            self.assertEqual(control.submit_reviewed("123", valid), [])
+            learn.assert_not_called()
+            run.return_value = [f'Submitted: {item["url"]}']
+            learn.return_value = True
+            result = control.submit_reviewed("123", valid)
+            self.assertIn("حُفظ تعديلك", result[1])
+            learn.assert_called_once_with("123", "مسودة أولى", valid)
+
     def test_tick_respects_interval_and_does_not_post_in_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
