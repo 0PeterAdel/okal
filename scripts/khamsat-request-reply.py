@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -213,6 +214,48 @@ def inspect(url: str) -> list[dict]:
             play.stop()
 
 
+def page_diagnostics(page, expected_url: str) -> dict:
+    """Report only public page structure; never print cookies, session data or body text."""
+    parsed = urlparse(page.url)
+    visible_challenges = page.locator('iframe[src*="captcha"], [class*="captcha"], [id*="captcha"]')
+    try:
+        same_request = scout.request_id(page.url) == scout.request_id(expected_url)
+    except (ValueError, TypeError):
+        same_request = False
+    return {
+        "profile": str(scout.PROFILE),
+        "page": f"{parsed.scheme}://{parsed.netloc}{parsed.path}"[:350],
+        "same_request": same_request,
+        "forms": page.locator("form").count(),
+        "textareas": page.locator("textarea").count(),
+        "visible_textareas": page.locator("textarea:visible").count(),
+        "content_textareas": page.locator("textarea[name='content']").count(),
+        "confirm_checkboxes": page.locator("input#confirm").count(),
+        "comment_submit_buttons": page.locator("#commentable_submit").count(),
+        "password_fields": page.locator("input[type='password']").count(),
+        "visible_challenge": any(node.is_visible() for node in visible_challenges.all()),
+    }
+
+
+def diagnose(url: str) -> None:
+    """Read-only inspection in the same saved browser profile used for submission."""
+    if not scout.PROFILE.is_dir():
+        raise ValueError("Saved browser profile not found")
+    with browser_lock():
+        play, context = open_browser(scout.PROFILE)
+        try:
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            print(json.dumps(page_diagnostics(page, url), ensure_ascii=False, indent=2), flush=True)
+            if sys.stdin.isatty():
+                input("افحص الصفحة في متصفح Okal وسجل الدخول يدويًا إن لزم. اضغط Enter لإعادة القراءة وإغلاقه: ")
+                print(json.dumps(page_diagnostics(page, url), ensure_ascii=False, indent=2), flush=True)
+            print("تشخيص فقط؛ لم يُكتب رد ولم يُضغط زر إرسال.", flush=True)
+        finally:
+            context.close()
+            play.stop()
+
+
 def valid_reply(reply: str, config: dict) -> None:
     links = re.findall(r"https?://[^\s<>)]+", reply)
     portfolio = config.get("portfolio_url", "")
@@ -287,8 +330,18 @@ def reply_controls(page, config: dict):
         details += "؛ " + " | ".join(form_details[:5])
     raise RuntimeError(
         "تعذر تحديد نموذج تعليق خمسات بحقل النص وخانة الشروط وزر الإرسال بعد انتظار ظهوره؛ "
-        f"لم يُرسل شيء. تحقق من تسجيل الدخول وإتاحة التعليقات على الطلب. المطابقات: {details}"
+        f"لم يُرسل شيء. تحقق من تسجيل الدخول وإتاحة التعليقات على الطلب. المطابقات: {details}. "
+        "شغّل --diagnose لرؤية ما يظهر في بروفايل Okal نفسه"
     )
+
+
+def ensure_request(page, rid: str) -> None:
+    try:
+        if scout.request_id(page.url) == rid:
+            return
+    except (ValueError, TypeError):
+        pass
+    raise RuntimeError("الصفحة انتقلت لطلب آخر أو تسجيل الدخول أثناء الانتظار؛ لم يُرسل شيء")
 
 
 def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
@@ -307,6 +360,7 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     if dry_run:
         return reply
     field, checkbox, button = reply_controls(page, config)
+    ensure_request(page, rid)
     field.fill(reply)
     field.dispatch_event("change")
     try:
@@ -316,6 +370,7 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     page.wait_for_timeout(500)
     if field.input_value(timeout=2000) != reply or not checkbox.is_checked() or not button.is_enabled():
         raise RuntimeError("نص الرد أو تأكيد الشروط أو زر الإرسال غير جاهز؛ لم يُرسل شيء")
+    ensure_request(page, rid)
     receipts.setdefault("requests", {})[rid] = {"day": day, "status": "pending", "url": item["url"]}
     scout.save(RECEIPTS, receipts)
     try:
@@ -383,6 +438,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     a = p.add_mutually_exclusive_group(required=True)
     a.add_argument("--inspect", metavar="REQUEST_URL")
+    a.add_argument("--diagnose", metavar="REQUEST_URL")
     a.add_argument("--respond-once", metavar="REQUEST_URL")
     a.add_argument("--run", action="store_true")
     p.add_argument("--dry-run", action="store_true")
@@ -390,6 +446,8 @@ def main() -> int:
     try:
         if args.inspect:
             print(json.dumps(inspect(scout.request_url(args.inspect)), ensure_ascii=False, indent=2))
+        elif args.diagnose:
+            diagnose(scout.request_url(args.diagnose))
         else:
             for result in run(url=args.respond_once, dry_run=args.dry_run):
                 print(result)

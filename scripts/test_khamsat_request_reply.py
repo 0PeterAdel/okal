@@ -23,6 +23,7 @@ VALID = "يمكنني تطوير واجهة Python المطلوبة اعتماد
 
 def form_page():
     page, field, form, button, checkbox = (MagicMock() for _ in range(5))
+    page.url = URL
     missing = MagicMock()
     missing.count.return_value = 0
     missing.all.return_value = []
@@ -222,6 +223,48 @@ class ReplyTests(unittest.TestCase):
                 reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
         button.click.assert_not_called()
         save.assert_not_called()
+
+    def test_redirect_during_form_wait_does_not_record_or_click(self):
+        page, _, _, button, _ = form_page()
+        page.locator("form textarea:visible").first.wait_for.side_effect = lambda **kw: setattr(
+            page, "url", "https://khamsat.com/login")
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply.scout, "save") as save:
+            with self.assertRaisesRegex(RuntimeError, "الصفحة انتقلت"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_not_called()
+        save.assert_not_called()
+
+    def test_diagnostics_redact_query_and_never_submit(self):
+        page, field, _, button, checkbox = form_page()
+        page.url = URL + "?private_token=should-not-print"
+        page.locator.side_effect = lambda selector: field if selector in (
+            "form", "textarea", "textarea:visible", "textarea[name='content']",
+            "input#confirm", "#commentable_submit") else MagicMock()
+        page.locator.return_value.all.return_value = []
+        result = reply.page_diagnostics(page, URL)
+        self.assertEqual(result["page"], URL)
+        self.assertNotIn("private_token", str(result))
+        self.assertTrue(result["same_request"])
+        button.click.assert_not_called()
+        checkbox.check.assert_not_called()
+
+    def test_diagnose_opens_saved_profile_without_posting(self):
+        page, _, _, button, _ = form_page()
+        context, play = MagicMock(), MagicMock()
+        context.pages = [page]
+        with tempfile.TemporaryDirectory() as td, patch.object(reply.scout, "PROFILE", Path(td)), \
+             patch.object(reply, "browser_lock"), \
+             patch.object(reply, "open_browser", return_value=(play, context)) as browser, \
+             patch.object(reply, "page_diagnostics", return_value={"content_textareas": 0}), \
+             patch.object(reply.sys, "stdin") as stdin, patch("builtins.print"):
+            stdin.isatty.return_value = False
+            reply.diagnose(URL)
+        browser.assert_called_once_with(Path(td))
+        page.goto.assert_called_once_with(URL, wait_until="domcontentloaded", timeout=30000)
+        button.click.assert_not_called()
+        context.close.assert_called_once()
+        play.stop.assert_called_once()
 
     def test_receipt_is_pending_before_click_and_sent_after_verified_reload(self):
         page, field, _, button, checkbox = form_page()
