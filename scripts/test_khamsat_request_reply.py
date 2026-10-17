@@ -60,14 +60,24 @@ class ReplyTests(unittest.TestCase):
         response = "أقدر أساعدك في أتمتة الخطوات باستخدام Python. نبدأ بتحديد المدخلات والمخرجات المطلوبة ونختبر أول مسار قبل التوسع."
         captured = []
         def fake_urlopen(request, timeout):
-            captured.append(json.loads(request.data)["prompt"])
+            captured.append(json.loads(request.data))
             return BytesIO(json.dumps({"response": response}).encode())
         with patch.object(reply, "profile_facts", return_value=["بنيت أداة أتمتة Python"]), \
              patch.object(reply, "urlopen", side_effect=fake_urlopen):
             self.assertEqual(reply.compose(ITEM, {"portfolio_url": "", "service": "غير موثق",
                                                    "proof": "غير موثق"}), response)
-        self.assertIn("بنيت أداة أتمتة Python", captured[0])
-        self.assertNotIn("غير موثق", captured[0])
+        self.assertIn("بنيت أداة أتمتة Python", captured[0]["prompt"])
+        self.assertNotIn("غير موثق", captured[0]["prompt"])
+        self.assertIs(captured[0]["think"], False)
+        self.assertGreaterEqual(captured[0]["options"]["num_predict"], 700)
+
+    def test_thinking_only_response_has_specific_error(self):
+        with patch.object(reply, "profile_facts", return_value=["Python project"]), \
+             patch.object(reply, "urlopen", return_value=BytesIO(json.dumps({
+                 "response": "", "thinking": "internal reasoning", "done_reason": "length"
+             }).encode())):
+            with self.assertRaisesRegex(ValueError, "استهلك الرد في التفكير"):
+                reply.generate(ITEM, {"portfolio_url": ""})
 
     def test_auto_generation_still_rejects_invalid_reply(self):
         with patch.object(reply, "generate", return_value="رد قصير"):

@@ -108,13 +108,16 @@ def generate(item: dict, config: dict) -> str:
               f'رابط معرض أعمال اختياري: {config.get("portfolio_url", "")}\n'
               f'أسلوبي وتعليماتي الثابتة: {config.get("proposal_instructions", DEFAULT_INSTRUCTIONS)[:3000]}')
     body = json.dumps({"model": config.get("ollama_model", "okal-qwen3.5-4b-64k"),
-                       "prompt": prompt, "stream": False,
-                       "options": {"num_predict": 330, "temperature": 0.2}}, ensure_ascii=False).encode()
+                       "prompt": prompt, "stream": False, "think": False,
+                       "options": {"num_predict": 700, "temperature": 0.2}}, ensure_ascii=False).encode()
     with urlopen(Request(OLLAMA, body, {"Content-Type": "application/json"}), timeout=240) as response:
-        text = json.load(response).get("response", "").strip()
+        result = json.load(response)
+    text = result.get("response", "").strip()
     text = re.sub(r"^<think>.*?</think>\s*", "", text, flags=re.DOTALL)
     if not text:
-        raise ValueError("الموديل لم يُرجع نص رد؛ راجع موديل Ollama المحلي ثم جرّب مجددًا")
+        if result.get("thinking") or result.get("done_reason") == "length":
+            raise ValueError("الموديل استهلك الرد في التفكير ولم يُنتج نصًا؛ تحقق من إعدادات التفكير وموديل Ollama")
+        raise ValueError("الموديل لم يُرجع نص رد؛ تأكد أن موديل Ollama المحدد متاح ثم جرّب مجددًا")
     if len(text) > 4000:
         raise ValueError("رد الموديل طويل جدًا؛ لم تُحفظ مسودة ولم يُرسل شيء")
     return text
