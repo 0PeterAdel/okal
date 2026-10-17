@@ -1,0 +1,6 @@
+[Unit]
+Description=Scan and respond to matching Khamsat requests on owner's desktop
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash %h/Projects/okal/scripts/run-khamsat-agent.sh
