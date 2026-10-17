@@ -73,6 +73,14 @@ class ReplyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "رابطًا غير"):
             reply.valid_reply(text + " https://example.com/unapproved", {"portfolio_url": ""})
 
+    def test_reply_length_matches_live_khamsat_textarea(self):
+        for length in (2, 1291, 2000):
+            reply.valid_reply("ا" * length, {"portfolio_url": ""})
+        with self.assertRaisesRegex(ValueError, "الحد الأقصى.*2000"):
+            reply.valid_reply("ا" * 2001, {"portfolio_url": ""})
+        with self.assertRaisesRegex(ValueError, "الرد فارغ"):
+            reply.valid_reply("  ", {"portfolio_url": ""})
+
     def test_prompt_uses_verified_profile_without_static_service_or_link(self):
         response = "أقدر أساعدك في أتمتة الخطوات باستخدام Python. نبدأ بتحديد المدخلات والمخرجات المطلوبة ونختبر أول مسار قبل التوسع."
         captured = []
@@ -101,8 +109,8 @@ class ReplyTests(unittest.TestCase):
                 reply.generate(ITEM, {"portfolio_url": ""})
 
     def test_auto_generation_still_rejects_invalid_reply(self):
-        with patch.object(reply, "generate", return_value="رد قصير"):
-            with self.assertRaisesRegex(ValueError, "طول الرد"):
+        with patch.object(reply, "generate", return_value="ا" * 2001):
+            with self.assertRaisesRegex(ValueError, "الحد الأقصى"):
                 reply.compose(ITEM, {"portfolio_url": ""})
 
     def test_learning_keeps_last_five_private_edits_and_skips_identical_text(self):
@@ -191,9 +199,9 @@ class ReplyTests(unittest.TestCase):
         page = MagicMock()
         page.locator.return_value.inner_text.return_value = ITEM["title"]
         with patch.object(reply, "visit"), patch.object(reply.scout, "save") as save:
-            with self.assertRaisesRegex(ValueError, "طول الرد"):
+            with self.assertRaisesRegex(ValueError, "الرد فارغ"):
                 reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16",
-                                 dry_run=False, reply_override="ok")
+                                 dry_run=False, reply_override="  ")
             save.assert_not_called()
             page.locator.return_value.click.assert_not_called()
 

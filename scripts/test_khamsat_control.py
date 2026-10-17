@@ -85,21 +85,21 @@ class ControlTests(unittest.TestCase):
                 control.preview("123")
             compose.assert_not_called()
 
-    def test_short_model_reply_is_saved_for_edit_but_cannot_be_sent(self):
+    def test_overlong_model_reply_is_saved_for_edit_but_cannot_be_sent(self):
         item = {"id": "123", "url": "https://khamsat.com/community/requests/123-python",
                 "title": "Python", "visible_text": "Need Python"}
         with tempfile.TemporaryDirectory() as td, patch.object(control, "DRAFTS", Path(td) / "drafts.json"), \
              patch.object(control, "candidate", return_value=item), \
              patch.object(control, "candidates", return_value=([item], {})), \
              patch.object(control.reply, "instructions", return_value={"portfolio_url": ""}), \
-             patch.object(control.reply, "generate", return_value="رد قصير"), \
+             patch.object(control.reply, "generate", return_value="ا" * 2001), \
              patch.object(control.scout, "matches", return_value=True), \
              patch.object(control.reply, "run") as run:
             warning = control.preview("123")
-            self.assertIn("طول الرد", warning)
-            self.assertEqual(control.scout.load(control.DRAFTS)["requests"]["123"]["text"], "رد قصير")
-            with self.assertRaisesRegex(ValueError, "طول الرد"):
-                control.submit_reviewed("123", "رد قصير")
+            self.assertIn("الحد الأقصى", warning)
+            self.assertEqual(control.scout.load(control.DRAFTS)["requests"]["123"]["text"], "ا" * 2001)
+            with self.assertRaisesRegex(ValueError, "الحد الأقصى"):
+                control.submit_reviewed("123", "ا" * 2001)
             run.assert_not_called()
 
     def test_review_submission_requires_prior_preview_and_mode(self):

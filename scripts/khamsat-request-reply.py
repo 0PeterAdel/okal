@@ -227,8 +227,10 @@ def inspect(url: str) -> list[dict]:
 def valid_reply(reply: str, config: dict) -> None:
     links = re.findall(r"https?://[^\s<>)]+", reply)
     portfolio = config.get("portfolio_url", "")
-    if not 80 <= len(reply) <= 1000:
-        raise ValueError(f"طول الرد {len(reply)} حرفًا؛ المطلوب من 80 إلى 1000 حرف")
+    if not reply.strip():
+        raise ValueError("الرد فارغ؛ اكتب نصًا قبل الإرسال")
+    if len(reply) > 2000:
+        raise ValueError(f"طول الرد {len(reply)} حرفًا؛ الحد الأقصى في نموذج خمسات 2000 حرف")
     if "<think>" in reply or "```" in reply:
         raise ValueError("الرد يحتوي نص تفكير أو تنسيق كود؛ احذفه قبل الإرسال")
     if any(link.rstrip(".,،؛") != portfolio for link in links):
