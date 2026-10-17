@@ -49,6 +49,8 @@ For the local Qwen thinking model, draft generation requests `think: false` and 
 
 The owner's inspected request form has a `textarea[name="content"]`, a `#confirm` checkbox for Khamsat's comment terms, and `#commentable_submit`. The runner checks that these three controls belong to the same visible form, fills the text, checks the terms checkbox, and only then records the pending attempt and clicks submit. The checkbox is a confirmation of the reply's contents, so do not include outside contact information or text violating the site's terms. Selectors are prefilled; the inspector remains available if Khamsat changes its form. A visible site validation error is reported in the local control page, with the receipt left pending until you inspect the request on Khamsat. Do not retry a pending request automatically.
 
+An older draft may contain a saved warning from an earlier version of the length rule. The page now checks the draft against the current rule when displaying it, so a 1283-character reply no longer shows the old 1000-character warning. Before submitting, the runner validates that the browser remains on the same numeric request ID; the listing link and page heading do not have to be identical.
+
 Example private settings:
 
 ```json

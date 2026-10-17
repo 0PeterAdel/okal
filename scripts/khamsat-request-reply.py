@@ -258,9 +258,9 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     if not scout.matches(item["title"] + " " + item["visible_text"], config):
         raise ValueError("Request no longer matches private rules")
     visit(page, item["url"])
-    # The page may have changed since the scan. Never post when it differs materially.
-    if item["title"] not in page.locator("body").inner_text(timeout=15000):
-        raise RuntimeError("Request title changed; no submission")
+    # Listing link text and the request page heading can differ. visit() already
+    # verifies the numeric request ID after navigation; never use exact title text
+    # as a second identity check.
     reply = reply_override if reply_override is not None else compose(item, config)
     valid_reply(reply, config)
     if dry_run:

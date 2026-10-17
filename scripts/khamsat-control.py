@@ -237,8 +237,13 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
                 parts.append(f'<form method="post" action="/preview" class="inline">{hidden}<input type="hidden" name="id" value="{rid}"><button class="alt">جهّز ردًا للمراجعة</button></form>')
             draft = drafts.get(rid)
             if draft and draft.get("url") == item["url"]:
-                if draft.get("validation_error"):
-                    parts.append(f'<p class="notice error" role="status">المسودة تحتاج تعديل قبل الإرسال: {e(draft["validation_error"])}</p>')
+                warning = ""
+                try:
+                    reply.valid_reply(draft.get("text", ""), config)
+                except ValueError as exc:
+                    warning = str(exc)
+                if warning:
+                    parts.append(f'<p class="notice error" role="status">المسودة تحتاج تعديل قبل الإرسال: {e(warning)}</p>')
                 parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم أرسله لهذا الطلب فقط</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p class="muted">بعد تأكيد نشر ردك، سيتعلم Okal أسلوب تعديلك للمسودات القادمة فقط.</p><p><button type="submit">إرسال الرد الآن</button></p></form>')
         parts.append('</article>')
     if not rows:

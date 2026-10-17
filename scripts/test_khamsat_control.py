@@ -49,6 +49,25 @@ class ControlTests(unittest.TestCase):
             self.assertIn("رابط معرض الأعمال HTTPS (اختياري)", page)
             self.assertNotIn("الخدمة التي تقدمها فعلًا", page)
 
+    def test_old_length_warning_is_rechecked_against_current_rules(self):
+        item = {"id": "123", "url": "https://khamsat.com/community/requests/123-python",
+                "title": "Python", "visible_text": "Need Python"}
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(control.scout, "CONFIG", Path(td) / "watch.json"), \
+             patch.object(control.reply, "SETTINGS", Path(td) / "reply.json"), \
+             patch.object(control.reply, "OWNER_PROFILE", Path(td) / "owner.json"), \
+             patch.object(control, "DRAFTS", Path(td) / "drafts.json"), \
+             patch.object(control, "candidates", return_value=([item], {})):
+            control.scout.save(control.reply.OWNER_PROFILE, {"facts": []})
+            control.scout.save(control.DRAFTS, {"requests": {"123": {
+                "url": item["url"], "text": "ا" * 1283,
+                "validation_error": "طول الرد 1283 حرفًا؛ المطلوب من 80 إلى 1000 حرف",
+            }}})
+            page = control.render("token")
+            self.assertIn("ا" * 1283, page)
+            self.assertNotIn("المطلوب من 80 إلى 1000", page)
+            self.assertNotIn("المسودة تحتاج تعديل", page)
+
     def test_same_page_origin_variants_and_cross_site_rejection(self):
         for headers in (
             {"Origin": "http://127.0.0.1:8788", "Sec-Fetch-Site": "same-origin"},

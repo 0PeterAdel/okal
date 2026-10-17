@@ -140,6 +140,7 @@ class ReplyTests(unittest.TestCase):
 
     def test_receipt_is_pending_before_click_and_sent_after_verified_reload(self):
         page, field, _, button, checkbox = form_page()
+        page.locator_body.inner_text.return_value = "عنوان مختلف في الصفحة"
         state = {"requests": {}}
         events = []
         with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
@@ -150,6 +151,15 @@ class ReplyTests(unittest.TestCase):
         field.fill.assert_called_once_with(VALID)
         checkbox.check.assert_called_once()
         button.click.assert_called_once()
+
+    def test_visit_rejects_different_request_id_but_allows_changed_slug(self):
+        page = MagicMock()
+        page.locator.return_value.count.return_value = 0
+        page.url = "https://khamsat.com/community/requests/123456-updated-title"
+        reply.visit(page, URL)
+        page.url = "https://khamsat.com/community/requests/654321-other-title"
+        with self.assertRaisesRegex(RuntimeError, "redirected"):
+            reply.visit(page, URL)
 
     def test_terms_checkbox_required_before_receipt_or_click(self):
         page, _, _, button, checkbox = form_page()
