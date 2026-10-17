@@ -23,12 +23,16 @@ VALID = "يمكنني تطوير واجهة Python المطلوبة اعتماد
 
 def form_page():
     page, field, form, button, checkbox = (MagicMock() for _ in range(5))
+    missing = MagicMock()
+    missing.count.return_value = 0
+    missing.all.return_value = []
     for element in (field, form, button, checkbox):
         element.count.return_value = 1
         element.is_visible.return_value = True
         element.is_enabled.return_value = True
+    field.all.return_value = [field]
     page.locator.side_effect = lambda selector: (field if selector == CFG["reply_selector"] else
-                                                 page.locator_body if selector == "body" else MagicMock())
+                                                 page.locator_body if selector == "body" else missing)
     page.locator_body.inner_text.return_value = ITEM["title"]
     field.locator.return_value = form
     form.locator.side_effect = lambda selector: (button if selector == CFG["submit_selector"] else checkbox)
@@ -152,9 +156,72 @@ class ReplyTests(unittest.TestCase):
         receipts = {"requests": {}}
         with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
              patch.object(reply.scout, "save") as save:
-            with self.assertRaisesRegex(RuntimeError, "حقل الرد"):
+            with self.assertRaisesRegex(RuntimeError, "تعذر تحديد نموذج تعليق خمسات"):
                 reply.submit_one(page, ITEM, CFG, receipts, "2026-10-16", dry_run=False)
             save.assert_not_called()
+
+    def test_name_fallback_when_saved_selector_is_stale(self):
+        page, field, _, button, _ = form_page()
+        default = page.locator.side_effect
+        stale = MagicMock()
+        stale.count.return_value = 0
+        stale.all.return_value = []
+        fallback = MagicMock()
+        fallback.count.return_value = 1
+        fallback.all.return_value = [field]
+        page.locator.side_effect = lambda selector: (
+            stale if selector == CFG["reply_selector"] else
+            fallback if selector == "textarea[name='content']" else default(selector))
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_called_once()
+        page.locator("form textarea:visible").first.wait_for.assert_called_once_with(
+            state="visible", timeout=12000)
+
+    def test_waits_for_delayed_comment_field(self):
+        page, field, _, button, _ = form_page()
+        field.count.return_value = 0
+        page.locator("form textarea:visible").first.wait_for.side_effect = lambda **kw: (
+            field.count.configure_mock(return_value=1))
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_called_once()
+
+    def test_inspected_xpath_fallback_requires_same_form_controls(self):
+        page, field, _, button, _ = form_page()
+        default = page.locator.side_effect
+        missing = MagicMock()
+        missing.count.return_value = 0
+        missing.all.return_value = []
+        xpath = ("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[4]/"
+                 "div[2]/form/div[1]/textarea")
+        page.locator.side_effect = lambda selector: (
+            missing if selector == CFG["reply_selector"] else
+            field if selector == xpath else default(selector))
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_called_once()
+
+    def test_ambiguous_comment_forms_never_click(self):
+        page, field, _, button, _ = form_page()
+        other = MagicMock()
+        other.is_visible.return_value = True
+        other.is_enabled.return_value = True
+        other.locator.return_value = field.locator.return_value
+        field.count.return_value = 2
+        field.all.return_value = [field, other]
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply.scout, "save") as save:
+            with self.assertRaisesRegex(RuntimeError, "أكثر من نموذج"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_not_called()
+        save.assert_not_called()
 
     def test_receipt_is_pending_before_click_and_sent_after_verified_reload(self):
         page, field, _, button, checkbox = form_page()
@@ -196,7 +263,7 @@ class ReplyTests(unittest.TestCase):
         checkbox.count.return_value = 0
         with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
              patch.object(reply.scout, "save") as save:
-            with self.assertRaisesRegex(RuntimeError, "تأكيد الشروط"):
+            with self.assertRaisesRegex(RuntimeError, "خانة الشروط=0"):
                 reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
         save.assert_not_called()
         button.click.assert_not_called()

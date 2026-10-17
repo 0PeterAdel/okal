@@ -239,6 +239,58 @@ def visible_site_errors(page) -> str:
     return " | ".join(messages[:4])
 
 
+def reply_controls(page, config: dict):
+    """Wait for the comment form, then select one visible textarea and its own controls."""
+    selectors = dict.fromkeys((
+        config["reply_selector"],
+        "textarea[name='content'].c-form__control",
+        "xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[4]/div[2]/form/div[1]/textarea",
+        "textarea[name='content']",
+        "form textarea",
+    ))
+    try:
+        page.locator("form textarea:visible").first.wait_for(state="visible", timeout=12000)
+    except Exception as exc:
+        if type(exc).__name__ != "TimeoutError":
+            raise
+        # Continue to collect counts; a changed page can have a reply field
+        # outside the expected form or a login prompt instead.
+    counts = {}
+    form_details = []
+    for selector in selectors:
+        fields = page.locator(selector)
+        count = fields.count()
+        counts[selector] = count
+        if count == 0 or count > 20:
+            continue
+        matches = []
+        for field in fields.all():
+            if not field.is_visible() or not field.is_enabled():
+                continue
+            form = field.locator("xpath=ancestor::form[1]")
+            if form.count() != 1:
+                continue
+            button = form.locator(config["submit_selector"])
+            if button.count() == 0:
+                button = form.locator("#commentable_submit")
+            checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
+            form_details.append(f"{selector}: زر الإرسال={button.count()}، خانة الشروط={checkbox.count()}")
+            if (button.count() == 1 and checkbox.count() == 1 and
+                    button.is_visible() and checkbox.is_visible() and checkbox.is_enabled()):
+                matches.append((field, checkbox, button))
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise RuntimeError("أكثر من نموذج تعليق صالح في الصفحة؛ لم يُرسل شيء")
+    details = ", ".join(f"{key}={value}" for key, value in counts.items())
+    if form_details:
+        details += "؛ " + " | ".join(form_details[:5])
+    raise RuntimeError(
+        "تعذر تحديد نموذج تعليق خمسات بحقل النص وخانة الشروط وزر الإرسال بعد انتظار ظهوره؛ "
+        f"لم يُرسل شيء. تحقق من تسجيل الدخول وإتاحة التعليقات على الطلب. المطابقات: {details}"
+    )
+
+
 def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
                dry_run: bool, reply_override: str | None = None) -> str:
     rid = scout.request_id(item["url"])
@@ -254,20 +306,7 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     valid_reply(reply, config)
     if dry_run:
         return reply
-    field = page.locator(config["reply_selector"])
-    if field.count() == 0:
-        field = page.locator("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[4]/div[2]/form/div[1]/textarea")
-    if field.count() == 0:
-        field = page.locator("textarea[name='content']")
-    if field.count() != 1 or not field.is_visible() or not field.is_enabled():
-        raise RuntimeError("حقل الرد غير ظاهر أو غير فريد؛ افحص نموذج خمسات الحالي")
-    form = field.locator("xpath=ancestor::form[1]")
-    button = form.locator(config["submit_selector"])
-    checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
-    if (form.count() != 1 or button.count() != 1 or checkbox.count() != 1 or
-            not button.is_visible() or
-            not checkbox.is_visible() or not checkbox.is_enabled()):
-        raise RuntimeError("نموذج الرد أو زر الإرسال أو تأكيد الشروط غير واضح؛ افحص الصفحة قبل الإرسال")
+    field, checkbox, button = reply_controls(page, config)
     field.fill(reply)
     field.dispatch_event("change")
     try:
