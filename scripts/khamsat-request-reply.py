@@ -282,8 +282,8 @@ def visible_site_errors(page) -> str:
     return " | ".join(messages[:4])
 
 
-def reply_controls(page, config: dict):
-    """Wait for the comment form, then select one visible textarea and its own controls."""
+def reply_controls(page, config: dict, expected_url: str):
+    """Find the comment form before any write, retrying one transient empty page."""
     selectors = dict.fromkeys((
         config["reply_selector"],
         "textarea[name='content'].c-form__control",
@@ -291,46 +291,57 @@ def reply_controls(page, config: dict):
         "textarea[name='content']",
         "form textarea",
     ))
-    try:
-        page.locator("form textarea:visible").first.wait_for(state="visible", timeout=12000)
-    except Exception as exc:
-        if type(exc).__name__ != "TimeoutError":
-            raise
-        # Continue to collect counts; a changed page can have a reply field
-        # outside the expected form or a login prompt instead.
-    counts = {}
-    form_details = []
-    for selector in selectors:
-        fields = page.locator(selector)
-        count = fields.count()
-        counts[selector] = count
-        if count == 0 or count > 20:
+    for attempt in range(2):
+        try:
+            page.locator("form textarea:visible").first.wait_for(state="visible", timeout=12000)
+        except Exception as exc:
+            if type(exc).__name__ != "TimeoutError":
+                raise
+            # A transient empty page can reach domcontentloaded before its form.
+        counts = {}
+        form_details = []
+        for selector in selectors:
+            fields = page.locator(selector)
+            count = fields.count()
+            counts[selector] = count
+            if count == 0 or count > 20:
+                continue
+            matches = []
+            for field in fields.all():
+                if not field.is_visible() or not field.is_enabled():
+                    continue
+                form = field.locator("xpath=ancestor::form[1]")
+                if form.count() != 1:
+                    continue
+                button = form.locator(config["submit_selector"])
+                if button.count() == 0:
+                    button = form.locator("#commentable_submit")
+                checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
+                form_details.append(f"{selector}: زر الإرسال={button.count()}، خانة الشروط={checkbox.count()}")
+                if (button.count() == 1 and checkbox.count() == 1 and
+                        button.is_visible() and checkbox.is_visible() and checkbox.is_enabled()):
+                    matches.append((field, checkbox, button))
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                raise RuntimeError("أكثر من نموذج تعليق صالح في الصفحة؛ لم يُرسل شيء")
+        if attempt == 0 and not any(counts.values()):
+            ensure_request(page, scout.request_id(expected_url))
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            ensure_request(page, scout.request_id(expected_url))
             continue
-        matches = []
-        for field in fields.all():
-            if not field.is_visible() or not field.is_enabled():
-                continue
-            form = field.locator("xpath=ancestor::form[1]")
-            if form.count() != 1:
-                continue
-            button = form.locator(config["submit_selector"])
-            if button.count() == 0:
-                button = form.locator("#commentable_submit")
-            checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
-            form_details.append(f"{selector}: زر الإرسال={button.count()}، خانة الشروط={checkbox.count()}")
-            if (button.count() == 1 and checkbox.count() == 1 and
-                    button.is_visible() and checkbox.is_visible() and checkbox.is_enabled()):
-                matches.append((field, checkbox, button))
-        if len(matches) == 1:
-            return matches[0]
-        if len(matches) > 1:
-            raise RuntimeError("أكثر من نموذج تعليق صالح في الصفحة؛ لم يُرسل شيء")
+        break
     details = ", ".join(f"{key}={value}" for key, value in counts.items())
     if form_details:
         details += "؛ " + " | ".join(form_details[:5])
+    snapshot = page_diagnostics(page, expected_url)
     raise RuntimeError(
         "تعذر تحديد نموذج تعليق خمسات بحقل النص وخانة الشروط وزر الإرسال بعد انتظار ظهوره؛ "
-        f"لم يُرسل شيء. تحقق من تسجيل الدخول وإتاحة التعليقات على الطلب. المطابقات: {details}. "
+        f"لم يُرسل شيء. المطابقات: {details}. "
+        f"الصفحة: {snapshot['page']}؛ نفس الطلب={snapshot['same_request']}؛ "
+        f"النماذج={snapshot['forms']}؛ حقول الرد={snapshot['content_textareas']}؛ "
+        f"حقول ظاهرة={snapshot['visible_textareas']}؛ خانة الشروط={snapshot['confirm_checkboxes']}؛ "
+        f"زر الإرسال={snapshot['comment_submit_buttons']}؛ تحدٍّ ظاهر={snapshot['visible_challenge']}. "
         "شغّل --diagnose لرؤية ما يظهر في بروفايل Okal نفسه"
     )
 
@@ -359,7 +370,7 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     valid_reply(reply, config)
     if dry_run:
         return reply
-    field, checkbox, button = reply_controls(page, config)
+    field, checkbox, button = reply_controls(page, config, item["url"])
     ensure_request(page, rid)
     field.fill(reply)
     field.dispatch_event("change")

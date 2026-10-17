@@ -160,6 +160,32 @@ class ReplyTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "تعذر تحديد نموذج تعليق خمسات"):
                 reply.submit_one(page, ITEM, CFG, receipts, "2026-10-16", dry_run=False)
             save.assert_not_called()
+        page.reload.assert_called_once_with(wait_until="domcontentloaded", timeout=30000)
+
+    def test_empty_first_render_recovers_after_one_read_only_reload(self):
+        page, field, _, button, _ = form_page()
+        field.count.return_value = 0
+        page.reload.side_effect = lambda **kw: field.count.configure_mock(return_value=1)
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        # One reload is for the missing form; the second verifies the sent reply.
+        self.assertEqual(page.reload.call_count, 2)
+        button.click.assert_called_once()
+
+    def test_redirected_empty_render_never_reloads_or_sends(self):
+        page, field, _, button, _ = form_page()
+        field.count.return_value = 0
+        page.locator("form textarea:visible").first.wait_for.side_effect = lambda **kw: setattr(
+            page, "url", "https://khamsat.com/login")
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply.scout, "save") as save:
+            with self.assertRaisesRegex(RuntimeError, "الصفحة انتقلت"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        page.reload.assert_not_called()
+        button.click.assert_not_called()
+        save.assert_not_called()
 
     def test_name_fallback_when_saved_selector_is_stale(self):
         page, field, _, button, _ = form_page()
