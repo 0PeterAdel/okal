@@ -88,6 +88,27 @@ class KhamsatScoutTests(unittest.TestCase):
             scout.request_details(page, item, scout.DEFAULT_CONFIG)
         details.assert_not_called()
 
+    def test_detail_text_falls_back_when_absolute_xpath_moves(self):
+        page = MagicMock()
+        missing = MagicMock()
+        missing.count.return_value = 0
+        article = MagicMock()
+        article.is_visible.return_value = True
+        article.inner_text.return_value = "وصف الطلب بعد تحميل الصفحة"
+        page.locator.side_effect = lambda selector: missing if selector.startswith("xpath=") else MagicMock(all=lambda: [article])
+        self.assertEqual(scout.detail_text(page, "/html/body/div[3]/old/article", "article"),
+                         "وصف الطلب بعد تحميل الصفحة")
+
+    def test_unreadable_detail_includes_field_counts(self):
+        item = {"id": "12", "url": "https://khamsat.com/community/requests/12-python", "title": "Python"}
+        page = MagicMock()
+        page.url = item["url"]
+        page.locator.return_value.count.return_value = 0
+        with patch.object(scout, "detail_text", side_effect=["عنوان", "", ""]), \
+             self.assertRaisesRegex(RuntimeError, "وصف: مفقود.*article=0"):
+            scout.request_details(page, item, scout.DEFAULT_CONFIG)
+        page.wait_for_function.assert_called_once()
+
     def test_visible_captcha_requires_manual_inspection(self):
         page = MagicMock()
         page.url = scout.LISTING

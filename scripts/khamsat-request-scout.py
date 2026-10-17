@@ -249,11 +249,16 @@ def model_shortlist(rows: list[dict], config: dict, facts: list[str], limit: int
 def detail_text(page, xpath: str, fallback: str = "") -> str:
     node = page.locator(f"xpath={xpath}")
     if node.count() == 1 and node.is_visible():
-        return node.inner_text(timeout=15000).strip()
+        value = node.inner_text(timeout=15000).strip()
+        if value:
+            return value
     if fallback:
         other = page.locator(fallback)
-        if other.count() == 1 and other.is_visible():
-            return other.inner_text(timeout=15000).strip()
+        for candidate in other.all():
+            if candidate.is_visible():
+                value = candidate.inner_text(timeout=15000).strip()
+                if value:
+                    return value
     return ""
 
 
@@ -266,10 +271,23 @@ def request_details(page, item: dict, config: dict) -> dict:
     if current_id != item["id"]:
         raise ManualInspectionRequired("الطلب تحول إلى رابط مختلف؛ افحص الصفحة يدويًا")
     require_access(page)
+    # The absolute XPath supplied from one request is useful as a first choice,
+    # but its div indexes can change between requests. Wait for the content and
+    # use the first visible article before treating a page as unreadable.
+    try:
+        page.wait_for_function(
+            "() => !!document.querySelector('h1')?.innerText.trim() && "
+            "Array.from(document.querySelectorAll('article')).some(a => a.innerText.trim())",
+            timeout=12000)
+    except Exception:
+        require_access(page)
     title = detail_text(page, "/html/body/div[3]/div/div[2]/div/div[2]/div/div/h1", "h1")
-    description = detail_text(page, "/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[1]/div/article")
+    description = detail_text(page, "/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[1]/div/article", "article")
     if not title or not description:
-        raise RuntimeError("تعذر قراءة عنوان الطلب أو وصفه؛ افحص بنية صفحة خمسات")
+        raise RuntimeError(
+            "تعذر قراءة تفاصيل الطلب بعد الانتظار "
+            f"(عنوان: {'موجود' if title else 'مفقود'}، وصف: {'موجود' if description else 'مفقود'}، "
+            f"h1={page.locator('h1').count()}، article={page.locator('article').count()})")
     item = item | {"title": title[:500], "description": description[:6000],
                    "visible_text": title[:500] + "\n" + description[:6000],
                    "comments_count": detail_text(page, "/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[1]/h3")[:120],
@@ -327,6 +345,7 @@ def scan(state: Path, profile: Path, config: dict, limit: int) -> dict:
                 selected = model_shortlist(pool, config, facts, min(limit, config["candidate_limit"]))
                 found = []
                 errors = []
+                failed = []
                 for item in selected:
                     try:
                         detail = request_details(page, item, config)
@@ -335,12 +354,15 @@ def scan(state: Path, profile: Path, config: dict, limit: int) -> dict:
                     except ManualInspectionRequired:
                         raise
                     except (ValueError, RuntimeError, PlaywrightError) as exc:
-                        errors.append(f'{item["id"]}: {str(exc).splitlines()[0][:180]}')
+                        reason = str(exc).splitlines()[0][:180]
+                        errors.append(f'{item["id"]}: {reason}')
+                        failed.append({"id": item["id"], "url": item["url"],
+                                       "title": item["title"], "reason": reason})
                 if found:
                     found = model_shortlist(found, config, facts, len(found))
                 summary = {"listing_rows": len(rows), "shortlisted": len(selected),
                            "inspected": len(selected) - len(errors), "qualified": len(found),
-                           "errors": errors[:10]}
+                           "errors": errors[:10], "failed": failed[:20]}
                 save(queue_path, {"listing": LISTING, "checked_at": datetime.now(timezone.utc).isoformat(),
                                   "last_scan": summary, "requests": merge_queue(previous, found)})
                 print(f"Checked {len(rows)} rows; shortlisted {len(selected)}; "

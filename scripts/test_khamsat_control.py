@@ -67,6 +67,20 @@ class ControlTests(unittest.TestCase):
         self.assertNotIn('http-equiv=refresh', page)
         self.assertIn('href="/">حدّث التقدم', page)
 
+    def test_failed_shortlist_is_visible_without_draft_button(self):
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(control.scout, "STATE", Path(td)), \
+             patch.object(control, "candidates", return_value=([], {})):
+            control.scout.save(Path(td) / "queue.json", {"last_scan": {
+                "errors": ["12: وصف مفقود"], "failed": [{
+                    "url": "https://khamsat.com/community/requests/12-python",
+                    "title": "مشروع Python", "reason": "وصف مفقود"}],
+            }})
+            page = control.render("token")
+        self.assertIn("مشروع Python", page)
+        self.assertIn('href="https://khamsat.com/community/requests/12-python"', page)
+        self.assertNotIn('action="/preview"', page)
+
     def test_old_length_warning_is_rechecked_against_current_rules(self):
         item = {"id": "123", "url": "https://khamsat.com/community/requests/123-python",
                 "title": "Python", "visible_text": "Need Python"}

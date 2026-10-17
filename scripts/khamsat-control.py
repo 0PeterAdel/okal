@@ -274,6 +274,15 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
     parts.append(f'<aside class="card"><h2>المراقبة الآن</h2><p class="muted">الصفحة مخصصة لجهازك فقط. سيُفتح متصفحك المرئي عند الفحص، ويقف عند تغيّر تسجيل الدخول أو ظهور CAPTCHA.</p><form method="post" action="/scan" class="inline">{hidden}<button type="submit">افحص الطلبات الآن</button></form><p class="muted">الفحص الدوري يعمل عند تثبيت مؤقّت المستخدم. تغيير المدة يُحفظ هنا ويُحترم في الدورة التالية. الجهاز يجب أن يكون مفتوحًا.</p><p>صفوف آخر فحص: <strong>{e(scan_summary.get("listing_rows", "—"))}</strong> · اختار الموديل: <strong>{e(scan_summary.get("shortlisted", "—"))}</strong> · قُرئت التفاصيل: <strong>{e(scan_summary.get("inspected", "—"))}</strong> · مؤهلة بعد الوصف: <strong>{e(scan_summary.get("qualified", "—"))}</strong></p><p>طلبات بالطابور: <strong>{len(rows)}</strong> · محاولات مسجّلة: <strong>{len(receipts)}</strong></p></aside>')
     if scan_summary.get("errors"):
         parts.append(f'<div class="notice error span" role="status">تعذر قراءة بعض الطلبات: {e(" | ".join(scan_summary["errors"]))}</div>')
+    if scan_summary.get("failed"):
+        parts.append('<section class="card span"><h2>طلبات اختارها الموديل وتعذر قراءة تفاصيلها</h2><p class="muted">افتح الرابط بنفسك للمراجعة. لن تُجهّز مسودة لطلب بلا وصف مقروء.</p>')
+        for failed in scan_summary["failed"]:
+            try:
+                link = scout.request_url(failed["url"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            parts.append(f'<p><a href="{e(link)}" target="_blank" rel="noopener noreferrer">{e(failed.get("title", link))}</a> · {e(failed.get("reason", ""))}</p>')
+        parts.append('</section>')
     if progress:
         status = (f'جاري تجهيز المسودات {progress.get("completed", 0)}/{progress.get("total", 0)}' if running else
                   f'اكتمل تجهيز المسودات {progress.get("completed", 0)}/{progress.get("total", 0)}')
