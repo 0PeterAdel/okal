@@ -318,8 +318,11 @@ def reply_controls(page, config: dict, expected_url: str):
                     button = form.locator("#commentable_submit")
                 checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
                 form_details.append(f"{selector}: زر الإرسال={button.count()}، خانة الشروط={checkbox.count()}")
-                if (button.count() == 1 and checkbox.count() == 1 and
-                        button.is_visible() and checkbox.is_visible() and checkbox.is_enabled()):
+                # Khamsat may visually hide the native checkbox behind its label,
+                # or keep the submit button inactive until the checkbox is ticked.
+                # Check their state after filling and ticking, before recording an
+                # attempt or clicking the submit button.
+                if button.count() == 1 and checkbox.count() == 1:
                     matches.append((field, checkbox, button))
             if len(matches) == 1:
                 return matches[0]
@@ -375,12 +378,26 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     field.fill(reply)
     field.dispatch_event("change")
     try:
-        checkbox.check(timeout=10000)
+        if checkbox.is_visible():
+            checkbox.check(timeout=10000)
+        else:
+            label = checkbox.locator("xpath=ancestor::label[1]")
+            if label.count() != 1 or not label.is_visible():
+                label = checkbox.locator("xpath=ancestor::form[1]").locator("label[for='confirm']")
+            if label.count() != 1 or not label.is_visible():
+                raise RuntimeError("خانة الشروط مخفية ولا يوجد لها عنوان ظاهر")
+            label.click(timeout=10000)
     except Exception as exc:
         raise RuntimeError(f"تعذر تحديد تأكيد شروط خمسات؛ لم يُضغط زر الإرسال: {str(exc).splitlines()[0]}") from exc
     page.wait_for_timeout(500)
-    if field.input_value(timeout=2000) != reply or not checkbox.is_checked() or not button.is_enabled():
-        raise RuntimeError("نص الرد أو تأكيد الشروط أو زر الإرسال غير جاهز؛ لم يُرسل شيء")
+    if (field.input_value(timeout=2000) != reply or not checkbox.is_checked() or
+            not button.is_visible() or not button.is_enabled()):
+        raise RuntimeError(
+            "نص الرد أو تأكيد الشروط أو زر الإرسال غير جاهز؛ لم يُرسل شيء. "
+            f"النص مطابق={field.input_value(timeout=2000) == reply}؛ "
+            f"الشروط مؤكدة={checkbox.is_checked()}؛ "
+            f"زر ظاهر={button.is_visible()}؛ زر مفعّل={button.is_enabled()}"
+        )
     ensure_request(page, rid)
     receipts.setdefault("requests", {})[rid] = {"day": day, "status": "pending", "url": item["url"]}
     scout.save(RECEIPTS, receipts)

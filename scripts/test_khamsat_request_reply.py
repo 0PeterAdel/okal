@@ -218,6 +218,38 @@ class ReplyTests(unittest.TestCase):
             reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
         button.click.assert_called_once()
 
+    def test_hidden_native_checkbox_uses_visible_label_then_enables_button(self):
+        page, field, form, button, checkbox = form_page()
+        label = MagicMock()
+        label.count.return_value = 1
+        label.is_visible.return_value = True
+        checkbox.is_visible.return_value = False
+        checkbox.locator.return_value = label
+        button.is_visible.return_value = False
+        button.is_enabled.return_value = False
+        def enable_after_label(**kwargs):
+            button.is_visible.return_value = True
+            button.is_enabled.return_value = True
+        label.click.side_effect = enable_after_label
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        checkbox.check.assert_not_called()
+        label.click.assert_called_once_with(timeout=10000)
+        button.click.assert_called_once()
+
+    def test_button_still_hidden_after_terms_never_records_or_clicks(self):
+        page, _, _, button, checkbox = form_page()
+        button.is_visible.return_value = False
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply.scout, "save") as save:
+            with self.assertRaisesRegex(RuntimeError, "زر ظاهر=False"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        checkbox.check.assert_called_once()
+        button.click.assert_not_called()
+        save.assert_not_called()
+
     def test_inspected_xpath_fallback_requires_same_form_controls(self):
         page, field, _, button, _ = form_page()
         default = page.locator.side_effect
