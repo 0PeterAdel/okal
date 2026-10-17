@@ -91,12 +91,18 @@ class ReplyTests(unittest.TestCase):
              patch.object(reply, "style_examples", return_value=[{
                  "request_id": "99", "before": "مسودة قديمة", "after": "صياغة ودودة مختصرة"}]), \
              patch.object(reply, "urlopen", side_effect=fake_urlopen):
-            self.assertEqual(reply.compose(ITEM, {"portfolio_url": "", "service": "غير موثق",
-                                                   "proof": "غير موثق"}), response)
+            self.assertEqual(reply.compose(ITEM | {
+                "description": "أحتاج أتمتة عمليات البيانات", "comments": [{"text": "نقدر نبدأ بخطة عامة"}]},
+                {"portfolio_url": "", "service": "غير موثق", "proof": "غير موثق",
+                 "proposal_instructions": "اكتب من غير مبالغة وبشكل مباشر"}), response)
         self.assertIn("بنيت أداة أتمتة Python", captured[0]["prompt"])
         self.assertNotIn("غير موثق", captured[0]["prompt"])
         self.assertIn("صياغة ودودة مختصرة", captured[0]["prompt"])
-        self.assertIn("الأسلوب والبناء فقط", captured[0]["prompt"])
+        self.assertIn("الأسلوب والبناء فقط", captured[0]["system"])
+        self.assertIn("اكتب من غير مبالغة", captured[0]["system"])
+        self.assertIn("أحتاج أتمتة عمليات البيانات", captured[0]["prompt"])
+        self.assertIn("نقدر نبدأ بخطة عامة", captured[0]["prompt"])
+        self.assertNotIn("نقدر نبدأ بخطة عامة", captured[0]["system"])
         self.assertIs(captured[0]["think"], False)
         self.assertGreaterEqual(captured[0]["options"]["num_predict"], 700)
 

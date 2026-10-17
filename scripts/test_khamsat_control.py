@@ -23,9 +23,15 @@ class ControlTests(unittest.TestCase):
         }
 
     def test_review_is_default_and_auto_requires_explicit_confirmation(self):
-        _, config = control.validate_settings(self.form)
+        watch, config = control.validate_settings(self.form | {
+            "load_more_clicks": "2", "candidate_limit": "10",
+            "read_comments": "yes", "comments_limit": "3"})
         self.assertFalse(config["enabled"])
         self.assertEqual(config["authorization"], "review")
+        self.assertEqual(watch["load_more_clicks"], 2)
+        self.assertEqual(watch["candidate_limit"], 10)
+        self.assertTrue(watch["read_comments"])
+        self.assertEqual(watch["comments_limit"], 3)
         with self.assertRaisesRegex(ValueError, "Confirm autonomous"):
             control.validate_settings(self.form | {"authorization": "auto"})
         with patch.object(control.reply, "profile_facts", return_value=["Verified Python project"]):
@@ -48,6 +54,18 @@ class ControlTests(unittest.TestCase):
             self.assertIn('action="/preview"', page)
             self.assertIn("رابط معرض الأعمال HTTPS (اختياري)", page)
             self.assertNotIn("الخدمة التي تقدمها فعلًا", page)
+            self.assertLess(page.index('name="load_more_clicks"'), page.index('</form>'))
+
+    def test_batch_progress_does_not_reload_edited_draft(self):
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(control, "BATCH_STATUS", Path(td) / "batch.json"), \
+             patch.object(control, "candidates", return_value=([], {})):
+            control.scout.save(control.BATCH_STATUS, {
+                "pid": control.os.getpid(), "running": True, "total": 2, "completed": 1, "errors": [],
+            })
+            page = control.render("token")
+        self.assertNotIn('http-equiv=refresh', page)
+        self.assertIn('href="/">حدّث التقدم', page)
 
     def test_old_length_warning_is_rechecked_against_current_rules(self):
         item = {"id": "123", "url": "https://khamsat.com/community/requests/123-python",
@@ -104,13 +122,29 @@ class ControlTests(unittest.TestCase):
                 control.preview("123")
             compose.assert_not_called()
 
+    def test_batch_prepares_selected_drafts_without_submission(self):
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(control, "BATCH_STATUS", Path(td) / "batch.json"), \
+             patch.object(control.reply, "instructions", return_value={"authorization": "review"}), \
+             patch.object(control, "candidate", return_value={"id": "123"}), \
+             patch.object(control, "preview", return_value="") as preview, \
+             patch.object(control.reply, "run") as submit:
+            control.start_batch_preview(["123", "124"])
+            control.BATCH_THREAD.join(timeout=2)
+            self.assertFalse(control.BATCH_THREAD.is_alive())
+            self.assertEqual(control.scout.load(control.BATCH_STATUS)["completed"], 2)
+            self.assertEqual([call.args[0] for call in preview.call_args_list], ["123", "124"])
+            submit.assert_not_called()
+            with self.assertRaisesRegex(ValueError, "10"):
+                control.start_batch_preview(["123"] * 11)
+
     def test_overlong_model_reply_is_saved_for_edit_but_cannot_be_sent(self):
         item = {"id": "123", "url": "https://khamsat.com/community/requests/123-python",
                 "title": "Python", "visible_text": "Need Python"}
         with tempfile.TemporaryDirectory() as td, patch.object(control, "DRAFTS", Path(td) / "drafts.json"), \
              patch.object(control, "candidate", return_value=item), \
              patch.object(control, "candidates", return_value=([item], {})), \
-             patch.object(control.reply, "instructions", return_value={"portfolio_url": ""}), \
+             patch.object(control.reply, "instructions", return_value={"portfolio_url": "", "keywords": ["Python"], "exclude_terms": []}), \
              patch.object(control.reply, "generate", return_value="ا" * 2001), \
              patch.object(control.scout, "matches", return_value=True), \
              patch.object(control.reply, "run") as run:
