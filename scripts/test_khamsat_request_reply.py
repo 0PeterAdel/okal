@@ -34,6 +34,7 @@ def form_page():
     form.locator.side_effect = lambda selector: (button if selector == CFG["submit_selector"] else checkbox)
     page.get_by_text.return_value.count.return_value = 1
     checkbox.is_checked.return_value = True
+    field.input_value.return_value = VALID
     return page, field, form, button, checkbox
 
 
@@ -45,6 +46,17 @@ class ReplyTests(unittest.TestCase):
             self.assertEqual(cfg["authorization"], "review")
             self.assertFalse(cfg["enabled"])
             self.assertEqual(cfg["portfolio_url"], "")
+
+    def test_old_auto_settings_cannot_send_without_review(self):
+        with tempfile.TemporaryDirectory() as td:
+            settings = Path(td) / "reply.json"
+            reply.scout.save(settings, {"authorization": "auto", "enabled": True})
+            with patch.object(reply, "SETTINGS", settings), patch.object(reply.scout, "settings", return_value={}):
+                cfg = reply.instructions(dry_run=True)
+                self.assertEqual(cfg["authorization"], "review")
+                self.assertFalse(cfg["enabled"])
+                with self.assertRaisesRegex(ValueError, "Autonomous submission is disabled"):
+                    reply.instructions()
 
     def test_preview_needs_no_service_proof_link_or_form_selectors(self):
         with tempfile.TemporaryDirectory() as td:
@@ -155,8 +167,20 @@ class ReplyTests(unittest.TestCase):
             reply.submit_one(page, ITEM, CFG, state, "2026-10-16", dry_run=False)
         self.assertEqual(events, ["pending", "submitted"])
         field.fill.assert_called_once_with(VALID)
+        field.dispatch_event.assert_called_once_with("change")
         checkbox.check.assert_called_once()
+        page.wait_for_timeout.assert_called_once_with(500)
         button.click.assert_called_once()
+
+    def test_incomplete_form_state_never_clicks_or_records_attempt(self):
+        page, field, _, button, _ = form_page()
+        field.input_value.return_value = "different text"
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply.scout, "save") as save:
+            with self.assertRaisesRegex(RuntimeError, "غير جاهز"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_not_called()
+        save.assert_not_called()
 
     def test_visit_rejects_different_request_id_but_allows_changed_slug(self):
         page = MagicMock()

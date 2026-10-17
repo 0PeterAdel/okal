@@ -73,13 +73,12 @@ def instructions(*, dry_run: bool = False, reviewed: bool = False) -> dict:
         uri = urlparse(portfolio)
         if uri.scheme != "https" or not uri.hostname or uri.username or uri.password:
             raise ValueError("portfolio_url must be a public HTTPS link")
-    mode = data.get("authorization", "review")
-    if mode not in ("review", "auto"):
-        raise ValueError("authorization must be review or auto")
-    if not dry_run and not reviewed and (mode != "auto" or data.get("enabled") is not True):
-        raise ValueError("Autonomous submission is disabled; choose auto in local control page")
-    if reviewed and mode != "review":
-        raise ValueError("Review submission requires review mode")
+    # Previous versions could persist authorization=auto. Never honor that
+    # setting for a write: every live reply now requires a one-request review.
+    data["authorization"] = "review"
+    data["enabled"] = False
+    if not dry_run and not reviewed:
+        raise ValueError("Autonomous submission is disabled; confirm one reviewed reply in the local control page")
     context = data.get("proposal_instructions", "")
     if not isinstance(context, str) or len(context) > 3000:
         raise ValueError("proposal_instructions must be text of at most 3000 characters")
@@ -256,22 +255,28 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     if dry_run:
         return reply
     field = page.locator(config["reply_selector"])
+    if field.count() == 0:
+        field = page.locator("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[4]/div[2]/form/div[1]/textarea")
+    if field.count() == 0:
+        field = page.locator("textarea[name='content']")
     if field.count() != 1 or not field.is_visible() or not field.is_enabled():
         raise RuntimeError("حقل الرد غير ظاهر أو غير فريد؛ افحص نموذج خمسات الحالي")
     form = field.locator("xpath=ancestor::form[1]")
     button = form.locator(config["submit_selector"])
     checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
     if (form.count() != 1 or button.count() != 1 or checkbox.count() != 1 or
-            not button.is_visible() or not button.is_enabled() or
+            not button.is_visible() or
             not checkbox.is_visible() or not checkbox.is_enabled()):
         raise RuntimeError("نموذج الرد أو زر الإرسال أو تأكيد الشروط غير واضح؛ افحص الصفحة قبل الإرسال")
     field.fill(reply)
+    field.dispatch_event("change")
     try:
         checkbox.check(timeout=10000)
     except Exception as exc:
         raise RuntimeError(f"تعذر تحديد تأكيد شروط خمسات؛ لم يُضغط زر الإرسال: {str(exc).splitlines()[0]}") from exc
-    if not checkbox.is_checked():
-        raise RuntimeError("تعذر تأكيد شروط تعليق خمسات؛ لم يُضغط زر الإرسال")
+    page.wait_for_timeout(500)
+    if field.input_value(timeout=2000) != reply or not checkbox.is_checked() or not button.is_enabled():
+        raise RuntimeError("نص الرد أو تأكيد الشروط أو زر الإرسال غير جاهز؛ لم يُرسل شيء")
     receipts.setdefault("requests", {})[rid] = {"day": day, "status": "pending", "url": item["url"]}
     scout.save(RECEIPTS, receipts)
     try:

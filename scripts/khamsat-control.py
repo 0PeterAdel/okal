@@ -30,6 +30,8 @@ BATCH_STATUS = scout.STATE / "batch-preview.json"
 BATCH_LOCK = threading.Lock()
 DRAFTS_LOCK = threading.Lock()
 BATCH_THREAD = None
+CONFIRM_LOCK = threading.Lock()
+PENDING_CONFIRMATIONS = {}
 HOST = "127.0.0.1"
 PORT = 8788
 DEFAULT_REPLY = reply.DEFAULT_REPLY | {"scan_interval_minutes": 30}
@@ -52,10 +54,8 @@ def parse_lines(value: str) -> list[str]:
 
 def validate_settings(form: dict[str, str]) -> tuple[dict, dict]:
     mode = form.get("authorization", "review")
-    if mode not in ("review", "auto"):
-        raise ValueError("Choose review or autonomous mode")
-    if mode == "auto" and form.get("confirm_auto") != "yes":
-        raise ValueError("Confirm autonomous submissions before enabling them")
+    if mode != "review":
+        raise ValueError("الإرسال التلقائي متوقف؛ اختر المراجعة وتأكيد كل رد على حدة")
     keywords = parse_lines(form.get("keywords", ""))
     excludes = parse_lines(form.get("exclude_terms", ""))
     if not keywords or len(keywords) > 30 or any(len(x) > 80 for x in keywords + excludes):
@@ -76,10 +76,6 @@ def validate_settings(form: dict[str, str]) -> tuple[dict, dict]:
     portfolio = form.get("portfolio_url", "").strip()
     field = form.get("reply_selector", "").strip() or DEFAULT_REPLY["reply_selector"]
     button = form.get("submit_selector", "").strip() or DEFAULT_REPLY["submit_selector"]
-    if mode == "auto" and not all((field, button)):
-        raise ValueError("Inspect the live reply field and submit button before auto mode")
-    if mode == "auto":
-        reply.profile_facts()
     if portfolio:
         uri = urlparse(portfolio)
         if uri.scheme != "https" or not uri.hostname or uri.username or uri.password:
@@ -92,7 +88,7 @@ def validate_settings(form: dict[str, str]) -> tuple[dict, dict]:
              "read_comments": read_comments, "comments_limit": comments_limit,
              "ollama_model": model}
     config = DEFAULT_REPLY | {
-        "authorization": mode, "enabled": mode == "auto", "max_per_day": days,
+        "authorization": "review", "enabled": False, "max_per_day": days,
         "scan_interval_minutes": interval,
         "portfolio_url": portfolio, "reply_selector": field, "submit_selector": button,
         "proposal_instructions": context,
@@ -173,9 +169,12 @@ def start_batch_preview(ids: list[str]) -> None:
         BATCH_THREAD.start()
 
 
-def submit_reviewed(rid: str, text: str) -> list[str]:
+def checked_draft(rid: str, text: str) -> tuple[dict, dict, dict, str]:
     cfg = reply.instructions(reviewed=True)
     item = candidate(rid)
+    _, receipts = candidates()
+    if rid in receipts:
+        raise ValueError("سبق تسجيل محاولة لهذا الطلب؛ راجع الحالة على خمسات")
     drafts = private_json(DRAFTS, {"requests": {}}).get("requests", {})
     draft = drafts.get(rid)
     if not draft or draft.get("url") != item["url"]:
@@ -184,6 +183,37 @@ def submit_reviewed(rid: str, text: str) -> list[str]:
         raise ValueError("Preview expired; generate a new one")
     text = text.strip()
     reply.valid_reply(text, cfg)
+    return item, cfg, draft, text
+
+
+def begin_confirmation(rid: str, text: str) -> dict:
+    item, _, _, text = checked_draft(rid, text)
+    approval = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    with CONFIRM_LOCK:
+        PENDING_CONFIRMATIONS.clear()  # Only the most recently reviewed reply can be approved.
+        PENDING_CONFIRMATIONS[approval] = {"id": rid, "url": item["url"],
+                                           "title": item["title"], "text": text,
+                                           "expires_at": now + timedelta(minutes=10)}
+    return {"approval": approval, "id": rid, "url": item["url"],
+            "title": item["title"], "text": text}
+
+
+def confirm_submission(rid: str, approval: str, confirmed: str) -> list[str]:
+    if confirmed != "yes":
+        raise ValueError("حدد الموافقة على نشر هذا النص لهذا الطلب أولًا")
+    with CONFIRM_LOCK:
+        pending = PENDING_CONFIRMATIONS.pop(approval, None)
+    if not pending or pending["id"] != rid or datetime.now(timezone.utc) >= pending["expires_at"]:
+        raise ValueError("انتهى تأكيد الإرسال أو استُخدم؛ راجع النص من جديد")
+    item = candidate(rid)
+    if item["url"] != pending["url"]:
+        raise ValueError("تغيّر رابط الطلب؛ لم يُرسل الرد")
+    return submit_reviewed(rid, pending["text"])
+
+
+def submit_reviewed(rid: str, text: str) -> list[str]:
+    item, _, draft, text = checked_draft(rid, text)
     results = reply.run(url=item["url"], reply_override=text, reviewed=True)
     if any(result == f'Submitted: {item["url"]}' for result in results):
         try:
@@ -209,9 +239,7 @@ def tick() -> str:
         if datetime.now(timezone.utc) - last < timedelta(minutes=interval):
             return "Next scan is not due yet"
     scout.scan(scout.STATE, scout.PROFILE, watch, 10)
-    if cfg.get("authorization", "review") == "auto" and cfg.get("enabled") is True:
-        return "\n".join(reply.run()) or "No new eligible request to submit"
-    return "Scanned; review mode kept all responses unsent"
+    return "Scanned; all responses remain unsent until individually confirmed"
 
 
 STYLE = """
@@ -234,7 +262,7 @@ form.inline{display:inline-block;margin:5px 8px 5px 0}.row{display:grid;grid-tem
 """
 
 
-def render(token: str, notice: str = "", error: bool = False) -> str:
+def render(token: str, notice: str = "", error: bool = False, confirmation: dict | None = None) -> str:
     watch = scout.DEFAULT_CONFIG | private_json(scout.CONFIG, scout.DEFAULT_CONFIG)
     config = DEFAULT_REPLY | private_json(reply.SETTINGS, DEFAULT_REPLY)
     progress = private_json(BATCH_STATUS, {})
@@ -245,16 +273,26 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
     drafts = private_json(DRAFTS, {"requests": {}}).get("requests", {})
     e = lambda x: escape(str(x), quote=True)
     hidden = f'<input type="hidden" name="csrf" value="{e(token)}">'
-    badge = "إرسال تلقائي مفعّل" if config.get("authorization") == "auto" and config.get("enabled") else "المراجعة مطلوبة قبل الإرسال"
+    badge = "المراجعة والتأكيد مطلوبان قبل كل إرسال"
     parts = [f'<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Okal · خمسات</title><style>{STYLE}</style><main>',
-             f'<header><div><div class="eyebrow">OKAL / KHAMSAT CONTROL</div><h1>فرص مناسبة. قرار واضح.</h1><p class="intro">راقب طلبات المجتمع، راجع الردود أو فوّض الإرسال ضمن حدودك. الإعدادات وسجل الردود محفوظان على جهازك.</p></div><span class="badge">{e(badge)}</span></header>']
+             f'<header><div><div class="eyebrow">OKAL / KHAMSAT CONTROL</div><h1>فرص مناسبة. قرار واضح.</h1><p class="intro">راقب طلبات المجتمع، وراجع كل رد قبل إرساله بتأكيد مستقل. الإعدادات وسجل الردود محفوظان على جهازك.</p></div><span class="badge">{e(badge)}</span></header>']
     if notice:
         parts.append(f'<div class="notice {"error" if error else ""}" role="status">{e(notice)}</div>')
+    if confirmation:
+        parts.append(
+            f'<section class="card"><h2>تأكيد نشر رد واحد</h2>'
+            f'<p>الطلب: <a href="{e(confirmation["url"])}" target="_blank" rel="noopener noreferrer">{e(confirmation["title"])}</a></p>'
+            f'<p class="muted">النص الذي سيُنشر حرفيًا:</p><div class="notice">{e(confirmation["text"])}</div>'
+            f'<form method="post" action="/confirm-submit">{hidden}'
+            f'<input type="hidden" name="id" value="{e(confirmation["id"])}">'
+            f'<input type="hidden" name="approval" value="{e(confirmation["approval"])}">'
+            '<label><input type="checkbox" name="confirmed" value="yes" required> '
+            'راجعت رابط الطلب والنص أعلاه وأوافق على نشر هذا الرد الآن</label>'
+            '<p><button type="submit">أؤكد النشر على خمسات</button></p></form></section>')
     if not draft_ready:
         parts.append('<div class="notice" role="status">لتحضير رد بناءً على خبرتك: راجع ملفك المحلي ~/.config/okal/owner-profile.json وحدد حقائق عمل موثقة فيه. لا يلزم إدخال رابط معرض أعمال أو دليل منفصل. محددات النموذج مطلوبة للإرسال فقط.</div>')
-    parts.append('<div class="grid"><section class="card"><h2>قواعد التشغيل</h2><p class="muted">اختر وضع الصلاحية أولًا. في المراجعة لن يضغط Okal إرسال إلا بعد موافقتك على رد بعينه.</p>')
-    parts.append(f'<form method="post" action="/settings">{hidden}<label for="auth">الصلاحية</label><select id="auth" name="authorization"><option value="review" {"selected" if config.get("authorization") != "auto" else ""}>Review needed — مراجعة كل رد</option><option value="auto" {"selected" if config.get("authorization") == "auto" else ""}>Allow — إرسال تلقائي للطلبات المطابقة</option></select>')
-    parts.append('<label><input type="checkbox" name="confirm_auto" value="yes"> أفوّض الإرسال التلقائي إذا اخترت Allow، مع الحد اليومي والقواعد أدناه</label>')
+    parts.append('<div class="grid"><section class="card"><h2>قواعد التشغيل</h2><p class="muted">الفحص وتجهيز المسودات لا يرسلان شيئًا. كل رد يحتاج مراجعة النص والطلب وتأكيدًا مستقلًا.</p>')
+    parts.append(f'<form method="post" action="/settings">{hidden}<label for="auth">الصلاحية</label><select id="auth" name="authorization"><option value="review" selected>Review needed — تأكيد كل رد</option></select>')
     fields = [("keywords", "الخدمات والوظائف المستهدفة (سطر لكل كلمة)", "\n".join(watch.get("keywords", []))),
               ("exclude_terms", "استبعاد", "\n".join(watch.get("exclude_terms", []))),
               ("portfolio_url", "رابط معرض الأعمال HTTPS (اختياري)", config.get("portfolio_url", "")),
@@ -290,7 +328,7 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
             status = "توقف تجهيز المسودات بعد إغلاق السيرفر؛ احتُفظ بما اكتمل منها"
         parts.append(f'<div class="notice span" role="status">{e(status)}{e(" | " + " | ".join(progress.get("errors", [])) if progress.get("errors") else "")} · <a href="/">حدّث التقدم</a></div>')
     parts.append('<section class="card span"><h2>طابور الطلبات</h2><p class="muted">افتح الطلب الأصلي للتأكد من ملاءمته. الرد هنا هو تعليق على طلب مجتمع خمسات.</p>')
-    if config.get("authorization") == "review" and rows:
+    if rows:
         parts.append(f'<form id="batch-preview" method="post" action="/preview-selected">{hidden}<button type="submit" class="alt">جهّز مسودات الطلبات المحددة للمراجعة</button></form>')
     for item in reversed(rows[-60:]):
         try:
@@ -306,7 +344,7 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
             parts.append(f'<p class="muted">الناشر: {e(item.get("publisher", "—"))} · الوقت: {e(item.get("time", "—"))} · {e(item.get("comments_count", ""))}</p><p>{e(item["description"][:700])}</p><p class="muted">سبب الاختيار: {e(item.get("selection_reason", "—"))} · تعليقات مقروءة: {len(item.get("comments", []))}</p>')
             if item.get("comments_note"):
                 parts.append(f'<p class="muted">{e(item["comments_note"])}</p>')
-        if rid not in receipts and config.get("authorization") == "review":
+        if rid not in receipts:
             if draft_ready:
                 parts.append(f'<label><input type="checkbox" form="batch-preview" name="ids" value="{e(rid)}"> حدّد الطلب لتجهيز مسودته</label>')
             if draft_ready:
@@ -320,7 +358,7 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
                     warning = str(exc)
                 if warning:
                     parts.append(f'<p class="notice error" role="status">المسودة تحتاج تعديل قبل الإرسال: {e(warning)}</p>')
-                parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم أرسله لهذا الطلب فقط</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p class="muted">بعد تأكيد نشر ردك، سيتعلم Okal أسلوب تعديلك للمسودات القادمة فقط.</p><p><button type="submit">إرسال الرد الآن</button></p></form>')
+                parts.append(f'<form method="post" action="/submit">{hidden}<input type="hidden" name="id" value="{rid}"><label for="draft-{rid}">راجع النص وعدّله، ثم انتقل لصفحة التأكيد دون نشر</label><textarea class="draft" id="draft-{rid}" name="text">{e(draft.get("text", ""))}</textarea><p class="muted">بعد تأكيد نشر ردك، سيتعلم Okal أسلوب تعديلك للمسودات القادمة فقط.</p><p><button type="submit">راجع الطلب والنص قبل الإرسال</button></p></form>')
         parts.append('</article>')
     if not rows:
         parts.append('<p class="muted">الطابور فارغ. احفظ المجالات ثم اضغط «افحص الطلبات الآن».</p>')
@@ -379,7 +417,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(f"Local settings error: {escape(str(exc))}", 500)
 
     def do_POST(self):
-        if not self.allowed() or self.path not in ("/settings", "/scan", "/preview", "/preview-selected", "/submit"):
+        if not self.allowed() or self.path not in ("/settings", "/scan", "/preview", "/preview-selected", "/submit", "/confirm-submit"):
             self.send_error(404)
             return
         if not same_page_request(self.headers):
@@ -394,6 +432,7 @@ class Handler(BaseHTTPRequestHandler):
             if not secrets.compare_digest(form.get("csrf", ""), self.token):
                 self.send_error(403, "Invalid form token")
                 return
+            confirmation = None
             if self.path == "/settings":
                 watch, config = validate_settings(form)
                 scout.save(scout.CONFIG, watch)
@@ -413,10 +452,13 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/preview-selected":
                 start_batch_preview(values.get("ids", []))
                 message = "بدأ تجهيز مسودات الطلبات المحددة. حدّث الصفحة لرؤية التقدم، وراجع كل مسودة قبل إرسالها."
+            elif self.path == "/submit":
+                confirmation = begin_confirmation(form.get("id", ""), form.get("text", ""))
+                message = "لم يُرسل شيء. راجع الرابط والنص، ثم أكد نشر هذا الرد إن أردت."
             else:
-                results = submit_reviewed(form.get("id", ""), form.get("text", ""))
+                results = confirm_submission(form.get("id", ""), form.get("approval", ""), form.get("confirmed", ""))
                 message = "\n".join(results) or "لم يُرسل رد. راجع الطابور."
-            self.respond(render(self.token, message))
+            self.respond(render(self.token, message, confirmation=confirmation))
         except (ValueError, RuntimeError, OSError, ImportError, BlockingIOError, KeyError, TypeError) as exc:
             try:
                 self.respond(render(self.token, str(exc), True), 400)
@@ -430,7 +472,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--tick", action="store_true", help="Run one due scan and optional autonomous replies")
+    p.add_argument("--tick", action="store_true", help="Run one due read-only scan; never send replies")
     p.add_argument("--port", type=int, default=PORT)
     args = p.parse_args()
     if args.tick:

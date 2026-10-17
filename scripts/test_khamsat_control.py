@@ -1,10 +1,12 @@
 """Authorization, refresh and duplicate gates for the local Khamsat page."""
 
 import importlib.util
+from io import BytesIO
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from urllib.parse import urlencode
 
 
 spec = importlib.util.spec_from_file_location("khamsat_control", Path(__file__).with_name("khamsat-control.py"))
@@ -22,7 +24,7 @@ class ControlTests(unittest.TestCase):
             "reply_selector": "textarea[name=reply]", "submit_selector": "button[name=submit]",
         }
 
-    def test_review_is_default_and_auto_requires_explicit_confirmation(self):
+    def test_review_is_only_mode_even_with_old_auto_confirmation(self):
         watch, config = control.validate_settings(self.form | {
             "load_more_clicks": "2", "candidate_limit": "10",
             "read_comments": "yes", "comments_limit": "3"})
@@ -32,11 +34,10 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(watch["candidate_limit"], 10)
         self.assertTrue(watch["read_comments"])
         self.assertEqual(watch["comments_limit"], 3)
-        with self.assertRaisesRegex(ValueError, "Confirm autonomous"):
+        with self.assertRaisesRegex(ValueError, "الإرسال التلقائي متوقف"):
             control.validate_settings(self.form | {"authorization": "auto"})
-        with patch.object(control.reply, "profile_facts", return_value=["Verified Python project"]):
-            _, auto = control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes"})
-        self.assertTrue(auto["enabled"])
+        with self.assertRaisesRegex(ValueError, "الإرسال التلقائي متوقف"):
+            control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes"})
 
     def test_page_uses_owner_profile_for_preview_without_reply_settings(self):
         with tempfile.TemporaryDirectory() as td, \
@@ -114,14 +115,12 @@ class ControlTests(unittest.TestCase):
         ):
             self.assertFalse(control.same_page_request(headers))
 
-    def test_limits_and_proof_are_validated_before_auto(self):
+    def test_limits_and_optional_portfolio_are_validated(self):
         with self.assertRaisesRegex(ValueError, "Daily limit"):
             control.validate_settings(self.form | {"max_per_day": "6"})
-        with patch.object(control.reply, "profile_facts", return_value=["Verified Python project"]):
-            _, configured = control.validate_settings(self.form | {
-                "authorization": "auto", "confirm_auto": "yes", "reply_selector": "", "submit_selector": ""})
-            self.assertEqual(configured["reply_selector"], control.reply.DEFAULT_REPLY["reply_selector"])
-            self.assertEqual(configured["submit_selector"], control.reply.DEFAULT_REPLY["submit_selector"])
+        _, configured = control.validate_settings(self.form | {"reply_selector": "", "submit_selector": ""})
+        self.assertEqual(configured["reply_selector"], control.reply.DEFAULT_REPLY["reply_selector"])
+        self.assertEqual(configured["submit_selector"], control.reply.DEFAULT_REPLY["submit_selector"])
         _, cfg = control.validate_settings(self.form | {"service": "", "proof": "", "portfolio_url": ""})
         self.assertEqual(cfg["portfolio_url"], "")
         with self.assertRaisesRegex(ValueError, "Portfolio"):
@@ -200,23 +199,75 @@ class ControlTests(unittest.TestCase):
             self.assertIn("حُفظ تعديلك", result[1])
             learn.assert_called_once_with("123", "مسودة أولى", valid)
 
-    def test_tick_respects_interval_and_does_not_post_in_review(self):
+    def test_tick_respects_interval_and_does_not_post_with_old_auto_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             watch = root / "watch.json"
             config = root / "reply.json"
             queue = root / "queue.json"
             control.scout.save(watch, {"keywords": ["Python"], "exclude_terms": []})
-            control.scout.save(config, {"authorization": "review", "scan_interval_minutes": 30})
+            control.scout.save(config, {"authorization": "auto", "enabled": True,
+                                        "scan_interval_minutes": 30})
             with patch.object(control.scout, "CONFIG", watch), patch.object(control.reply, "SETTINGS", config), \
                  patch.object(control.scout, "STATE", root), patch.object(control.scout, "scan") as scan, \
                  patch.object(control.reply, "run") as run:
-                self.assertIn("review mode", control.tick())
+                self.assertIn("unsent", control.tick())
                 scan.assert_called_once()
                 run.assert_not_called()
                 control.scout.save(queue, {"checked_at": "2099-01-01T00:00:00+00:00"})
                 self.assertIn("not due", control.tick())
                 scan.assert_called_once()
+
+    def test_review_button_only_prepares_one_time_confirmation(self):
+        item = {"id": "123", "title": "Python API",
+                "url": "https://khamsat.com/community/requests/123-python"}
+        cfg = {"portfolio_url": ""}
+        draft = {"text": "مسودة"}
+        with patch.object(control, "checked_draft", return_value=(item, cfg, draft, "الرد الموافق عليه")), \
+             patch.object(control, "candidate", return_value=item), \
+             patch.object(control.reply, "run") as run, \
+             patch.object(control, "submit_reviewed", return_value=["Submitted"]) as submit:
+            confirmation = control.begin_confirmation("123", "الرد الموافق عليه")
+            run.assert_not_called()
+            submit.assert_not_called()
+            with self.assertRaisesRegex(ValueError, "حدد الموافقة"):
+                control.confirm_submission("123", confirmation["approval"], "")
+            submit.assert_not_called()
+            self.assertEqual(control.confirm_submission("123", confirmation["approval"], "yes"), ["Submitted"])
+            submit.assert_called_once_with("123", "الرد الموافق عليه")
+            with self.assertRaisesRegex(ValueError, "استُخدم"):
+                control.confirm_submission("123", confirmation["approval"], "yes")
+
+    def test_confirmation_page_shows_exact_text_and_separate_button(self):
+        confirmation = {"id": "123", "title": "مشروع Python", "text": "النص الذي راجعته",
+                        "url": "https://khamsat.com/community/requests/123-python", "approval": "one-time"}
+        with patch.object(control, "candidates", return_value=([], {})):
+            page = control.render("token", confirmation=confirmation)
+        self.assertIn('action="/confirm-submit"', page)
+        self.assertIn("النص الذي راجعته", page)
+        self.assertIn("أؤكد النشر على خمسات", page)
+        self.assertNotIn("Allow — إرسال تلقائي", page)
+
+    def test_submit_http_route_only_prepares_confirmation(self):
+        body = urlencode({"csrf": "secret", "id": "123", "text": "نص راجعته"}).encode()
+        request = MagicMock()
+        request.path = "/submit"
+        request.headers = {"Host": "127.0.0.1:8788", "Origin": "http://127.0.0.1:8788",
+                           "Content-Length": str(len(body))}
+        request.token = "secret"
+        request.rfile = BytesIO(body)
+        request.allowed.return_value = True
+        confirmation = {"approval": "single-use", "id": "123", "text": "نص راجعته"}
+        with patch.object(control, "begin_confirmation", return_value=confirmation) as begin, \
+             patch.object(control, "confirm_submission") as submit, \
+             patch.object(control.reply, "run") as run, \
+             patch.object(control, "render", return_value="confirmation page") as render:
+            control.Handler.do_POST(request)
+        begin.assert_called_once_with("123", "نص راجعته")
+        render.assert_called_once_with("secret", unittest.mock.ANY, confirmation=confirmation)
+        request.respond.assert_called_once_with("confirmation page")
+        submit.assert_not_called()
+        run.assert_not_called()
 
 
 if __name__ == "__main__":
