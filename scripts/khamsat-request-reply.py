@@ -274,6 +274,25 @@ def normalize_reply_newlines(reply: str) -> str:
     return reply.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def normalize_visible_text(value: str) -> str:
+    """Compare rendered comment paragraphs without relying on DOM line breaks."""
+    return " ".join(value.split())
+
+
+def published_reply_visible(page, reply: str) -> bool:
+    """Match one complete comment body, never a page-wide substring."""
+    expected = normalize_visible_text(reply)
+    comments = page.locator(
+        "xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[2]/div"
+    )
+    if comments.count() == 1:
+        bodies = comments.locator("article").all()
+    else:
+        # The request description is one article; replies are nested articles.
+        bodies = page.locator("article article").all()
+    return any(normalize_visible_text(body.inner_text(timeout=2000)) == expected for body in bodies)
+
+
 def visible_site_errors(page) -> str:
     """Return visible validation messages without confusing normal help text with an error."""
     selectors = ("[role='alert'], .c-form__error, .c-form__feedback--error, "
@@ -419,13 +438,41 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     if error:
         raise RuntimeError(f"خمسات رفض الرد: {error} — الطلب معلّق؛ افحصه على الموقع قبل أي إعادة إرسال")
     page.reload(wait_until="domcontentloaded", timeout=30000)
-    if page.get_by_text(reply, exact=True).count() < 1:
+    ensure_request(page, rid)
+    for attempt in range(11):
+        if published_reply_visible(page, reply):
+            break
+        if attempt < 10:
+            page.wait_for_timeout(500)
+    else:
         error = visible_site_errors(page)
         detail = f"رسالة الموقع: {error}. " if error else ""
         raise RuntimeError(f"{detail}تعذر التحقق من نشر الرد؛ الطلب معلّق وافحصه على خمسات قبل أي إعادة إرسال")
     receipts["requests"][rid]["status"] = "submitted"
     scout.save(RECEIPTS, receipts)
     return f'Submitted: {item["url"]}'
+
+
+def acknowledge_posted(url: str) -> str:
+    """Reconcile a proven public post locally without visiting or writing to Khamsat."""
+    if not sys.stdin.isatty():
+        raise ValueError("تسوية الرد المنشور تتطلب تأكيدًا تفاعليًا من صاحب الحساب")
+    rid = scout.request_id(url)
+    with browser_lock():
+        if not RECEIPTS.is_file() or RECEIPTS.is_symlink() or RECEIPTS.stat().st_mode & 0o077:
+            raise ValueError("ملف المحاولات المحلي مفقود أو صلاحياته غير آمنة")
+        receipts = scout.load(RECEIPTS)
+        record = receipts.get("requests", {}).get(rid)
+        if not isinstance(record, dict) or record.get("status") != "pending" or \
+                scout.request_id(record.get("url", "")) != rid:
+            raise ValueError("لا توجد محاولة معلّقة لهذا الطلب؛ لم يتغير شيء")
+        print(f"افحص تعليقك المنشور على خمسات بنفسك: {record['url']}")
+        if input(f"بعد التأكد، اكتب رقم الطلب {rid} لتسجيله منشورًا محليًا: ").strip() != rid:
+            raise ValueError("لم يتطابق التأكيد؛ لم يتغير شيء")
+        record["status"] = "submitted"
+        record["verified_by"] = "owner"
+        scout.save(RECEIPTS, receipts)
+    return f"تم تسجيل الطلب {rid} منشورًا محليًا؛ لم يُرسل أي رد جديد"
 
 
 def run(*, url: str | None = None, dry_run: bool = False,
@@ -476,6 +523,7 @@ def main() -> int:
     a.add_argument("--inspect", metavar="REQUEST_URL")
     a.add_argument("--diagnose", metavar="REQUEST_URL")
     a.add_argument("--respond-once", metavar="REQUEST_URL")
+    a.add_argument("--acknowledge-posted", metavar="REQUEST_URL")
     a.add_argument("--run", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
@@ -484,6 +532,8 @@ def main() -> int:
             print(json.dumps(inspect(scout.request_url(args.inspect)), ensure_ascii=False, indent=2))
         elif args.diagnose:
             diagnose(scout.request_url(args.diagnose))
+        elif args.acknowledge_posted:
+            print(acknowledge_posted(scout.request_url(args.acknowledge_posted)))
         else:
             for result in run(url=args.respond_once, dry_run=args.dry_run):
                 print(result)

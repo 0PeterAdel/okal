@@ -27,12 +27,17 @@ def form_page():
     missing = MagicMock()
     missing.count.return_value = 0
     missing.all.return_value = []
+    comments, body = MagicMock(), MagicMock()
+    comments.count.return_value = 1
+    comments.locator.return_value.all.return_value = [body]
+    body.inner_text.return_value = VALID
     for element in (field, form, button, checkbox):
         element.count.return_value = 1
         element.is_visible.return_value = True
         element.is_enabled.return_value = True
     field.all.return_value = [field]
     page.locator.side_effect = lambda selector: (field if selector == CFG["reply_selector"] else
+                                                 comments if selector.startswith("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[2]/div") else
                                                  page.locator_body if selector == "body" else missing)
     page.locator_body.inner_text.return_value = ITEM["title"]
     field.locator.return_value = form
@@ -103,6 +108,7 @@ class ReplyTests(unittest.TestCase):
         approved = "السطر الأول\r\nالسطر الثاني"
         normalized = "السطر الأول\nالسطر الثاني"
         field.input_value.return_value = normalized
+        page.locator("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[2]/div").locator("article").all()[0].inner_text.return_value = normalized
         calls = MagicMock()
         calls.attach_mock(checkbox.check, "terms")
         calls.attach_mock(field.fill, "fill")
@@ -356,6 +362,66 @@ class ReplyTests(unittest.TestCase):
         checkbox.check.assert_called_once()
         page.wait_for_timeout.assert_called_once_with(500)
         button.click.assert_called_once()
+
+    def test_rendered_comment_whitespace_does_not_create_false_pending(self):
+        page, _, _, button, _ = form_page()
+        comment = page.locator("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[2]/div").locator("article").all()[0]
+        comment.inner_text.return_value = "  السطر الأول\n\n السطر الثاني  "
+        self.assertTrue(reply.published_reply_visible(page, "السطر الأول\nالسطر الثاني"))
+        comment.inner_text.return_value = "نص شخص آخر، السطر الأول السطر الثاني"
+        self.assertFalse(reply.published_reply_visible(page, "السطر الأول\nالسطر الثاني"))
+        button.click.assert_not_called()
+
+    def test_delayed_comment_verification_keeps_one_click(self):
+        page, _, _, button, _ = form_page()
+        comment = page.locator("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[2]/div").locator("article").all()[0]
+        comment.inner_text.side_effect = ["", VALID]
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_called_once()
+        self.assertEqual(page.wait_for_timeout.call_count, 2)
+
+    def test_unmatched_comment_stays_pending_and_never_retries_click(self):
+        page, _, _, button, _ = form_page()
+        page.locator("xpath=/html/body/div[3]/div/div[3]/div/div[2]/div[2]/div[3]/div[2]/div").locator("article").all()[0].inner_text.return_value = "تعليق آخر"
+        events = []
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save", side_effect=lambda path, value: events.append(value["requests"]["123456"]["status"])):
+            with self.assertRaisesRegex(RuntimeError, "تعذر التحقق من نشر الرد"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        button.click.assert_called_once()
+        self.assertEqual(events, ["pending"])
+
+    def test_owner_can_reconcile_existing_pending_receipt_without_posting(self):
+        with tempfile.TemporaryDirectory() as td, patch.object(reply, "RECEIPTS", Path(td) / "replies.json"), \
+             patch.object(reply, "browser_lock"), patch.object(reply.sys, "stdin") as stdin, \
+             patch("builtins.input", return_value="123456"), patch("builtins.print"):
+            stdin.isatty.return_value = True
+            reply.scout.save(reply.RECEIPTS, {"requests": {"123456": {
+                "day": "2026-10-17", "status": "pending", "url": URL,
+            }}})
+            self.assertIn("منشورًا محليًا", reply.acknowledge_posted(URL))
+            record = reply.scout.load(reply.RECEIPTS)["requests"]["123456"]
+            self.assertEqual(record["status"], "submitted")
+            self.assertEqual(record["verified_by"], "owner")
+
+    def test_owner_reconciliation_requires_matching_id_and_pending_state(self):
+        with tempfile.TemporaryDirectory() as td, patch.object(reply, "RECEIPTS", Path(td) / "replies.json"), \
+             patch.object(reply, "browser_lock"), patch.object(reply.sys, "stdin") as stdin, \
+             patch("builtins.input", return_value="wrong"), patch("builtins.print"):
+            stdin.isatty.return_value = True
+            reply.scout.save(reply.RECEIPTS, {"requests": {"123456": {
+                "day": "2026-10-17", "status": "pending", "url": URL,
+            }}})
+            with self.assertRaisesRegex(ValueError, "لم يتطابق"):
+                reply.acknowledge_posted(URL)
+            self.assertEqual(reply.scout.load(reply.RECEIPTS)["requests"]["123456"]["status"], "pending")
+            with patch("builtins.input", return_value="123456"):
+                with self.assertRaisesRegex(ValueError, "لا توجد محاولة معلّقة"):
+                    reply.acknowledge_posted("https://khamsat.com/community/requests/654321-other")
 
     def test_incomplete_form_state_never_clicks_or_records_attempt(self):
         page, field, _, button, _ = form_page()
