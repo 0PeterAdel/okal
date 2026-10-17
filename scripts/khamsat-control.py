@@ -181,7 +181,7 @@ def checked_draft(rid: str, text: str) -> tuple[dict, dict, dict, str]:
         raise ValueError("Preview this request before submitting")
     if datetime.fromisoformat(draft["created_at"]) < datetime.now(timezone.utc) - timedelta(hours=24):
         raise ValueError("Preview expired; generate a new one")
-    text = text.strip()
+    text = reply.normalize_reply_newlines(text.strip())
     reply.valid_reply(text, cfg)
     return item, cfg, draft, text
 

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 
 spec = importlib.util.spec_from_file_location("khamsat_reply", Path(__file__).with_name("khamsat-request-reply.py"))
@@ -97,6 +97,23 @@ class ReplyTests(unittest.TestCase):
             reply.valid_reply("ا" * 2001, {"portfolio_url": ""})
         with self.assertRaisesRegex(ValueError, "الرد فارغ"):
             reply.valid_reply("  ", {"portfolio_url": ""})
+
+    def test_html_form_crlf_is_normalized_before_filling_dom_textarea(self):
+        page, field, _, button, checkbox = form_page()
+        approved = "السطر الأول\r\nالسطر الثاني"
+        normalized = "السطر الأول\nالسطر الثاني"
+        field.input_value.return_value = normalized
+        calls = MagicMock()
+        calls.attach_mock(checkbox.check, "terms")
+        calls.attach_mock(field.fill, "fill")
+        with patch.object(reply, "visit"), patch.object(reply, "visible_site_errors", return_value=""), \
+             patch.object(reply.scout, "save"):
+            reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16",
+                             dry_run=False, reply_override=approved)
+        field.fill.assert_called_once_with(normalized)
+        self.assertLess(calls.mock_calls.index(call.terms(timeout=10000)),
+                        calls.mock_calls.index(call.fill(normalized)))
+        button.click.assert_called_once()
 
     def test_prompt_uses_verified_profile_without_static_service_or_link(self):
         response = "أقدر أساعدك في أتمتة الخطوات باستخدام Python. نبدأ بتحديد المدخلات والمخرجات المطلوبة ونختبر أول مسار قبل التوسع."

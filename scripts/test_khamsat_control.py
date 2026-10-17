@@ -1,6 +1,7 @@
 """Authorization, refresh and duplicate gates for the local Khamsat page."""
 
 import importlib.util
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -237,6 +238,18 @@ class ControlTests(unittest.TestCase):
             submit.assert_called_once_with("123", "الرد الموافق عليه")
             with self.assertRaisesRegex(ValueError, "استُخدم"):
                 control.confirm_submission("123", confirmation["approval"], "yes")
+
+    def test_confirmation_normalizes_multiline_form_submission(self):
+        item = {"id": "123", "title": "Python API",
+                "url": "https://khamsat.com/community/requests/123-python"}
+        draft = {"url": item["url"], "text": "مسودة",
+                 "created_at": datetime.now(timezone.utc).isoformat()}
+        with patch.object(control.reply, "instructions", return_value={"portfolio_url": ""}), \
+             patch.object(control, "candidate", return_value=item), \
+             patch.object(control, "candidates", return_value=([item], {})), \
+             patch.object(control, "private_json", return_value={"requests": {"123": draft}}):
+            confirmation = control.begin_confirmation("123", "أول سطر\r\nثاني سطر")
+        self.assertEqual(confirmation["text"], "أول سطر\nثاني سطر")
 
     def test_confirmation_page_shows_exact_text_and_separate_button(self):
         confirmation = {"id": "123", "title": "مشروع Python", "text": "النص الذي راجعته",

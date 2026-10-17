@@ -269,6 +269,11 @@ def valid_reply(reply: str, config: dict) -> None:
         raise ValueError("الرد يحتوي رابطًا غير رابط معرض الأعمال الاختياري؛ احذفه قبل الإرسال")
 
 
+def normalize_reply_newlines(reply: str) -> str:
+    """HTML form submissions use CRLF; textarea DOM values use LF."""
+    return reply.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def visible_site_errors(page) -> str:
     """Return visible validation messages without confusing normal help text with an error."""
     selectors = ("[role='alert'], .c-form__error, .c-form__feedback--error, "
@@ -369,14 +374,12 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     # Listing link text and the request page heading can differ. visit() already
     # verifies the numeric request ID after navigation; never use exact title text
     # as a second identity check.
-    reply = reply_override if reply_override is not None else compose(item, config)
+    reply = normalize_reply_newlines(reply_override if reply_override is not None else compose(item, config))
     valid_reply(reply, config)
     if dry_run:
         return reply
     field, checkbox, button = reply_controls(page, config, item["url"])
     ensure_request(page, rid)
-    field.fill(reply)
-    field.dispatch_event("change")
     try:
         if checkbox.is_visible():
             checkbox.check(timeout=10000)
@@ -389,12 +392,17 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
             label.click(timeout=10000)
     except Exception as exc:
         raise RuntimeError(f"تعذر تحديد تأكيد شروط خمسات؛ لم يُضغط زر الإرسال: {str(exc).splitlines()[0]}") from exc
+    if not checkbox.is_checked():
+        raise RuntimeError("خانة شروط خمسات لم تُفعّل؛ لم يُكتب الرد ولم يُضغط زر الإرسال")
+    field.fill(reply)
+    field.dispatch_event("change")
     page.wait_for_timeout(500)
-    if (field.input_value(timeout=2000) != reply or not checkbox.is_checked() or
+    actual = field.input_value(timeout=2000)
+    if (actual != reply or not checkbox.is_checked() or
             not button.is_visible() or not button.is_enabled()):
         raise RuntimeError(
             "نص الرد أو تأكيد الشروط أو زر الإرسال غير جاهز؛ لم يُرسل شيء. "
-            f"النص مطابق={field.input_value(timeout=2000) == reply}؛ "
+            f"النص مطابق={actual == reply}؛ طول النص المطلوب={len(reply)}؛ طول النص في الحقل={len(actual)}؛ "
             f"الشروط مؤكدة={checkbox.is_checked()}؛ "
             f"زر ظاهر={button.is_visible()}؛ زر مفعّل={button.is_enabled()}"
         )
