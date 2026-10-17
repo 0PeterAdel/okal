@@ -21,6 +21,22 @@ CFG = {"keywords": ["Python"], "exclude_terms": [], "reply_selector": "textarea[
 VALID = "يمكنني تطوير واجهة Python المطلوبة اعتمادًا على مشروعي السابق. تفاصيل عملي: https://example.com/portfolio"
 
 
+def form_page():
+    page, field, form, button, checkbox = (MagicMock() for _ in range(5))
+    for element in (field, form, button, checkbox):
+        element.count.return_value = 1
+        element.is_visible.return_value = True
+        element.is_enabled.return_value = True
+    page.locator.side_effect = lambda selector: (field if selector == CFG["reply_selector"] else
+                                                 page.locator_body if selector == "body" else MagicMock())
+    page.locator_body.inner_text.return_value = ITEM["title"]
+    field.locator.return_value = form
+    form.locator.side_effect = lambda selector: (button if selector == CFG["submit_selector"] else checkbox)
+    page.get_by_text.return_value.count.return_value = 1
+    checkbox.is_checked.return_value = True
+    return page, field, form, button, checkbox
+
+
 class ReplyTests(unittest.TestCase):
     def test_missing_reply_settings_use_review_defaults(self):
         with tempfile.TemporaryDirectory() as td, patch.object(reply, "SETTINGS", Path(td) / "missing.json"), \
@@ -36,8 +52,9 @@ class ReplyTests(unittest.TestCase):
             reply.scout.save(settings, {"authorization": "review"})
             with patch.object(reply, "SETTINGS", settings), patch.object(reply.scout, "settings", return_value={}):
                 self.assertEqual(reply.instructions(dry_run=True)["portfolio_url"], "")
-                with self.assertRaisesRegex(ValueError, "reply_selector"):
-                    reply.instructions(reviewed=True)
+                cfg = reply.instructions(reviewed=True)
+                self.assertEqual(cfg["reply_selector"], "textarea[name='content'].c-form__control")
+                self.assertEqual(cfg["submit_selector"], "button#commentable_submit[type='submit']")
 
     def test_only_verified_sourced_owner_facts_are_used(self):
         with tempfile.TemporaryDirectory() as td:
@@ -104,28 +121,62 @@ class ReplyTests(unittest.TestCase):
                              "2026-10-16", dry_run=False)
 
     def test_missing_visible_unique_form_does_not_create_receipt(self):
-        page = MagicMock()
-        page.locator.return_value.inner_text.return_value = ITEM["title"]
-        page.locator.return_value.count.return_value = 0
+        page, field, _, _, _ = form_page()
+        field.count.return_value = 0
         receipts = {"requests": {}}
         with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
              patch.object(reply.scout, "save") as save:
-            with self.assertRaisesRegex(RuntimeError, "not unambiguous"):
+            with self.assertRaisesRegex(RuntimeError, "حقل الرد"):
                 reply.submit_one(page, ITEM, CFG, receipts, "2026-10-16", dry_run=False)
             save.assert_not_called()
 
     def test_receipt_is_pending_before_click_and_sent_after_verified_reload(self):
-        page = MagicMock()
-        page.locator.return_value.inner_text.return_value = ITEM["title"]
-        page.locator.return_value.count.return_value = 1
-        page.get_by_text.return_value.count.return_value = 1
+        page, field, _, button, checkbox = form_page()
         state = {"requests": {}}
         events = []
         with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value=""), \
              patch.object(reply.scout, "save", side_effect=lambda path, value: events.append(value["requests"]["123456"]["status"])):
             reply.submit_one(page, ITEM, CFG, state, "2026-10-16", dry_run=False)
         self.assertEqual(events, ["pending", "submitted"])
-        page.locator.return_value.click.assert_called_once()
+        field.fill.assert_called_once_with(VALID)
+        checkbox.check.assert_called_once()
+        button.click.assert_called_once()
+
+    def test_terms_checkbox_required_before_receipt_or_click(self):
+        page, _, _, button, checkbox = form_page()
+        checkbox.count.return_value = 0
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply.scout, "save") as save:
+            with self.assertRaisesRegex(RuntimeError, "تأكيد الشروط"):
+                reply.submit_one(page, ITEM, CFG, {"requests": {}}, "2026-10-16", dry_run=False)
+        save.assert_not_called()
+        button.click.assert_not_called()
+
+    def test_visible_site_error_is_reported_and_receipt_stays_pending(self):
+        page, _, _, button, checkbox = form_page()
+        events = []
+        state = {"requests": {}}
+        with patch.object(reply, "visit"), patch.object(reply, "compose", return_value=VALID), \
+             patch.object(reply, "visible_site_errors", return_value="نص التعليق مطلوب"), \
+             patch.object(reply.scout, "save", side_effect=lambda path, value: events.append(value["requests"]["123456"]["status"])):
+            with self.assertRaisesRegex(RuntimeError, "خمسات رفض الرد: نص التعليق مطلوب"):
+                reply.submit_one(page, ITEM, CFG, state, "2026-10-16", dry_run=False)
+        checkbox.check.assert_called_once()
+        button.click.assert_called_once()
+        self.assertEqual(events, ["pending"])
+        page.reload.assert_not_called()
+
+    def test_visible_site_errors_ignores_hidden_messages(self):
+        page = MagicMock()
+        shown, hidden = MagicMock(), MagicMock()
+        shown.is_visible.return_value = True
+        shown.inner_text.return_value = "لا يمكن إرسال التعليق الآن"
+        hidden.is_visible.return_value = False
+        hidden.inner_text.return_value = "رسالة قديمة"
+        page.locator.return_value.all.return_value = [shown, hidden]
+        self.assertEqual(reply.visible_site_errors(page), "لا يمكن إرسال التعليق الآن")
+        hidden.inner_text.assert_not_called()
 
     def test_inspector_does_not_submit(self):
         with tempfile.TemporaryDirectory() as td:

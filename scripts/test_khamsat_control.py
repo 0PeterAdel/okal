@@ -67,8 +67,10 @@ class ControlTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Daily limit"):
             control.validate_settings(self.form | {"max_per_day": "6"})
         with patch.object(control.reply, "profile_facts", return_value=["Verified Python project"]):
-            with self.assertRaisesRegex(ValueError, "Inspect the live reply"):
-                control.validate_settings(self.form | {"authorization": "auto", "confirm_auto": "yes", "reply_selector": ""})
+            _, configured = control.validate_settings(self.form | {
+                "authorization": "auto", "confirm_auto": "yes", "reply_selector": "", "submit_selector": ""})
+            self.assertEqual(configured["reply_selector"], control.reply.DEFAULT_REPLY["reply_selector"])
+            self.assertEqual(configured["submit_selector"], control.reply.DEFAULT_REPLY["submit_selector"])
         _, cfg = control.validate_settings(self.form | {"service": "", "proof": "", "portfolio_url": ""})
         self.assertEqual(cfg["portfolio_url"], "")
         with self.assertRaisesRegex(ValueError, "Portfolio"):

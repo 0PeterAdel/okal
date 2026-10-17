@@ -19,7 +19,7 @@ The setup script reuses an existing Playwright environment under `~/Projects` if
 
 If the Python package is present but Playwright's expected Chromium revision was removed, the scout tries a system Chromium/Chrome or an existing cached Chromium binary before asking you to download anything. An explicit `OKAL_FREELANCE_CHROMIUM=/absolute/path/to/chromium` overrides discovery for a local terminal test. If none is available, use `.venv-okal-freelance/bin/python -m playwright install chromium` once; cached login/profile data is separate from the browser executable. Browser startup errors are shown in the control page instead of returning an empty HTTP response.
 
-The server binds only to `127.0.0.1:8788`, validates the browser origin and a form token, and keeps all settings, queue entries and receipts in private 0600 files. It does not expose the saved Khamsat browser profile. The page starts in **Review needed** mode. It reads sourced work facts marked `verified: true` from `~/.config/okal/owner-profile.json` (0600), without passing identity or contact fields to the model. The agent infers which facts fit each request; a separate service or proof field is not required. The public HTTPS portfolio link is optional. Set service keywords and exclusions, use or edit the supplied Egyptian Arabic writing template, and later enter the reply field and submit button selectors inspected from the live page. Click **Scan now**, inspect a queued request, generate a draft, edit it, and click **Submit this reply now**. That button posts one real reply and records its attempt before the click. A pending receipt can mean the click succeeded and verification did not; inspect the site before doing anything else.
+The server binds only to `127.0.0.1:8788`, validates the browser origin and a form token, and keeps all settings, queue entries and receipts in private 0600 files. It does not expose the saved Khamsat browser profile. The page starts in **Review needed** mode. It reads sourced work facts marked `verified: true` from `~/.config/okal/owner-profile.json` (0600), without passing identity or contact fields to the model. The agent infers which facts fit each request; a separate service or proof field is not required. The public HTTPS portfolio link is optional. Set service keywords and exclusions and use or edit the supplied Egyptian Arabic writing template. The reply field and submit button are prefilled from the owner's inspected Khamsat HTML, including when older saved settings contain empty selectors. Click **Scan now**, inspect a queued request, generate a draft, edit it, and click **Submit this reply now**. That button posts one real reply and records its attempt before the click. A pending receipt can mean the click succeeded and verification did not; inspect the site before doing anything else.
 
 Choose **Allow** and tick the explicit authorization checkbox to submit matching queued requests without individual review. The daily cap is 1–5. Never enable it before one reviewed live reply confirms the form and the generated content. The page defaults to Review needed when the private reply file does not exist, even if a timer is running. Returning to Review needed stops autonomous replies on the next tick. The written instructions are included as a bounded context to the local model; the request content itself remains untrusted data.
 
@@ -47,7 +47,9 @@ When you edit a draft and the site visibly confirms its submission, Okal private
 
 For the local Qwen thinking model, draft generation requests `think: false` and allows up to 700 generated tokens so the response budget goes to the public reply rather than reasoning. Ollama is already managed by its existing service on the owner's laptop. A `bind: address already in use` error from a separate `ollama serve` means the port is occupied; check `ollama list` and the running service instead of starting another server. No model download is required for this adjustment.
 
-Before sending, the inspector prints only form control labels/attributes. Identify **one specific visible reply field and one submit button**, then enter their CSS selectors in the local control page. Example shape, with selectors replaced from your actual page:
+The owner's inspected request form has a `textarea[name="content"]`, a `#confirm` checkbox for Khamsat's comment terms, and `#commentable_submit`. The runner checks that these three controls belong to the same visible form, fills the text, checks the terms checkbox, and only then records the pending attempt and clicks submit. The checkbox is a confirmation of the reply's contents, so do not include outside contact information or text violating the site's terms. Selectors are prefilled; the inspector remains available if Khamsat changes its form. A visible site validation error is reported in the local control page, with the receipt left pending until you inspect the request on Khamsat. Do not retry a pending request automatically.
+
+Example private settings:
 
 ```json
 {
@@ -56,8 +58,8 @@ Before sending, the inspector prints only form control labels/attributes. Identi
   "proposal_instructions": "اكتب بالمصري المهني الودود، واربط عرضك بهذا الطلب باستخدام حقائق عملي الموثقة فقط",
   "scan_interval_minutes": 30,
   "portfolio_url": "",
-  "reply_selector": "textarea[name='REPLACE_FROM_INSPECTION']",
-  "submit_selector": "button[type='submit'][name='REPLACE_FROM_INSPECTION']",
+  "reply_selector": "textarea[name='content'].c-form__control",
+  "submit_selector": "button#commentable_submit[type='submit']",
   "max_per_day": 2,
   "ollama_model": "okal-qwen3.5-4b-64k"
 }

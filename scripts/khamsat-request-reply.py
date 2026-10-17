@@ -35,7 +35,8 @@ DEFAULT_INSTRUCTIONS = (
 )
 DEFAULT_REPLY = {
     "authorization": "review", "enabled": False, "max_per_day": 2,
-    "portfolio_url": "", "reply_selector": "", "submit_selector": "",
+    "portfolio_url": "", "reply_selector": "textarea[name='content'].c-form__control",
+    "submit_selector": "button#commentable_submit[type='submit']",
     "proposal_instructions": DEFAULT_INSTRUCTIONS,
     "ollama_model": "okal-qwen3.5-4b-64k",
 }
@@ -69,6 +70,10 @@ def instructions(*, dry_run: bool = False, reviewed: bool = False) -> dict:
         if not isinstance(saved, dict):
             raise ValueError("Reply settings must be a JSON object")
         data |= saved
+    # Older saved settings can contain empty selectors from before the live form was inspected.
+    for key in ("reply_selector", "submit_selector"):
+        if not data.get(key):
+            data[key] = DEFAULT_REPLY[key]
     required = []
     if not dry_run:
         required.extend(("reply_selector", "submit_selector"))
@@ -230,6 +235,19 @@ def valid_reply(reply: str, config: dict) -> None:
         raise ValueError("الرد يحتوي رابطًا غير رابط معرض الأعمال الاختياري؛ احذفه قبل الإرسال")
 
 
+def visible_site_errors(page) -> str:
+    """Return visible validation messages without confusing normal help text with an error."""
+    selectors = ("[role='alert'], .c-form__error, .c-form__feedback--error, "
+                 ".c-alert--danger, .alert-danger, .invalid-feedback, .is-invalid + .error")
+    messages = []
+    for node in page.locator(selectors).all():
+        if node.is_visible():
+            message = node.inner_text(timeout=2000).strip()
+            if message and message not in messages:
+                messages.append(message[:400])
+    return " | ".join(messages[:4])
+
+
 def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
                dry_run: bool, reply_override: str | None = None) -> str:
     rid = scout.request_id(item["url"])
@@ -245,17 +263,39 @@ def submit_one(page, item: dict, config: dict, receipts: dict, day: str, *,
     valid_reply(reply, config)
     if dry_run:
         return reply
-    field, button = (page.locator(config[key]) for key in ("reply_selector", "submit_selector"))
-    if (field.count() != 1 or button.count() != 1 or not field.is_visible() or
-            not button.is_visible() or not button.is_enabled()):
-        raise RuntimeError("Reply form is not unambiguous and visible; inspect the page")
+    field = page.locator(config["reply_selector"])
+    if field.count() != 1 or not field.is_visible() or not field.is_enabled():
+        raise RuntimeError("حقل الرد غير ظاهر أو غير فريد؛ افحص نموذج خمسات الحالي")
+    form = field.locator("xpath=ancestor::form[1]")
+    button = form.locator(config["submit_selector"])
+    checkbox = form.locator("input#confirm[name='confirm'][type='checkbox']")
+    if (form.count() != 1 or button.count() != 1 or checkbox.count() != 1 or
+            not button.is_visible() or not button.is_enabled() or
+            not checkbox.is_visible() or not checkbox.is_enabled()):
+        raise RuntimeError("نموذج الرد أو زر الإرسال أو تأكيد الشروط غير واضح؛ افحص الصفحة قبل الإرسال")
     field.fill(reply)
+    try:
+        checkbox.check(timeout=10000)
+    except Exception as exc:
+        raise RuntimeError(f"تعذر تحديد تأكيد شروط خمسات؛ لم يُضغط زر الإرسال: {str(exc).splitlines()[0]}") from exc
+    if not checkbox.is_checked():
+        raise RuntimeError("تعذر تأكيد شروط تعليق خمسات؛ لم يُضغط زر الإرسال")
     receipts.setdefault("requests", {})[rid] = {"day": day, "status": "pending", "url": item["url"]}
     scout.save(RECEIPTS, receipts)
-    button.click(timeout=10000)
+    try:
+        button.click(timeout=10000)
+    except Exception as exc:
+        error = visible_site_errors(page)
+        detail = error or str(exc).splitlines()[0]
+        raise RuntimeError(f"تعذر الضغط على زر الإرسال: {detail} — الطلب معلّق؛ افحصه على خمسات قبل أي إعادة إرسال") from exc
+    error = visible_site_errors(page)
+    if error:
+        raise RuntimeError(f"خمسات رفض الرد: {error} — الطلب معلّق؛ افحصه على الموقع قبل أي إعادة إرسال")
     page.reload(wait_until="domcontentloaded", timeout=30000)
     if page.get_by_text(reply, exact=True).count() < 1:
-        raise RuntimeError("Clicked submit but reply could not be verified; check site before retrying")
+        error = visible_site_errors(page)
+        detail = f"رسالة الموقع: {error}. " if error else ""
+        raise RuntimeError(f"{detail}تعذر التحقق من نشر الرد؛ الطلب معلّق وافحصه على خمسات قبل أي إعادة إرسال")
     receipts["requests"][rid]["status"] = "submitted"
     scout.save(RECEIPTS, receipts)
     return f'Submitted: {item["url"]}'

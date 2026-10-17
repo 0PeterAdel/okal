@@ -63,8 +63,8 @@ def validate_settings(form: dict[str, str]) -> tuple[dict, dict]:
     if not context or len(context) > 3000:
         raise ValueError("Proposal instructions must be 1–3000 characters")
     portfolio = form.get("portfolio_url", "").strip()
-    field = form.get("reply_selector", "").strip()
-    button = form.get("submit_selector", "").strip()
+    field = form.get("reply_selector", "").strip() or DEFAULT_REPLY["reply_selector"]
+    button = form.get("submit_selector", "").strip() or DEFAULT_REPLY["submit_selector"]
     if mode == "auto" and not all((field, button)):
         raise ValueError("Inspect the live reply field and submit button before auto mode")
     if mode == "auto":
@@ -210,8 +210,8 @@ def render(token: str, notice: str = "", error: bool = False) -> str:
               ("exclude_terms", "استبعاد", "\n".join(watch.get("exclude_terms", []))),
               ("portfolio_url", "رابط معرض الأعمال HTTPS (اختياري)", config.get("portfolio_url", "")),
               ("proposal_instructions", "قالب كتابة الرد (قابل للتعديل)", config.get("proposal_instructions", "")),
-              ("reply_selector", "حقل الرد بعد فحص الصفحة", config.get("reply_selector", "")),
-              ("submit_selector", "زر الإرسال بعد فحص الصفحة", config.get("submit_selector", "")),
+              ("reply_selector", "حقل الرد بعد فحص الصفحة", config.get("reply_selector") or DEFAULT_REPLY["reply_selector"]),
+              ("submit_selector", "زر الإرسال بعد فحص الصفحة", config.get("submit_selector") or DEFAULT_REPLY["submit_selector"]),
               ("ollama_model", "موديل Ollama المحلي", config.get("ollama_model", ""))]
     for name, label, value in fields:
         parts.append(f'<label for="{name}">{e(label)}</label>')
@@ -333,6 +333,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(render(self.token, str(exc), True), 400)
             except Exception:
                 self.send_error(400, str(exc))
+        except Exception as exc:
+            # Playwright can raise its own Error/TimeoutError types. Keep the UI usable.
+            message = f"تعذر إكمال إجراء المتصفح: {str(exc).splitlines()[0][:400]}"
+            self.respond(render(self.token, message, True), 400)
 
 
 def main() -> int:
