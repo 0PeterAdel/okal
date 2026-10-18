@@ -2,12 +2,14 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: bash scripts/setup-agent-profiles.sh [--dry-run|--apply]" >&2
+  echo "Usage: bash scripts/setup-agent-profiles.sh [--dry-run|--apply] [--refresh-main]" >&2
   exit 2
 }
 
 mode="${1:---dry-run}"
-[[ $# -le 1 && ( "$mode" == "--dry-run" || "$mode" == "--apply" ) ]] || usage
+refresh="${2:-}"
+[[ $# -le 2 && ( "$mode" == "--dry-run" || "$mode" == "--apply" ) &&
+   ( -z "$refresh" || "$refresh" == "--refresh-main" ) ]] || usage
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ "$mode" == "--apply" ]] && ! command -v hermes >/dev/null 2>&1; then
@@ -15,11 +17,22 @@ if [[ "$mode" == "--apply" ]] && ! command -v hermes >/dev/null 2>&1; then
   exit 1
 fi
 
-for role in okal-research okal-code okal-social okal-main okal-jobs; do
+for role in okal-research okal-code okal-social okal-main okal-jobs okal-freelance; do
   profile_dir="$HOME/.hermes/profiles/$role"
   target="$profile_dir/SOUL.md"
   source_file="$root/agents/profiles/$role/SOUL.md"
   if [[ -d "$profile_dir" && -e "$target" ]]; then
+    if [[ "$role" == okal-main && "$refresh" == --refresh-main ]]; then
+      if [[ "$mode" == --dry-run ]]; then
+        echo "Would back up and refresh $target from $source_file"
+      else
+        backup="$profile_dir/SOUL.md.before-freelance-$(date -u +%Y%m%dT%H%M%SZ)"
+        cp -p "$target" "$backup"
+        install -m 600 "$source_file" "$target"
+        echo "Refreshed $target; backup: $backup"
+      fi
+      continue
+    fi
     echo "Keep existing profile identity: $target"
     continue
   fi

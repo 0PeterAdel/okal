@@ -1,5 +1,35 @@
 # Local Khamsat response pilot
 
+## Dedicated freelance agent and main-agent handoff
+
+The `okal-freelance` Hermes profile owns Khamsat discovery and proposal
+preparation. The `okal-main` coordinator requests a fresh scan or a draft and
+reads the same private queue and receipt ledger through a structured local
+command. Hermes profiles organize responsibilities; they are not a separate OS
+permission boundary. Only the control page's one-use, per-reply confirmation
+can publish a comment. A scheduled scan and a draft cannot publish.
+
+From the reviewed branch in `~/Projects/okal`, install the new profile and
+refresh the coordinator's instructions (the existing main SOUL is backed up;
+other existing profiles, model settings, memory and credentials are kept):
+
+```sh
+bash scripts/setup-agent-profiles.sh --dry-run --refresh-main
+bash scripts/setup-agent-profiles.sh --apply --refresh-main
+hermes -p okal-freelance model    # select your installed local 64K-capable model
+python3 scripts/freelance-handoff.py status
+.venv-okal-freelance/bin/python scripts/freelance-handoff.py scan
+python3 scripts/freelance-handoff.py draft REQUEST_ID
+```
+
+The last command saves and returns a draft for that queued ID; review it on
+`http://127.0.0.1:8788/`. `status` includes `candidate`, `draft`, `pending`, or
+`submitted` receipt states, plus pending IDs. It omits private descriptions,
+draft text and owner facts; `draft` returns only the requested new draft text.
+Never retry a `pending` request until it is inspected and reconciled on the
+site. The main agent may call `status`, `scan` and `draft` for an owner request;
+it must not call the reply runner or use a browser submit action.
+
 This extends [the request scout](KHAMSAT-REQUEST-SCOUT.md). The agent uses the owner's saved local browser session, checks new community requests, writes a short answer grounded in verified facts from the private owner profile and the particular request, then can **click the actual reply button**. On Khamsat community requests this is a public reply to a request, not a formal order or an accepted project. It never solves CAPTCHAs or attempts to hide automation. Keep your laptop session signed in and running.
 
 ## Local control page
