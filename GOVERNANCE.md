@@ -56,10 +56,29 @@ While fewer than two eligible human maintainers have repository write access:
 - major dependency, security-boundary, identity, permission, and destructive
   migration changes should seek external qualified review when practical.
 
-This exception is owned by `0PeterAdel`. It expires immediately when a second
-eligible human maintainer receives write access and must be reviewed by
-2026-09-30 if the repository is still solo. At expiry, require at least one
-approval, stale-approval dismissal, and CODEOWNERS review before merge.
+This exception is owned by `0PeterAdel`. The owner confirmed on 2026-10-30 that
+they remain the only person with repository write access. This is an owner
+attestation, not an independent access audit or an approval of a particular PR.
+
+The renewal proposed in [PR #37](https://github.com/0PeterAdel/okal/pull/37)
+requires the owner's explicit non-approval self-review accepting the renewal
+before merge. It does not retroactively authorize merges during the period after
+the previous review deadline of 2026-09-30. Automated comments do not substitute
+for this human record. Repository protection settings are not changed by this
+document; any stricter enforced requirements still apply.
+
+After that review and adoption, the exception expires at the earlier of:
+
+- a second eligible human maintainer receiving repository write access; or
+- 2026-11-30 at 23:59 in `Africa/Cairo`.
+
+Review or replace this exception before that deadline. Track the follow-up in
+[issue #36](https://github.com/0PeterAdel/okal/issues/36). Renewal requires another
+explicit owner record and reviewed policy change; it is never automatic. At
+expiry, stop using the zero-approval exception and require at least one eligible
+independent approval, stale-approval dismissal, and CODEOWNERS review before
+merge. This renewal changes only the time-bounded approval exception, not the
+mandatory checks, self-review, conversation resolution or security boundaries.
 
 ## Trusted automation Pull Requests
 

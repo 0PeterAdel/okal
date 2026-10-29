@@ -140,6 +140,10 @@ systemctl --user enable --now okal-voice.service
 ## Review limitations
 
 The external ShiftCore handbook URL was unavailable during review. Repository
-AGENTS, CONTRIBUTING and GOVERNANCE were read and remain unchanged. No merge or
-policy exception is performed. The Solo Maintainer review date in GOVERNANCE
-needs maintainer attention; this reset does not silently renew it.
+AGENTS, CONTRIBUTING and GOVERNANCE were read. On 2026-10-30 the owner explicitly
+confirmed they remain the sole person with write access. GOVERNANCE now proposes
+a bounded renewal through 2026-11-30, ending earlier if a second eligible human
+maintainer gains write access. The owner must record the renewal decision in
+their non-approval PR review; their access confirmation alone is not PR approval.
+No merge or repository-protection change is performed. All existing check,
+security and review requirements remain; no automatic renewal is permitted.
