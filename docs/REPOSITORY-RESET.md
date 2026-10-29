@@ -141,9 +141,11 @@ systemctl --user enable --now okal-voice.service
 
 The external ShiftCore handbook URL was unavailable during review. Repository
 AGENTS, CONTRIBUTING and GOVERNANCE were read. On 2026-10-30 the owner explicitly
-confirmed they remain the sole person with write access. GOVERNANCE now proposes
-a bounded renewal through 2026-11-30, ending earlier if a second eligible human
-maintainer gains write access. The owner must record the renewal decision in
-their non-approval PR review; their access confirmation alone is not PR approval.
+confirmed sole write access and requested an ongoing solo review profile without
+calendar renewal. GOVERNANCE, CONTRIBUTING, AGENTS, the PR template and settings
+guide now align on owner self-review rather than an unavailable second reviewer.
+The owner must record the current-head review and architecture decision before
+merge; requesting the policy change alone is not approval of the complete PR.
 No merge or repository-protection change is performed. All existing check,
-security and review requirements remain; no automatic renewal is permitted.
+security and conversation-resolution requirements remain. A second eligible
+human maintainer triggers the independent-review profile.
