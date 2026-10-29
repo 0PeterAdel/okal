@@ -1,5 +1,9 @@
 # Risk Register
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 Risks are reviewed at every milestone and release. Likelihood and impact use `Low`, `Medium`, `High`, and `Critical`; owners are roles until named maintainers are assigned.
 
 | ID | Risk | Likelihood | Impact | Trigger / early signal | Mitigation | Owner |

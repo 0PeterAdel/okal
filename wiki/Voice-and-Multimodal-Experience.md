@@ -1,5 +1,9 @@
 # Voice and Multimodal Experience
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Goal
 
 Provide a responsive, local-first voice interface that can be interrupted,

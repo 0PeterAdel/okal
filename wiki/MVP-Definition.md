@@ -1,5 +1,9 @@
 # MVP Definition
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 The MVP proves one complete, governed workflow rather than a collection of disconnected demos.
 
 ## Product statement

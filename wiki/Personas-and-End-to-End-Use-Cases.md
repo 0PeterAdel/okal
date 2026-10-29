@@ -1,5 +1,9 @@
 # Personas and End-to-End Use Cases
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Primary persona: the operator
 
 The first user is a technical single operator who works across Linux, source

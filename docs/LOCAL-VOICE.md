@@ -1,5 +1,9 @@
 # Local Voice on Omarchy
 
+> Historical design/pilot reference. See the [current reset proposal](../wiki/Personal-Assistant-Plan.md)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 This first slice provides an offline voice entry point without granting a model
 authority to execute capabilities. Press `SUPER + SHIFT + O` once to capture and
 again to transcribe and route. The Omarchy overlay is visual-only and click-through.

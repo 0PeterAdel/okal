@@ -13,8 +13,9 @@ defines the repository-specific application of that handbook.
 
 ## Change lifecycle
 
-All changes use `Task → Branch → Commit → Pull Request → Review → Approval →
-Merge`. Direct pushes, force pushes, and branch deletion on `main` are
+All changes use `Task → Branch → Commit → Pull Request → Review → documented
+Solo self-review or independent approval → Merge`. Direct pushes, force pushes,
+and branch deletion on `main` are
 prohibited. Emergency work uses the same PR path with a `security/` or `fix/`
 branch and an expedited qualified review.
 
@@ -31,14 +32,16 @@ branch and an expedited qualified review.
 | UI, voice, accessibility | product and accessibility |
 | CI, packaging, deployment | platform and operations |
 
-At least one eligible reviewer approves every PR when an independent eligible
-reviewer exists. The temporary Solo Maintainer mode below is the only approval
-exception. Critical security or architecture changes should receive two
-qualified reviews when the team permits.
+The default profile is Solo Maintainer while `0PeterAdel` is the only eligible
+human with repository write access. The same person may author, review and merge
+their PR using the documented self-review below. A second reviewer is not a
+prerequisite in that profile. Once a second eligible human has write access,
+independent approval is required. Critical changes should receive two qualified
+reviews when the team permits.
 
 ## Solo Maintainer mode
 
-Okal begins with one eligible human maintainer. GitHub does not permit a Pull
+Okal is maintained by one eligible human. GitHub does not permit a Pull
 Request author to approve their own work, so requiring one approval would make
 the handbook workflow impossible without creating evidence that is not
 independent.
@@ -47,19 +50,36 @@ While fewer than two eligible human maintainers have repository write access:
 
 - every change still requires an Issue or Jira task, task branch, Pull Request,
   passing required checks, resolved conversations, and conflict resolution;
-- required approval count is temporarily zero and CODEOWNERS approval is not a
+- required approval count is zero and CODEOWNERS approval is not a
   merge requirement;
 - the author records a self-review as a non-approval Pull Request review or
-  conversation comment, covering findings, evidence, risks, and merge decision;
+  conversation comment, covering the reviewed head SHA, findings, evidence,
+  risks, and merge decision;
 - failed checks, unresolved findings, direct pushes, force pushes, and secret or
   authorization exceptions remain prohibited;
 - major dependency, security-boundary, identity, permission, and destructive
   migration changes should seek external qualified review when practical.
 
-This exception is owned by `0PeterAdel`. It expires immediately when a second
-eligible human maintainer receives write access and must be reviewed by
-2026-09-30 if the repository is still solo. At expiry, require at least one
-approval, stale-approval dismissal, and CODEOWNERS review before merge.
+This profile is owned by `0PeterAdel`. On 2026-10-30 the owner confirmed sole
+write access and explicitly requested an ongoing solo workflow. That attestation
+is not an independent access audit or approval of a particular PR. This profile
+has no calendar expiry or periodic renewal requirement. It replaces the earlier
+dated exception and proposed November renewal, without retroactively authorizing
+past merges. Other workflow exceptions remain subject to the Exceptions section.
+
+Use **Review changes → Comment**, or a PR conversation comment, not **Approve**.
+Inspect the complete diff and actual check results first. State the reviewed head
+SHA and the decision explicitly; a filled template or AI-generated comment is not
+human review. After any new commit, refresh the review against the new head and
+wait for its required checks. Only the owner records their human self-review;
+automation must never impersonate it. See the practical checklist in
+[Contributing](CONTRIBUTING.md#solo-self-review-checklist).
+
+The profile ends when a second eligible human receives write access. Before the
+next merge, switch to at least one independent approval, stale-approval dismissal
+and CODEOWNERS review using the repository settings guide. Do not substitute bots
+or the author's other accounts for independent review. Documentation does not
+change GitHub protection settings; stricter enforced rules must still be met.
 
 ## Trusted automation Pull Requests
 

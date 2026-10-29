@@ -25,10 +25,11 @@ Apply the review profile that matches the repository phase:
 | Require CODEOWNERS review | Disabled | Enabled |
 | Require last-push approval | Disabled | Enabled when practical |
 
-Solo Maintainer mode is a bounded approval exception only. The Pull Request,
+Solo Maintainer mode is the ongoing single-human review profile. The Pull Request,
 status-check, conversation, deletion, force-push, and direct-push protections
-remain active. Its owner, evidence requirement, review date, and automatic exit
-condition are defined in [Repository Governance](../GOVERNANCE.md#solo-maintainer-mode).
+remain active. It has no calendar expiry or periodic renewal. Its owner,
+self-review evidence requirement and switch-to-team condition
+are defined in [Repository Governance](../GOVERNANCE.md#solo-maintainer-mode).
 
 Do not enable a bypass that defeats the handbook workflow. Emergency fixes use
 an expedited PR and review.

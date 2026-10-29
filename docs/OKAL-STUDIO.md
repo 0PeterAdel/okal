@@ -1,5 +1,9 @@
 # Okal Studio
 
+> Historical design/pilot reference. See the [current reset proposal](../wiki/Personal-Assistant-Plan.md)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 Okal Studio is a local, Arabic-first workspace for the existing voice service. It opens in the default browser, shows the voice phase, accepts typed questions and microphone toggles, and displays text, charts, image galleries, or plans in an adaptive canvas. The home screen includes clearly labeled design previews so the interface can be explored before any agent integration.
 
 ## Run it

@@ -4,6 +4,17 @@ These instructions apply to the entire repository. The [ShiftCore Team
 Handbook](https://platform.shiftcore.workers.dev/docs/handbook) is the source
 of truth for Git and review behavior.
 
+## Current product direction
+
+Read [Personal Assistant Plan](wiki/Personal-Assistant-Plan.md) and proposed
+ADR-013 before starting new feature work. Keep work limited to the active stage
+of issue #36; no coding/research-agent expansion or voice-first roadmap.
+The reset is a proposal, not evidence of a deployed core or mobile client.
+Historical files remain for recovery. Never delete branches or private runtime
+state without the archive and local-preflight gates in
+[Repository Reset](docs/REPOSITORY-RESET.md). Follow the current review profile in
+[Governance](GOVERNANCE.md#solo-maintainer-mode).
+
 ## Required workflow
 
 1. Start from the latest `main`.
@@ -12,9 +23,11 @@ of truth for Git and review behavior.
 4. Keep changes focused and commits small.
 5. Use `type(scope): short message` for every commit.
 6. Push only the task branch and open a Pull Request into `main`.
-7. Request an eligible reviewer and address every review comment. If the
-   documented Solo Maintainer mode is active, record the required non-approval
-   self-review instead.
+7. While the owner is the only eligible human maintainer, use the ongoing Solo
+   profile: the owner records a non-approval self-review for the current head
+   SHA; no second reviewer or calendar renewal is required. With multiple
+   eligible human maintainers, request an independent reviewer. Address findings
+   in either profile. AI agents may assist but must not impersonate human review.
 8. Merge only after the applicable approval or Solo self-review, resolved
    conversations, and passing checks.
 

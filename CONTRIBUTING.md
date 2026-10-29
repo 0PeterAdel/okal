@@ -80,12 +80,14 @@ screenshots; API and behavior changes include tests and contract updates.
 
 ## Review
 
-Request at least one eligible reviewer. Important security, architecture,
-identity, data, model-routing, or deployment changes require a reviewer able to
-judge that area.
+Use the review profile in GOVERNANCE.md. In Solo Maintainer mode the owner may
+author, review and merge the same PR; no second person is required. With two or
+more eligible human maintainers, request an independent reviewer able to judge
+the affected security, architecture, identity, data, routing or deployment area.
 
 While the repository has only one eligible human maintainer, follow the
-temporary [Solo Maintainer mode](GOVERNANCE.md#solo-maintainer-mode). The author
+[Solo Maintainer mode](GOVERNANCE.md#solo-maintainer-mode). There is no calendar
+expiry or recurring renewal while that condition holds. The author
 cannot approve their own PR; instead, record a non-approval self-review with
 findings, evidence, risks, and the merge decision. This changes only the
 approval requirement. Pull Requests, checks, conversations, and every other
@@ -100,6 +102,24 @@ Use these review prefixes:
 
 The author addresses comments and resolves conversations only after the concern
 is handled. Review the work, never the person.
+
+### Solo self-review checklist
+
+1. Read the complete Files changed diff and identify the current head SHA.
+2. Check task acceptance criteria, test evidence, privacy/security impact and
+   rollback or recovery. Record unresolved limitations rather than hiding them.
+3. Wait for required checks on that same SHA; resolve findings and conversations.
+4. Submit **Review changes → Comment** or a conversation comment containing:
+   reviewed SHA, scope/findings, evidence, risks/rollback, and an explicit
+   ready-to-merge or blocked decision. Do not select **Approve** on your own PR.
+5. If ready and GitHub's merge gates pass, use **Squash and merge**. Do not use
+   **Close pull request** for work that should be integrated.
+6. If another commit arrives, review that change and record a refreshed decision
+   for the new SHA. A checkbox or an automated review does not replace your review.
+
+For PR #37, the owner review also records the decision on ADR-013 and this ongoing
+solo profile. The documentation update itself is not an owner review. No runtime
+or laptop deployment is claimed by merging that documentation PR.
 
 ## Merge rules
 

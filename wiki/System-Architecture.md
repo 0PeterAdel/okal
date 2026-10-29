@@ -1,5 +1,9 @@
 # System Architecture
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Architectural style
 
 Okal uses a **thin authoritative kernel with process-isolated adapters**. The

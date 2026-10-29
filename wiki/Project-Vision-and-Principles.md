@@ -1,5 +1,9 @@
 # Project Vision and Principles
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Vision
 
 Okal will be a personal intelligence control plane that can safely perceive,

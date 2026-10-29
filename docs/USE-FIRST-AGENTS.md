@@ -1,5 +1,9 @@
 # Use-first agent stack (proposal, 2026-10-09)
 
+> Historical design/pilot reference. See the [current reset proposal](../wiki/Personal-Assistant-Plan.md)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Goal and first acceptance
 
 Get three useful local assistants running before extending the Okal kernel:

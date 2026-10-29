@@ -1,5 +1,9 @@
 # Roadmap and Release Plan
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 The roadmap is ordered by evidence and dependency, not by feature excitement. Dates are assigned only after team capacity and hardware availability are known.
 
 ## Delivery horizons

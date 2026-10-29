@@ -1,5 +1,9 @@
 # Evidence Receipts and Observability
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 Okal must be able to explain what it attempted, what actually ran, what produced an output, and why that output was accepted. A green status without evidence is not a success signal.
 
 ## Outcome dimensions
