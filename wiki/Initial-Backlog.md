@@ -1,5 +1,9 @@
 # Initial Backlog
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 This backlog converts the architecture into executable epics. IDs are stable planning references; implementation issues should link back to them.
 
 ## E0 — Repository and engineering foundation

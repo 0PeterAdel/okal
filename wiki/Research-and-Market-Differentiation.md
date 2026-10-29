@@ -1,5 +1,9 @@
 # Research and Market Differentiation
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 Okal is not differentiated by having more tools. Its research claim is that a personal assistant becomes more capable when heterogeneous runtimes are coordinated by a verified, resource-aware control plane with explicit authority and provenance.
 
 ## Product gap

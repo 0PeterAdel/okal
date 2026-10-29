@@ -1,5 +1,9 @@
 # Knowledge and Document Intelligence
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Goal
 
 Convert documents, images, audio, repositories, and selected web content into

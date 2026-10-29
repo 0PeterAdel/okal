@@ -1,5 +1,9 @@
 # Control Kernel and Task Lifecycle
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Kernel responsibility
 
 The Control Kernel is Okal's only authority for:

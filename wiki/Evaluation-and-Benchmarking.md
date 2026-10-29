@@ -1,5 +1,9 @@
 # Evaluation and Benchmarking
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 Evaluation is a release control, not a demo activity. Every model, prompt, capability, routing rule, memory change, and skill version must prove that it improves the target behavior without unacceptable regressions.
 
 ## Evaluation layers

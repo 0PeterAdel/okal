@@ -1,5 +1,9 @@
 # Daily social and career workflows
 
+> Historical design/pilot reference. See the [current reset proposal](../wiki/Personal-Assistant-Plan.md)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 This slice is a local, owner-reviewed pilot. Hermes supplies the agent loop
 and the existing recurring-task scheduler. Okal supplies profile instructions,
 source checks, a Postiz **draft-only** bridge, and a fact-locked CV PDF tool.

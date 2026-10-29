@@ -1,5 +1,9 @@
 # Skill Supply Chain
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Goal
 
 Allow Okal to learn new procedures without treating Markdown, scripts, or

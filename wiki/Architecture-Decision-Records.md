@@ -122,6 +122,37 @@ This page is the initial ADR index. Status values are `Proposed`, `Accepted`, `S
 
 **Consequences:** Direct Wiki edits are overwritten; contributors edit `/wiki` through pull requests.
 
+## ADR-013 — Daily personal assistant reset
+
+**Status:** Proposed
+**Date:** 2026-10-29
+**Decision owner:** 0PeterAdel, pending architecture/security review.
+
+**Decision:** Narrow Okal to mail, planning, social and freelance workflows.
+Use one code-first Python center, local state and replaceable adapters. Desktop,
+mobile and deferred voice share task state, API and approvals. Reuse upstream
+libraries/services; no general agent framework or competing n8n/Hermes authority.
+
+**Validation:** [Personal Assistant Plan](Personal-Assistant-Plan). The first
+gates are a minimal authenticated inbox, boot/restart recovery and a real Gmail
+digest. Documentation does not constitute runtime/dependency adoption.
+
+**Earlier decisions:** Preserve ADR-001/002's single authority/modular monolith,
+ADR-004's verified outcomes, ADR-007's durable writes/reconciliation and
+ADR-008/010/011/012's structured interaction, review and licensing/docs controls.
+If accepted, narrow ADR-003 to local model inference in this release; defer
+ADR-005's broad memory layers and ADR-006's protocol expansion; remove current
+voice priority from ADR-009 while retaining serialized heavy inference.
+Keep the earlier records. This proposal never weakens security/review rules.
+
+**Alternatives:** n8n/Activepieces can support mobile/API integrations, but still
+need custom inbox/auth/state integration. Prefect is credible but not justified
+for the first single-owner slice. Reconsider before custom orchestration expands.
+
+**Consequences:** More initial work than a standalone n8n Gmail flow, but one
+stable client contract and no competing schedules. Limit implementation to R1/R2
+before adding any general framework functionality.
+
 ## ADR template
 
 ```markdown

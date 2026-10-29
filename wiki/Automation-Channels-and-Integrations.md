@@ -1,5 +1,9 @@
 # Automation, Channels, and Integrations
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Deterministic automation first
 
 Schedules, webhooks, retries, branching, and API transformations should be typed

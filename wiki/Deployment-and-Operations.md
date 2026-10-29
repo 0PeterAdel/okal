@@ -1,5 +1,9 @@
 # Deployment and Operations
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 Okal is local-first and operationally boring by design. The default deployment runs on one trusted workstation; remote workers and cloud models are optional extensions with explicit data-routing rules.
 
 ## Supported topologies

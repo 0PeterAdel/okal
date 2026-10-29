@@ -1,5 +1,9 @@
 # Resource and GPU Scheduling
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Resource correctness
 
 Okal plans compute before dispatch. A task that causes OOM, starves voice,

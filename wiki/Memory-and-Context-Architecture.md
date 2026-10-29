@@ -1,5 +1,9 @@
 # Memory and Context Architecture
 
+> Historical design/pilot reference. See the [current reset proposal](Personal-Assistant-Plan)
+> before implementation. This page is not an active backlog or proof of deployment;
+> existing security, privacy and review requirements still apply.
+
 ## Memory is governed state
 
 Okal does not treat a vector database or conversation transcript as “memory.”

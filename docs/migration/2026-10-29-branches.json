@@ -1,0 +1,57 @@
+{
+  "snapshot_date": "2026-10-29",
+  "repository": "0PeterAdel/okal",
+  "main_sha": "a1588a3be8007923d41109c1a7c5469520d21846",
+  "archive_status": "not_created",
+  "deletion_status": "blocked_on_verified_archives_and_owner_local_preflight",
+  "branches": [
+    {
+      "name": "feat/khamsat-autoreply",
+      "head_sha": "a0af47dd3333508f5eab27650a36a50dcbd0aa5a",
+      "pr": 34,
+      "archive_tag": null
+    },
+    {
+      "name": "feat/khamsat-request-scout",
+      "head_sha": "65a888276fb834581e5669b7ad495103f6b84115",
+      "pr": 29,
+      "archive_tag": null
+    },
+    {
+      "name": "feat/local-gmail-digest",
+      "head_sha": "9a0300df1b38c914bbb1686cee5843f8573a88bc",
+      "pr": 33,
+      "archive_tag": null
+    },
+    {
+      "name": "feat/local-x-publisher",
+      "head_sha": "67952469bfe2e9d039246a3da182c115bdff1362",
+      "pr": 31,
+      "archive_tag": null
+    },
+    {
+      "name": "feat/mostaql-proposal-pilot",
+      "head_sha": "5e36bcbfe81fab5d47db9e9a1a73bcd370cb3766",
+      "pr": 22,
+      "archive_tag": null
+    },
+    {
+      "name": "feat/voice-acceptance",
+      "head_sha": "d3595b4dc7a40c030f70090b040e567a6081c08b",
+      "pr": 11,
+      "archive_tag": null
+    },
+    {
+      "name": "feat/voice-stack-v2",
+      "head_sha": "9ed3bee82d352fd9d8ea57ba7ff7e8c019d69c23",
+      "pr": null,
+      "archive_tag": null
+    },
+    {
+      "name": "test/social-evidence-dirty-source",
+      "head_sha": "b886bd05aadf2391f761e7dd23013e70fc7bf2fd",
+      "pr": null,
+      "archive_tag": null
+    }
+  ]
+}
