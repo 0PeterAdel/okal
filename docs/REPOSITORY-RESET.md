@@ -64,10 +64,10 @@ Do not publish credentials from custom local configuration.
 6. Review the explicit deletion list, then delete only validated task branches.
    Never delete main or use broad branch-name globs.
 
-No bulk-deletion script is included. Archive tags/bundles are not claimed to
-exist. Remote deletion is pending these gates. Closing PRs is reversible while
-their branches are preserved. Later record actual archive tags and bundle
-locations beside the snapshot; restore from those verified refs.
+No bulk-deletion script is included. The owner-reported local archive is recorded
+below; no remote archive tags have been verified. Remote deletion is pending
+these gates. Closing PRs is reversible while their branches are preserved.
+Keep private backup locations in the owner's local records, not public uploads.
 
 For example, after local preflight, inspect the retained voice branch:
 
@@ -81,11 +81,61 @@ git log -1 --oneline origin/feat/voice-acceptance
 Do not run old voice/agent installers to install the new center. Inventory exact
 enabled services and Hermes cron entries before replacing them; record restore
 steps. Never disable all services sharing a name prefix. Only stop a replaced
-schedule after its replacement passes and the owner consents.
+schedule after its replacement passes and the owner consents. An explicit owner
+decision to pause a feature without replacement is separate from a successful
+migration; record that distinction and preserve its restore command.
 
 The installation PR must provide idempotent install/upgrade/uninstall,
 backup/restore and boot tests. No home-directory cleanup, token deletion,
 browser-profile migration or model-cache removal is performed by this reset.
+
+## Owner checkpoint: 2026-10-30
+
+Evidence source: terminal output supplied by the owner. This session cannot
+inspect the laptop directly; these are reported results, not independent device
+verification. No private audio, browser profiles or account tokens were uploaded.
+
+| Item | Reported state | Consequence |
+|---|---|---|
+| Git history | Complete bundle verified with `git bundle verify` | Committed history preserved locally |
+| Worktree tips | Nine tags under `archive/20261029-221730/` | Detached tips retained; tags are local |
+| Working trees | No tracked modifications reported across nine worktrees | Not permission to delete ignored/untracked files |
+| Voice experiments | Audio, results, environments and build files remain locally | Separate private-file backup still required |
+| Freelance environment | Main checkout links to the environment inside `okal-freelance-pilot` | Keep both paths unchanged for now |
+| `okal-voice.service` | `inactive`, `dead`, `disabled` | Voice deliberately paused, not replaced by the new core |
+| `voxtype.service` | Active in the earlier inventory; not targeted | Leave the independent dictation service alone |
+| New core/mobile/Gmail | Not implemented or deployed by this reset | No startup or account functionality claimed |
+
+The Git bundle does not contain untracked/ignored files or installed service
+configuration. Do not interpret a clean `git status` as a complete backup.
+Do not move the freelance worktree: the symlink and virtualenv executable paths
+may depend on its current location. Local files remain untouched until an
+explicit protected backup and dependency check are complete.
+
+The owner paused only the exact voice unit with:
+
+```bash
+systemctl --user disable --now okal-voice.service
+```
+
+To restore the old voice service later, after verifying its original paths and
+configuration still exist:
+
+```bash
+systemctl --user enable --now okal-voice.service
+```
+
+### Next gate
+
+1. Review proposed ADR-013 and resolve the applicable human-review policy before
+   merging PR #37. Passing automation is not human approval.
+2. Begin R1 from reviewed `main`, using one implementation task and PR. Deliver
+   only the authenticated durable inbox, mobile-readable shell and service
+   lifecycle; keep real account connections and external writes out of R1.
+3. Prove the R1 lifecycle on the owner laptop, then add the read-only Gmail digest
+   in R2. Do not open parallel voice/social/freelance implementation tracks.
+4. Treat branch/worktree deletion as separate maintenance, not a prerequisite
+   for the first useful workflow. Retained archives do not run agents or services.
 
 ## Review limitations
 
