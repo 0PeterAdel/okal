@@ -1,0 +1,54 @@
+name: Core inbox
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/core/**"
+      - "deploy/okal-core.service"
+      - "scripts/run-okal-core.sh"
+      - "docs/CORE-INBOX.md"
+      - "docs/CORE-DEPENDENCIES.md"
+      - ".github/workflows/core.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/core/**"
+      - "deploy/okal-core.service"
+      - "scripts/run-okal-core.sh"
+      - "docs/CORE-INBOX.md"
+      - "docs/CORE-DEPENDENCIES.md"
+      - ".github/workflows/core.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  core-inbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install hash-locked test dependencies
+        run: python -m pip install --require-hashes -r apps/core/requirements-test.lock
+      - name: Test privacy, persistence and API
+        env:
+          PYTHONPATH: apps/core/src
+        run: python -m unittest discover -s apps/core/tests -v
+      - name: Validate launcher and JavaScript
+        run: |
+          bash -n scripts/run-okal-core.sh
+          shellcheck scripts/run-okal-core.sh
+          node --check apps/core/src/okal_core/static/app.js
+      - name: Verify real process restart
+        env:
+          PYTHONPATH: apps/core/src
+        run: python apps/core/tools/verify_runtime.py

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Okal · مركز يومك</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside aria-label="حالة النظام">
+        <a class="brand" href="/" aria-label="Okal الرئيسية"
+          ><span class="mark">O</span
+          ><span>okal<span class="brand-sub">مساحتك اليومية</span></span></a
+        >
+        <p class="eyebrow">المركز الموحّد</p>
+        <div class="nav-active">◫ <span>صندوق الملخصات</span></div>
+        <div class="roadmap">
+          <p>لاحقًا، خطوة بخطوة</p>
+          <span>البريد والتقويم</span><span>السوشيال والفريلانس</span
+          ><span>الصوت · مؤجّل</span>
+        </div>
+        <div class="local-note">
+          <span class="dot"></span> محلي على جهازك
+          <p>قراءة فقط · بدون تنفيذ أو إرسال</p>
+        </div>
+      </aside>
+      <main>
+        <header>
+          <span class="eyebrow">YOUR DAY, TOGETHER</span
+          ><span id="connection" class="status">غير متصل</span>
+        </header>
+        <section class="intro">
+          <p class="eyebrow">مساحة واحدة. صورة أوضح.</p>
+          <h1>يومك في مكان واحد<span>.</span></h1>
+          <p>
+            ملخصات واضحة، وحالة حقيقية لكل خطوة.<br />البداية صغيرة، وباقي
+            الخدمات تتربط بالتدريج.
+          </p>
+        </section>
+        <div class="notice">
+          <span>R1a</span>
+          <p>
+            نسخة تأسيسية محلية. لا يوجد اتصال بالبريد أو التقويم، ولا نموذج ذكاء
+            اصطناعي شغّال هنا بعد.
+          </p>
+        </div>
+        <section id="login-panel" class="panel" aria-labelledby="login-title">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">وصول خاص</p>
+              <h2 id="login-title">افتح صندوقك</h2>
+            </div>
+            <span class="lock-icon" aria-hidden="true">⌑</span>
+          </div>
+          <p class="muted">
+            استخدم مفتاح القراءة الذي أنشأته محليًا. يظل في ذاكرة الصفحة فقط،
+            ولا نحفظه في المتصفح.
+          </p>
+          <form id="login-form">
+            <label for="token">مفتاح القراءة</label>
+            <div class="input-row">
+              <input
+                id="token"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                required
+                maxlength="100"
+                dir="ltr"
+                placeholder="الصق المفتاح هنا"
+              /><button id="connect" type="submit">فتح الصندوق ←</button>
+            </div>
+          </form>
+          <p class="hint">
+            هذه ليست بيانات حساب Gmail. لا تدخل كلمة مرور أي حساب.
+          </p>
+        </section>
+        <section
+          id="inbox-panel"
+          class="panel"
+          hidden
+          aria-labelledby="inbox-title"
+        >
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">الصورة الكاملة</p>
+              <h2 id="inbox-title">صندوق الملخصات</h2>
+            </div>
+            <div class="actions">
+              <button id="refresh" class="secondary">تحديث</button
+              ><button id="logout" class="quiet">قفل الصندوق</button>
+            </div>
+          </div>
+          <p id="sync" class="muted">لم يتم التحديث بعد</p>
+          <div id="items" class="items"></div>
+          <div id="empty" class="empty" hidden>
+            <span aria-hidden="true">◫</span>
+            <h3>مساحة هادئة، لسه فاضية</h3>
+            <p>
+              لا توجد ملخصات بعد. يمكنك إضافة بيانات عرض محلية من أمر demo؛ لن
+              تقرأ بريدك.
+            </p>
+          </div>
+          <button id="more" class="secondary more" hidden>عرض المزيد</button>
+        </section>
+        <p id="message" role="status" aria-live="polite"></p>
+        <section class="integrations" aria-label="حالة الربط">
+          <div><span>البريد</span><small>غير مربوط</small></div>
+          <div><span>التقويم</span><small>غير مربوط</small></div>
+          <div><span>السوشيال</span><small>غير مربوط</small></div>
+          <div><span>الفريلانس</span><small>غير مربوط</small></div>
+        </section>
+        <footer>
+          <span>بياناتك تفضل عندك.</span
+          ><span>لا مزامنة سحابية · لا إرسال تلقائي</span>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>
