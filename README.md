@@ -1,5 +1,10 @@
 # Okal
 
+Backend-first mail trial: [Gmail runbook](docs/MAIL-BACKEND.md) and
+[upstream/dependency review](docs/MAIL-UPSTREAM-REVIEW.md), tracked in
+[issue #40](https://github.com/0PeterAdel/okal/issues/40). Optional local CLI
+onboarding; no account or sending is enabled by installing this branch.
+
 **One local personal assistant for mail, planning, social content and freelance opportunities.**
 
 Okal is being refocused around daily routines, not a general-purpose AI operating

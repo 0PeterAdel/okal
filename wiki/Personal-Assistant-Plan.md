@@ -156,6 +156,14 @@ Disable only exact replaced legacy schedules after their replacement passes.
 
 ## Delivery order
 
+Owner update (2026-10-30): backend/integrations precede UI/mobile work. Keep the
+current screen as a test client. The mail backend trial in
+[issue #40](https://github.com/0PeterAdel/okal/issues/40) includes the explicit
+unmerged #39 dependency while foundation acceptance is frozen; mail is the only
+active implementation track. No merge bypass is authorized. Phone TLS/pairing
+remains required before any non-loopback exposure, but is not a prerequisite
+for local Gmail implementation. See [mail scope and gates](../docs/MAIL-BACKEND.md).
+
 One active implementation PR at a time. Later rows are backlog, not parallel work.
 
 | Stage | Deliverable | Exit evidence |

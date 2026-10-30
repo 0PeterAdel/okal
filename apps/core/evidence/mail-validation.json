@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-30",
+  "environment": "isolated Linux development host, not owner laptop",
+  "python_versions_tested": ["3.12.14", "3.14.8"],
+  "tests_per_version": 80,
+  "baseline_core_tests": 25,
+  "mail_tests": 55,
+  "test_result": "passed",
+  "mail_provider_and_model_data": "synthetic; mocked transports",
+  "mail_unit_tests_block_socket_connect": true,
+  "real_core_process_restart": "passed on both versions; fixture inbox retained",
+  "runtime_packages_in_mail_lock": 40,
+  "dependency_audit": "pip-audit 2.9.0: no known vulnerabilities found at scan time",
+  "live_google_oauth_tested": false,
+  "live_email_sent": false,
+  "local_model_quality_tested": false,
+  "owner_hardware_performance_measured": false,
+  "human_self_review": "pending",
+  "known_test_warning": "Starlette test client deprecates httpx in favor of httpx2",
+  "scope_note": "Mocked prompt-injection tests prove data/tool boundaries, not factual correctness or immunity to model manipulation."
+}
