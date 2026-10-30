@@ -1,4 +1,4 @@
-"""Loopback-only, read-only API. No model, scheduler or provider is loaded."""
+"""Loopback-only read API. Mail operator actions are CLI-only, never token tools."""
 
 import ipaddress
 from pathlib import Path
@@ -15,8 +15,8 @@ CSP = (
 )
 
 
-def create_app(store: Store, port: int = 8766) -> FastAPI:
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     @app.middleware("http")
@@ -86,13 +86,26 @@ def create_app(store: Store, port: int = 8766) -> FastAPI:
 
     @app.get("/api/v1/capabilities")
     def capabilities():
+        configured = (store.directory / "mail" / "config.json").exists()
+        scheduled = False
+        setup_state = "disabled"
+        if configured:
+            try:
+                from .mail.private import config
+
+                scheduled = config(store).daily_at is not None
+                setup_state = "configured_not_verified"
+            except Exception:
+                setup_state = "invalid_configuration"
         return {
             "schema_version": 1,
             "mode": "local-read-only",
             "permissions": ["inbox:read"],
             "external_writes": False,
-            "providers": [],
-            "scheduler": False,
+            "providers": ["gmail-configured-not-verified"] if configured else [],
+            "scheduler": scheduled,
+            "mail_operator_cli": configured,
+            "scheduler_status": setup_state,
             "remote_pairing": False,
             "voice": False,
         }

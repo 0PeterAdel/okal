@@ -19,6 +19,10 @@ def main():
     parser.add_argument("--state-dir", type=Path, default=default)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    mail = commands.add_parser(
+        "mail", help="optional Gmail backend; explicit local onboarding"
+    )
+    mail.add_argument("mail_args", nargs=argparse.REMAINDER)
     commands.add_parser("demo", help="insert labeled fixtures, never connect to Gmail")
     issue = commands.add_parser(
         "device-add", help="print a read token once; keep it private"
@@ -38,6 +42,10 @@ def main():
         parser.error("port must be between 1024 and 65535")
     try:
         store = Store(args.state_dir)
+        if args.command == "mail":
+            from .mail.cli import main as mail_main
+
+            return mail_main(store, args.mail_args)
         if args.command == "device-add":
             print(
                 json.dumps(store.issue_device(args.name, args.days), ensure_ascii=False)
@@ -80,9 +88,24 @@ def main():
         elif args.command == "serve":
             import uvicorn
             from .api import create_app
+            from contextlib import asynccontextmanager
+
+            @asynccontextmanager
+            async def lifecycle(app):
+                worker = None
+                if (store.directory / "mail" / "config.json").exists():
+                    from .mail.scheduler import Worker
+
+                    worker = Worker(store)
+                    worker.start()
+                try:
+                    yield
+                finally:
+                    if worker:
+                        worker.stop()
 
             uvicorn.run(
-                create_app(store, args.port),
+                create_app(store, args.port, lifespan=lifecycle),
                 host="127.0.0.1",
                 port=args.port,
                 workers=1,
