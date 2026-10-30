@@ -1,0 +1,27 @@
+[Unit]
+Description=Okal local read-only inbox (R1a)
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/okal
+ExecStart=/bin/bash %h/Projects/okal/scripts/run-okal-core.sh serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+StateDirectory=okal-core
+StateDirectoryMode=0700
+Environment=XDG_STATE_HOME=%h/.local/state
+ReadWritePaths=%h/.local/state/okal-core
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=default.target

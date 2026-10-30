@@ -1,0 +1,12 @@
+{
+  "environment": "isolated Linux test host, not owner Omarchy laptop",
+  "data": "fixtures only",
+  "model_loaded": false,
+  "owner_boot_verified": false,
+  "startup_seconds": 0.37,
+  "process_peak_rss_mib": 40.64,
+  "process_cpu_seconds_during_smoke": 0.335,
+  "idle_resources_separately_measured": false,
+  "restart_retains_summaries_and_token": true,
+  "graceful_shutdown": true
+}

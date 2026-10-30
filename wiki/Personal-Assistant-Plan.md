@@ -5,6 +5,13 @@
 No new runtime, startup service, connector or mobile application is implemented
 by this documentation reset.
 
+Implementation checkpoint (2026-10-30): R0 merged via PR #37. The bounded R1a
+trial in [issue #38](https://github.com/0PeterAdel/okal/issues/38) adds a local-only
+inbox, read tokens and responsive shell; see [Core Inbox](../docs/CORE-INBOX.md).
+R1a is not full R1 acceptance: phone TLS/pairing and owner boot/lifecycle tests
+remain pending. The endpoint and dependency proposals below describe the full
+target; the runbook identifies the narrower implemented contract.
+
 ## Scope and authority
 
 One owner, one laptop, one center. Four workflows: mail, planning, social and
