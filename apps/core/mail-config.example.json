@@ -1,0 +1,11 @@
+{
+  "account": "owner@example.com",
+  "model": "REPLACE_WITH_INSTALLED_LOCAL_MODEL_TAG",
+  "model_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "local_only_confirmed": false,
+  "timezone": "Africa/Cairo",
+  "max_messages": 30,
+  "retention_days": 30,
+  "daily_at": null,
+  "send_enabled": false
+}
