@@ -40,6 +40,12 @@
             الخدمات تتربط بالتدريج.
           </p>
         </section>
+        <section class="morning-brief" aria-label="Morning briefing">
+          <p class="eyebrow">YOUR DAILY BRIEF · جاهز للصوت مستقبلًا</p>
+          <h2 id="morning-title">صباحك فل!</h2>
+          <p id="morning-text">ملخص يومك من المهام والرسائل المسجلة محليًا.</p>
+          <p id="morning-status" class="muted">المواعيد من مهامك المؤكدة فقط، والتقويم الخارجي مش مربوط.</p>
+        </section>
         <div class="notice">
           <span>الحالة</span>
           <p id="integration-status" aria-live="polite">
@@ -102,6 +108,14 @@
             </div>
             <p id="triage-note" class="muted">ملخصات الذكاء الاصطناعي اقتراحات للمراجعة، بدون تعديل Gmail أو إرسال تلقائي.</p>
             <div id="triage-groups" class="triage-groups"></div>
+            <div class="trash-request">
+              <button id="trash-selected" class="secondary" type="button" disabled>
+                تجهيز طلب نقل المحدد إلى Trash
+              </button>
+              <span id="trash-count" class="muted">حدد رسائل من للاطلاع · Information (بحد أقصى 20)</span>
+              <p id="trash-help" class="muted">الحذف يتم فقط بعد مراجعة أمر محلي وموافقة صريحة في Terminal. ينقل البريد إلى Gmail Trash القابل للاسترجاع، وليس حذفًا نهائيًا.</p>
+              <code id="trash-command" class="trash-command" hidden></code>
+            </div>
           </section>
           <section class="triage" aria-labelledby="assistant-title">
             <div class="triage-head">

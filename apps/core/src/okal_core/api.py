@@ -39,6 +39,7 @@ def create_app(
     local_read_paths = {
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
+        "/api/v1/morning",
     }
 
     def public_local_read(path, method):
@@ -281,6 +282,13 @@ def create_app(
         except (MailError, ValueError):
             # Do not render potentially unsafe/malformed local rules as success.
             raise HTTPException(422, "local assistant rules or saved evidence invalid") from None
+
+    @app.get("/api/v1/morning")
+    def morning():
+        """Read-only voice-ready briefing, generated locally on dashboard read."""
+        from .morning import morning_brief
+
+        return morning_brief(store)
 
     @app.get("/api/v1/tasks")
     def local_tasks():
