@@ -1,173 +1,233 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <title>Okal · مركز يومك</title>
-    <link rel="stylesheet" href="/style.css" />
-    <script defer src="/app.js"></script>
-  </head>
-  <body>
-    <div class="shell">
-      <aside aria-label="حالة النظام">
-        <a class="brand" href="/" aria-label="Okal الرئيسية"
-          ><span class="mark">O</span
-          ><span>okal<span class="brand-sub">مساحتك اليومية</span></span></a
-        >
-        <p class="eyebrow">المركز الموحّد</p>
-        <div class="nav-active">◫ <span>صندوق الملخصات</span></div>
-        <div class="roadmap">
-          <p>لاحقًا، خطوة بخطوة</p>
-          <span>التقويم</span><span>السوشيال والفريلانس</span
-          ><span>الصوت · مؤجّل</span>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0c111b" />
+  <meta name="description" content="OKAL — مساعد يومك المحلي، البريد والمهام والموجز الصباحي في مكان واحد." />
+  <title>OKAL — مركز يومك</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#inbox-title">اذهب إلى صندوق البريد</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="التنقل الرئيسي">
+      <a class="brand" href="#overview" aria-label="OKAL — الرئيسية">
+        <span class="brand-symbol" aria-hidden="true">
+          <svg viewBox="0 0 36 36" width="36" height="36" fill="none">
+            <rect x="2" y="2" width="32" height="32" rx="11" fill="#77D5C5" />
+            <circle cx="18" cy="18" r="9" stroke="#0B1C23" stroke-width="3.3" />
+            <path d="M18 9V27" stroke="#0B1C23" stroke-width="3.3" />
+          </svg>
+        </span>
+        <span class="brand-name">okal<small>PERSONAL COMMAND CENTER</small></span>
+      </a>
+      <div class="sidebar-label">WORKSPACE</div>
+      <nav class="side-nav" aria-label="صفحات المركز">
+        <a href="#overview" class="nav-item is-current">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+          <span>نظرة عامة</span>
+        </a>
+        <a href="#inbox-title" class="nav-item">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 14h5l2 3h2l2-3h5"/></svg>
+          <span>البريد الوارد</span>
+        </a>
+        <a href="#tasks-title" class="nav-item">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/></svg>
+          <span>المهام</span>
+        </a>
+        <a href="#assistant-title" class="nav-item">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 14 9l6 2-6 2-2 6-2-6-6-2 6-2z"/><path d="m19 17 1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>
+          <span>اقتراحات AI</span>
+        </a>
+        <a href="#summaries-title" class="nav-item">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+          <span>السجل</span>
+        </a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="privacy-panel">
+          <span class="privacy-dot" aria-hidden="true"></span>
+          <div><strong>LOCAL FIRST</strong><small>البيانات على جهازك · بدون مفاتيح للعرض المحلي</small></div>
         </div>
-        <div class="local-note">
-          <span class="dot"></span> محلي على جهازك
-          <p>فتح تلقائي على هذا الجهاز · قراءة فقط · بدون تنفيذ أو إرسال</p>
+        <p>المهام والحذف والإرسال لا تُنفذ تلقائيًا من الواجهة.</p>
+      </div>
+    </aside>
+
+    <div class="workspace" id="overview">
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="breadcrumbs">مساحة العمل <span aria-hidden="true">/</span> Overview</span>
+          <h1>مركز يومك</h1>
         </div>
-      </aside>
-      <main>
-        <header>
-          <span class="eyebrow">YOUR DAY, TOGETHER</span
-          ><span id="connection" class="status">غير متصل</span>
-        </header>
-        <section class="intro">
-          <p class="eyebrow">مساحة واحدة. صورة أوضح.</p>
-          <h1>يومك في مكان واحد<span>.</span></h1>
-          <p>
-            ملخصات واضحة، وحالة حقيقية لكل خطوة.<br />البداية صغيرة، وباقي
-            الخدمات تتربط بالتدريج.
-          </p>
-        </section>
-        <section class="morning-brief" aria-label="Morning briefing">
-          <p class="eyebrow">YOUR DAILY BRIEF · جاهز للصوت مستقبلًا</p>
-          <h2 id="morning-title">صباحك فل!</h2>
-          <p id="morning-text">ملخص يومك من المهام والرسائل المسجلة محليًا.</p>
-          <p id="morning-status" class="muted">المواعيد من مهامك المؤكدة فقط، والتقويم الخارجي مش مربوط.</p>
-        </section>
-        <div class="notice">
-          <span>الحالة</span>
-          <p id="integration-status" aria-live="polite">
-            افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.
-          </p>
+        <div class="topbar-tools">
+          <span id="connection" class="status" role="status">جارٍ الاتصال</span>
+          <button id="refresh" class="icon-action" type="button" aria-label="تحديث البيانات المحلية" title="تحديث البيانات المحلية">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.7 9A7 7 0 0 1 18 6l2 1M4 17l2 1a7 7 0 0 0 12.3-3"/></svg>
+          </button>
+          <button id="logout" class="icon-action" type="button" aria-label="إخفاء العرض الخاص" title="إخفاء العرض">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H5v16h4M14 8l4 4-4 4M9 12h9"/></svg>
+          </button>
         </div>
-        <section id="login-panel" class="panel" hidden aria-labelledby="login-title">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">وصول خاص</p>
-              <h2 id="login-title">افتح صندوقك</h2>
-            </div>
-            <span class="lock-icon" aria-hidden="true">⌑</span>
+      </header>
+      <main id="main-content">
+        <section class="welcome-line" aria-label="مقدمة">
+          <div>
+            <span class="eyebrow">YOUR DAY, IN CONTROL</span>
+            <h2>كل اللي يهمك، من غير دوشة.</h2>
+            <p>متابعة البريد، أولوياتك، ومهامك — في مساحة واحدة هادية.</p>
           </div>
-          <p class="muted">
-            تم تفعيل وضع الحماية بالمفتاح على هذا الجهاز. أدخل مفتاح القراءة
-            المحلي للمتصفح؛ الوضع الافتراضي يفتح تلقائيًا من دون مفتاح.
-          </p>
+          <span class="privacy-tag"><span aria-hidden="true" class="privacy-dot"></span> Core · Offline first</span>
+        </section>
+
+        <section class="morning-brief" aria-labelledby="morning-title">
+          <div class="morning-top">
+            <div class="morning-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            </div>
+            <span class="eyebrow">DAILY BRIEFING <span class="brief-separator">•</span> جاهز للصوت لاحقًا</span>
+          </div>
+          <h2 id="morning-title">صباحك فل!</h2>
+          <p id="morning-text">بيتم تحميل موجز يومك من البيانات المحلية.</p>
+          <div class="morning-footer">
+            <span id="morning-status">موجز من المهام المؤكدة والبريد المحفوظ.</span>
+            <span class="brief-footnote">OKAL CORE</span>
+          </div>
+        </section>
+
+        <section class="stats-row" aria-label="ملخص الحالة">
+          <div class="stat-card">
+            <span class="stat-label">رسائل محفوظة</span>
+            <strong id="stat-mail">—</strong>
+            <small>في آخر عرض محلي</small>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">تحتاج متابعة</span>
+            <strong id="stat-actions">—</strong>
+            <small>اقتراح AI للمراجعة</small>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">مهامي المفتوحة</span>
+            <strong id="stat-tasks">—</strong>
+            <small>مهام وافقت عليها</small>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">مراجعة يدوية</span>
+            <strong id="stat-review">—</strong>
+            <small>رسائل محتاجة فحص</small>
+          </div>
+        </section>
+
+        <section id="login-panel" class="auth-panel" hidden aria-labelledby="login-title">
+          <span class="eyebrow">PROTECTED MODE</span>
+          <h2 id="login-title">الوضع المحمي مفعّل</h2>
+          <p class="muted">مفتاح القراءة مطلوب بس لو فعّلت الوضع المحمي. لا تستخدم كلمة مرور Gmail هنا.</p>
           <form id="login-form">
-            <label for="token">مفتاح القراءة</label>
+            <label for="token">مفتاح القراءة المحلي</label>
             <div class="input-row">
-              <input
-                id="token"
-                type="password"
-                autocomplete="off"
-                spellcheck="false"
-                required
-                maxlength="100"
-                dir="ltr"
-                placeholder="مفتاح الربط لمرة واحدة"
-              /><button id="connect" type="submit">ربط المتصفح وفتح الصندوق ←</button>
+              <input id="token" name="token" type="password" maxlength="100" autocomplete="off" spellcheck="false" required dir="ltr" placeholder="Local read key" />
+              <button id="connect" class="primary-button" type="submit">فتح الصندوق</button>
             </div>
           </form>
-          <p class="hint">
-            هذه ليست بيانات حساب Gmail. لا تدخل كلمة مرور أي حساب.
-          </p>
         </section>
-        <section
-          id="inbox-panel"
-          class="panel"
-          hidden
-          aria-labelledby="inbox-title"
-        >
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">الصورة الكاملة</p>
-              <h2 id="inbox-title">صندوق الملخصات</h2>
-            </div>
-            <div class="actions">
-              <button id="refresh" class="secondary">تحديث</button
-              ><button id="logout" class="quiet">إخفاء العرض</button>
-            </div>
+
+        <div class="notice" aria-label="حالة النظام">
+          <span class="notice-indicator" aria-hidden="true"></span>
+          <div>
+            <strong>حالة المزامنة</strong>
+            <p id="integration-status" aria-live="polite">بيتم قراءة حالة Gmail المحفوظة. فتح الصفحة لا يجلب بريدًا جديدًا.</p>
           </div>
-          <p id="sync" class="muted">لم يتم التحديث بعد</p>
-          <section class="triage" aria-labelledby="triage-title">
-            <div class="triage-head">
-              <div><p class="eyebrow">SMART TRIAGE · محلي</p>
-              <h3 id="triage-title">أهم رسائلك | Your priorities</h3></div>
-              <span id="triage-count" class="triage-count">لا توجد بيانات بعد</span>
-            </div>
-            <p id="triage-note" class="muted">ملخصات الذكاء الاصطناعي اقتراحات للمراجعة، بدون تعديل Gmail أو إرسال تلقائي.</p>
-            <div class="trash-request">
-              <button id="trash-selected" class="secondary" type="button" disabled>
-                تجهيز طلب نقل المحدد إلى Trash
-              </button>
-              <span id="trash-count" class="muted">حدد رسائل من للاطلاع · Information (بحد أقصى 20)</span>
-              <p id="trash-help" class="muted">الحذف يتم فقط بعد مراجعة أمر محلي وموافقة صريحة في Terminal. ينقل البريد إلى Gmail Trash القابل للاسترجاع، وليس حذفًا نهائيًا.</p>
-              <code id="trash-command" class="trash-command" hidden></code>
-            </div>
-            <div id="triage-groups" class="triage-groups"></div>
-          </section>
-          <section class="triage" aria-labelledby="assistant-title">
-            <div class="triage-head">
+        </div>
+
+        <section id="inbox-panel" hidden aria-labelledby="inbox-title">
+          <section class="surface inbox-surface">
+            <div class="surface-header">
               <div>
-                <p class="eyebrow">INBOX ACTIONS · RULES PREVIEW</p>
-                <h3 id="assistant-title">اقتراحات المهام والردود</h3>
+                <span class="eyebrow">SMART INBOX</span>
+                <h2 id="inbox-title">بريدك، مرتب حسب الأهمية</h2>
+                <p id="triage-note" class="muted">اختيارات AI للمراجعة، بدون تنفيذ أو إرسال تلقائي.</p>
               </div>
-              <span id="assistant-count" class="triage-count">لم يتم التحميل</span>
+              <span id="triage-count" class="count-pill">—</span>
             </div>
-            <p id="assistant-note" class="muted">
-              اقتراحات محلية فقط؛ لا مهام أُنشئت في Google Tasks أو Calendar،
-              ولا ردود أُرسلت. راجع الرسالة الأصلية قبل أي قرار.
-            </p>
-            <div id="assistant-groups" class="triage-groups"></div>
-          </section>
-          <section class="triage" aria-labelledby="tasks-title">
-            <div class="triage-head">
-              <div>
-                <p class="eyebrow">LOCAL TASK BOARD · موافقتك أولًا</p>
-                <h3 id="tasks-title">مهامي ومواعيدي</h3>
+            <div class="inbox-controls">
+              <div class="filter-pills" role="group" aria-label="تصفية البريد">
+                <button type="button" class="filter-pill is-active" data-mail-filter="all" aria-pressed="true">الكل</button>
+                <button type="button" class="filter-pill" data-mail-filter="action" aria-pressed="false">يحتاج إجراء</button>
+                <button type="button" class="filter-pill" data-mail-filter="information" aria-pressed="false">للاطلاع</button>
+                <button type="button" class="filter-pill" data-mail-filter="manual_review" aria-pressed="false">مراجعة يدوية</button>
+                <button type="button" class="filter-pill" data-mail-filter="low_priority" aria-pressed="false">لاحقًا</button>
               </div>
-              <span id="tasks-count" class="triage-count">لم يتم التحميل</span>
+              <div class="selection-tools">
+                <button id="select-visible" class="text-button" type="button">تحديد المعروض</button>
+                <button id="clear-selection" class="text-button" type="button">إلغاء التحديد</button>
+              </div>
             </div>
-            <p id="tasks-note" class="muted">
-              مهام محلية أكدتها أنت؛ بدون إنشاء أحداث في Google Calendar.
-              المواعيد المعروضة هي المواعيد التي أدخلتها بنفسك.
-            </p>
-            <div id="tasks-list" class="task-list"></div>
+            <div class="inbox-keyboard-hint" id="selection-hint">Click لتحديد رسالة · Ctrl + Click لإضافة/إزالة · Shift + Click لتحديد نطاق · Ctrl + A لتحديد المعروض · Esc للإلغاء</div>
+            <div class="trash-request" aria-label="مراجعة نقل البريد">
+              <div class="trash-toolbar">
+                <div class="trash-state">
+                  <span id="trash-count" role="status" aria-live="polite">0 رسالة محددة</span>
+                  <small>يمكن نقل رسائل Information المؤهلة فقط، بحد أقصى 20 رسالة</small>
+                </div>
+                <button id="trash-selected" class="danger-outline" type="button" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+                  تجهيز طلب النقل إلى Trash
+                </button>
+              </div>
+              <p id="trash-help" class="toolbar-help">الزر بيجهّز أمر معاينة للـ Terminal فقط؛ لا حذف من المتصفح. النقل إلى Gmail Trash قابل للاسترجاع بعد موافقتك.</p>
+              <code id="trash-command" class="trash-command" hidden dir="ltr"></code>
+            </div>
+            <div id="triage-groups" class="triage-groups" role="listbox" aria-label="قائمة رسائل البريد" aria-multiselectable="true" tabindex="0"></div>
+            <p id="triage-empty" class="empty-state" hidden>مفيش رسائل في القسم ده.</p>
+            <div class="surface-footer" id="triage-footer">
+              <span>كل بيانات البريد هنا محفوظة محليًا. افتح Gmail للتأكد من أي ملخص.</span>
+              <span>READ ONLY · LOCAL VIEW</span>
+            </div>
           </section>
-          <div id="items" class="items"></div>
-          <div id="empty" class="empty" hidden>
-            <span aria-hidden="true">◫</span>
-            <h3>مساحة هادئة، لسه فاضية</h3>
-            <p>
-              لا توجد ملخصات بعد. يمكنك إضافة بيانات عرض محلية من أمر demo؛ لن
-              تقرأ بريدك.
-            </p>
+
+          <div class="two-column">
+            <section class="surface" aria-labelledby="tasks-title">
+              <div class="surface-header">
+                <div><span class="eyebrow">MY TASKS</span><h2 id="tasks-title">مهامي ومواعيدي</h2></div>
+                <span id="tasks-count" class="count-pill">—</span>
+              </div>
+              <p id="tasks-note" class="muted">المواعيد اللي اتأكدت منها محليًا.</p>
+              <div id="tasks-list" class="task-list"></div>
+            </section>
+            <section class="surface" aria-labelledby="assistant-title">
+              <div class="surface-header">
+                <div><span class="eyebrow">AI ASSISTANT</span><h2 id="assistant-title">اقتراحات المتابعة</h2></div>
+                <span id="assistant-count" class="count-pill">—</span>
+              </div>
+              <p id="assistant-note" class="muted">اقتراحات محلية، مش أوامر اتنفذت.</p>
+              <div id="assistant-groups" class="triage-groups assistant-groups"></div>
+            </section>
           </div>
-          <button id="more" class="secondary more" hidden>عرض المزيد</button>
+
+          <section class="surface" aria-labelledby="summaries-title">
+            <div class="surface-header"><div>
+              <span class="eyebrow">ACTIVITY</span>
+              <h2 id="summaries-title">سجل الملخصات</h2>
+              <p id="sync" class="muted">آخر قراءة للملخصات المحفوظة.</p>
+            </div></div>
+            <div id="items" class="items"></div>
+            <div id="empty" class="empty-state" hidden>مفيش ملخصات محفوظة لحد دلوقتي.</div>
+            <button id="more" class="text-button more" type="button" hidden>عرض المزيد من السجل</button>
+          </section>
         </section>
+
         <p id="message" role="status" aria-live="polite"></p>
-        <section class="integrations" aria-label="حالة الربط">
-          <div><span>البريد</span><small id="mail-status">افتح الصندوق لعرض الحالة</small></div>
-          <div><span>التقويم</span><small>غير مربوط</small></div>
-          <div><span>السوشيال</span><small>غير مربوط</small></div>
-          <div><span>الفريلانس</span><small>غير مربوط</small></div>
+        <section class="integrations" aria-label="حالة الخدمات">
+          <div><span class="integration-led"></span><strong>Gmail</strong><small id="mail-status">جارٍ فحص الحالة المحلية</small></div>
+          <div><span class="integration-led inactive"></span><strong>Calendar</strong><small>غير متصل حاليًا</small></div>
+          <div><span class="integration-led inactive"></span><strong>Social</strong><small>غير متصل حاليًا</small></div>
+          <div><span class="integration-led inactive"></span><strong>Freelance</strong><small>غير متصل حاليًا</small></div>
         </section>
-        <footer>
-          <span>الملخصات محفوظة محليًا.</span
-          ><span>جلب Gmail يحتاج الإنترنت · لا إرسال من هذه الواجهة</span>
-        </footer>
+        <footer><span>OKAL · Private by design</span><span>الواجهة قراءة محلية · الأوامر الحساسة بموافقتك فقط</span></footer>
       </main>
     </div>
-  </body>
+  </div>
+</body>
 </html>
