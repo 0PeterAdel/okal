@@ -1,5 +1,9 @@
 # Gmail backend trial
 
+**Unattended incremental sync and one-time dashboard pairing:** see
+[MAIL-HISTORY-SYNC.md](MAIL-HISTORY-SYNC.md) (PR #42, opt-in, draft).
+
+
 Task: [#40](https://github.com/0PeterAdel/okal/issues/40). This branch depends on
 the unmerged foundation PR #39. Do not merge ahead of foundation acceptance.
 The owner requested backend implementation now; #39 is frozen for acceptance,
