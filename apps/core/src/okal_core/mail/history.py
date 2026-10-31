@@ -76,7 +76,11 @@ class HistoryState:
         current = self.current(account)
         last = max(attempted[0] if attempted else 0,
                    current["attempted_at"] if current else 0)
-        return now >= last + POLL_SECONDS
+        # Drain a known multi-batch backlog at the worker's next 30-second
+        # tick, but apply the normal cooldown after any provider/model failure.
+        interval = (30 if current and current["last_result"] == "history_chunk_pending"
+                    and not attempted else POLL_SECONDS)
+        return now >= last + interval
 
     def seen(self, account, ids):
         if not ids:
@@ -293,7 +297,9 @@ def run(store, cfg, api, model):
             try:
                 # A bounded history listing may span several model batches. The
                 # cursor stays unchanged until ALL listed IDs are accounted for.
-                cursor, ids, deleted = api.history_changes(previous, cfg.max_messages * 10)
+                cursor, ids, deleted = api.history_changes(
+                    previous, min(10000, max(2000, cfg.max_messages * 100))
+                )
                 already = state.seen(account, ids)
                 pending_ids = [mid for mid in ids if mid not in already]
                 batch = pending_ids[:cfg.max_messages]
