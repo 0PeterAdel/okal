@@ -61,8 +61,7 @@ function selectInformation(id, modifiers = {}) {
   if (!eligibleVisible.includes(id)) return;
   const additive = !!(modifiers.ctrlKey || modifiers.metaKey);
   const range = !!modifiers.shiftKey && eligibleVisible.includes(selectionAnchor);
-  const next = additive || range && additive
-    ? new Set(selectedInfo) : new Set();
+  const next = additive ? new Set(selectedInfo) : new Set();
   if (range) {
     const begin = eligibleVisible.indexOf(selectionAnchor);
     const end = eligibleVisible.indexOf(id);
@@ -265,7 +264,7 @@ function renderTriage(result, preserve = false) {
         check.checked = selectedInfo.has(item.id);
         check.setAttribute("aria-label", "تحديد للمعاينة: " + item.subject);
         check.addEventListener("click", (event) => event.stopPropagation());
-        check.addEventListener("change", (event) => {
+        check.addEventListener("change", (event = {}) => {
           // The checkbox is an explicit additive control; Shift supports
           // range selection consistently with clicking the row.
           selectInformation(item.id, {
@@ -275,7 +274,7 @@ function renderTriage(result, preserve = false) {
         selection.append(check, text("span", "تحديد للمعاينة فقط"));
         article.append(selection);
         article.addEventListener("click", (event) => {
-          if (event.target === check || event.target === link) return;
+          if (event.target === check || event.target === selection || event.target === link) return;
           selectInformation(item.id, event);
         });
         article.addEventListener("keydown", (event) => {
