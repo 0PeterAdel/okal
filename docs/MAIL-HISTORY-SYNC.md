@@ -11,7 +11,8 @@ history cursor in the SAME private SQLite database as the Core inbox.
 
 On the first scan, capture the mailbox history ID BEFORE a bounded 24-hour
 backfill. On later scans read ALL history pages from the saved cursor. Collect
-new message IDs (filtering out unrelated label-only history events), filter\ncurrent SENT/DRAFT/SPAM/TRASH labels, deduplicate by
+new message IDs (filtering out unrelated label-only history events), filter
+current SENT/DRAFT/SPAM/TRASH labels, deduplicate by
 native Gmail ID, and classify/summarize with the explicitly pinned LOCAL Ollama
 model. The checkpoint, seen-ID tombstones, summary and provenance are recorded
 in one transaction. Errors and interrupted runs NEVER advance the cursor.
@@ -19,7 +20,10 @@ in one transaction. Errors and interrupted runs NEVER advance the cursor.
 Example: a successful scan at noon, a system shutdown until 15:00, then service
 restart. The worker picks up at the last saved cursor and reads newly-added
 messages from the outage. It does not merely fetch messages received during
-the last five minutes. The daily digest scheduler remains separate.\nLarge bounded backlogs are processed in batches at the next worker tick (~30 seconds),\nwith the original cursor retained until all batches finish. After a provider/model\nfailure, a normal ~5-minute cooldown applies instead of rapid retries.
+the last five minutes. The daily digest scheduler remains separate.
+Large bounded backlogs are processed in batches at the next worker tick (~30 seconds),
+with the original cursor retained until all batches finish. After a provider/model
+failure, a normal ~5-minute cooldown applies instead of rapid retries.
 
 If a Gmail history cursor is expired (HTTP 404), the worker captures a fresh
 cursor before scanning visible incoming messages from the last successful
