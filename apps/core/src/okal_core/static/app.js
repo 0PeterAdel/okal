@@ -48,7 +48,17 @@ function renderMailStatus(mail) {
     const sync = mail.sync;
     if (sync?.last_checked) parts.push(`آخر Sync محفوظ: ${new Date(sync.last_checked * 1000).toLocaleString("ar-EG")} — ${sync.last_count} رسالة جديدة.`);
     else parts.push("المزامنة المستمرة مفعّلة بالإعداد، ولم يثبت نجاح دورة بعد.");
-    if (sync?.last_error) parts.push("آخر فحص فشل؛ التقدم السابق محفوظ ولم نفترض التعافي.");
+    if (sync?.last_error === "authorization_required") {
+      parts.push("Google Authorization Required · تحتاج إعادة تفويض Gmail محليًا. لم نفترض أن الاتصال صالح.");
+    } else if (sync?.last_error) {
+      parts.push("آخر فحص فشل؛ التقدم السابق محفوظ ولم نفترض التعافي. استخدم mail sync status وmail doctor.");
+    }
+    if (sync?.last_result === "history_chunk_pending") {
+      parts.push("Catch-up in progress · توجد رسائل إضافية لم تُعالج، والـ History Cursor لم يتقدم عنها.");
+    }
+    if (sync?.last_result === "history_expired_visible_mail_backfill") {
+      parts.push("استُعيد البريد الظاهر بعد انتهاء History Cursor؛ لا يمكن ضمان استرجاع الرسائل المحذوفة.");
+    }
     if (sync?.manual_review_count) parts.push(`${sync.manual_review_count} رسالة تحتاج مراجعة يدوية؛ لم ينجح تحليل محتواها.`);
   }
   parts.push(mail.daily_at
