@@ -2,7 +2,7 @@ name: Core inbox
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/core-mail-backend]
     paths:
       - "apps/core/**"
       - "deploy/okal-core.service"
