@@ -40,7 +40,7 @@ class CoreCase(unittest.TestCase):
         self.device = self.store.issue_device("test browser")
         self.headers = {"Authorization": "Bearer " + self.device["token"]}
         self.client = TestClient(
-            create_app(self.store),
+            create_app(self.store, require_read_key=True),
             base_url="http://127.0.0.1:8766",
             client=("127.0.0.1", 12345),
         )
@@ -290,7 +290,7 @@ class CoreCase(unittest.TestCase):
                 403,
             )
         remote = TestClient(
-            create_app(self.store),
+            create_app(self.store, require_read_key=True),
             base_url="http://127.0.0.1:8766",
             client=("192.168.1.20", 12345),
         )
