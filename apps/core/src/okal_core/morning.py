@@ -4,6 +4,10 @@ No generative inventions, Gmail calls, network, external model requests,
 calendar claims, or writes. Generated on local read when dashboard opens.
 """
 from datetime import datetime, timedelta, timezone
+from html import escape
+import os
+import shutil
+import subprocess
 import json
 from zoneinfo import ZoneInfo
 
@@ -146,3 +150,45 @@ def morning_brief(store):
     info["spoken_text"] = " ".join(sentences)[:1800]
     info["body"] = info["spoken_text"]
     return info
+
+
+def notify_login_once(store):
+    """Optional owner desktop notification, at most one success per Cairo day.
+
+    No arbitrary LLM command execution. All untrusted text is escaped as
+    notification markup, and failures do not claim delivery.
+    """
+    today = datetime.fromtimestamp(int(store.clock()), CAIRO).date().isoformat()
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return {"status": "display_unavailable", "delivered": False}
+    if not shutil.which("notify-send"):
+        return {"status": "notify_send_unavailable", "delivered": False}
+    with store.connect() as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("""CREATE TABLE IF NOT EXISTS morning_notifications (
+            day TEXT PRIMARY KEY,
+            delivered_at INTEGER NOT NULL
+        )""")
+        if db.execute("SELECT 1 FROM morning_notifications WHERE day=?",
+                      (today,)).fetchone():
+            return {"status": "already_delivered_today", "delivered": False}
+        briefing = morning_brief(store)
+        message = escape(briefing["spoken_text"][:700], quote=False)
+        try:
+            process = subprocess.run(
+                ["notify-send", "--app-name=OKAL",
+                 "--expire-time=15000",
+                 "OKAL · موجز يومك", message],
+                check=False, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=8,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return {"status": "notification_transport_failed", "delivered": False}
+        if process.returncode != 0:
+            return {"status": "notification_transport_failed", "delivered": False}
+        db.execute(
+            "INSERT INTO morning_notifications VALUES(?,?)",
+            (today, int(store.clock())),
+        )
+    return {"status": "delivered", "delivered": True,
+            "date": today, "read_only": True}
