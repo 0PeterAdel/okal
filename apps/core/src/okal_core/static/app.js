@@ -49,6 +49,7 @@ function renderMailStatus(mail) {
     if (sync?.last_checked) parts.push(`آخر Sync محفوظ: ${new Date(sync.last_checked * 1000).toLocaleString("ar-EG")} — ${sync.last_count} رسالة جديدة.`);
     else parts.push("المزامنة المستمرة مفعّلة بالإعداد، ولم يثبت نجاح دورة بعد.");
     if (sync?.last_error) parts.push("آخر فحص فشل؛ التقدم السابق محفوظ ولم نفترض التعافي.");
+    if (sync?.manual_review_count) parts.push(`${sync.manual_review_count} رسالة تحتاج مراجعة يدوية؛ لم ينجح تحليل محتواها.`);
   }
   parts.push(mail.daily_at
     ? `الجدولة مفعّلة في الإعداد: ${mail.daily_at} (${mail.timezone})؛ هذا ليس إثباتًا لتشغيل العامل.`
@@ -64,12 +65,13 @@ function renderTriage(result) {
   const groups = el("triage-groups");
   groups.replaceChildren();
   const categories = [
+    ["manual_review", "00", "مراجعة يدوية", "Manual review"],
     ["action", "01", "يحتاج إجراء", "Action required"],
-    ["information", "02", "للإطلاع", "Information"],
+    ["information", "02", "للاطلاع", "Information"],
     ["low_priority", "03", "لاحقًا", "Low priority"],
   ];
   const counts = categories.map(([key]) => result.items.filter((item) => item.category === key).length);
-  el("triage-count").textContent = `${result.items.length} رسالة تم تحليلها سابقًا · ${counts[0]} تحتاج متابعة`;
+  el("triage-count").textContent = `${result.items.length} رسالة مرصودة · ${counts[0]} للمراجعة اليدوية · ${counts[1]} تحتاج متابعة`;
   el("triage-note").textContent = "الترتيب اقتراح AI محلي، وليس دليلًا على أهمية الرسالة أو صحتها. افتح Gmail للتحقق قبل أي قرار.";
   for (let index = 0; index < categories.length; index += 1) {
     const [key, number, arabic, english] = categories[index];
