@@ -91,9 +91,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("width=device-width", self.html)
         self.assertNotIn("innerHTML", self.js)
         self.assertIn("selectedInfo.size", self.js)
-        self.assertIn("No automatic", self.js) if False else None
         self.assertIn("mail trash --ids", self.js)
-        self.assertIn("NoNewPrivileges", "NoNewPrivileges")  # pure no-op sentinel
 
 
 if __name__ == "__main__":
