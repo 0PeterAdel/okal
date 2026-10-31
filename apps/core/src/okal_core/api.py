@@ -216,6 +216,24 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             })
         return {"items": items, "state": "recorded_local_insights"}
 
+    @app.get("/api/v1/mail/assistant")
+    def mail_assistant():
+        """Rule-driven queue from saved evidence only; no provider/model calls."""
+        from .mail.assistant import proposals
+        from .mail.private import config
+        from .mail.contracts import MailError
+
+        try:
+            cfg = config(store)
+        except (MailError, OSError, ValueError):
+            return {"state": "not_configured", "items": [], "counts": {},
+                    "external_writes": False}
+        try:
+            return proposals(store, cfg.account, limit=60)
+        except (MailError, ValueError):
+            # Do not render potentially unsafe/malformed local rules as success.
+            raise HTTPException(422, "local assistant rules or saved evidence invalid") from None
+
     @app.get("/api/v1/summaries")
     def summaries(
         limit: int = Query(20, ge=1, le=100),
