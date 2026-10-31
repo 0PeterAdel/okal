@@ -8,19 +8,111 @@ let controller = null;
 let generation = 0;
 let busy = false;
 const selectedInfo = new Set();
+const selectableNodes = new Map();
+let selectionAnchor = null;
+let eligibleVisible = [];
+let activeMailFilter = "all";
+let savedTriage = null;
+
+const mailCategories = [
+  ["manual_review", "00", "مراجعة يدوية", "Manual review"],
+  ["action", "01", "يحتاج إجراء", "Action required"],
+  ["information", "02", "للاطلاع", "Information"],
+  ["low_priority", "03", "لاحقًا", "Low priority"],
+];
+const protectedLabels = new Set([
+  "SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "IMPORTANT",
+]);
+
+function canSelectInfo(item) {
+  return item && item.category === "information"
+    && typeof item.id === "string"
+    && /^[a-fA-F0-9]{1,64}$/.test(item.id)
+    && Array.isArray(item.labels)
+    && !item.labels.some((label) => protectedLabels.has(label));
+}
 
 function updateTrashSelection() {
   el("trash-count").textContent =
-    `${selectedInfo.size} محدد من Information · آخر خطوة تتطلب موافقتك في Terminal`;
+    `${selectedInfo.size} رسالة محددة · معاينة فقط، التنفيذ يتطلب موافقة في Terminal`;
   el("trash-selected").disabled = selectedInfo.size === 0;
   el("trash-command").hidden = true;
   el("trash-command").textContent = "";
+  for (const [id, nodes] of selectableNodes) {
+    const selected = selectedInfo.has(id);
+    nodes.article.className = `triage-message selectable${selected ? " is-selected" : ""}`;
+    nodes.article.ariaSelected = String(selected);
+    nodes.checkbox.checked = selected;
+  }
+}
+
+function clearMailSelection() {
+  selectedInfo.clear();
+  selectionAnchor = null;
+  updateTrashSelection();
+}
+
+function reportSelectionLimit() {
+  el("trash-help").textContent =
+    "الحد الأقصى 20 رسالة مؤهلة لكل عملية. قلل النطاق قبل طلب معاينة Trash.";
+}
+
+function selectInformation(id, modifiers = {}) {
+  if (!eligibleVisible.includes(id)) return;
+  const additive = !!(modifiers.ctrlKey || modifiers.metaKey);
+  const range = !!modifiers.shiftKey && eligibleVisible.includes(selectionAnchor);
+  const next = additive || range && additive
+    ? new Set(selectedInfo) : new Set();
+  if (range) {
+    const begin = eligibleVisible.indexOf(selectionAnchor);
+    const end = eligibleVisible.indexOf(id);
+    // Shift = replace range; Ctrl+Shift = add range.
+    const incoming = eligibleVisible.slice(Math.min(begin, end), Math.max(begin, end) + 1);
+    for (const mid of incoming) next.add(mid);
+  } else if (additive) {
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectionAnchor = id;
+  } else {
+    next.add(id);
+    selectionAnchor = id;
+  }
+  if (next.size > 20) {
+    reportSelectionLimit();
+    return;
+  }
+  selectedInfo.clear();
+  for (const mid of next) selectedInfo.add(mid);
+  updateTrashSelection();
+}
+
+function selectVisibleInformation() {
+  if (eligibleVisible.length > 20) {
+    reportSelectionLimit();
+    return;
+  }
+  selectedInfo.clear();
+  for (const id of eligibleVisible) selectedInfo.add(id);
+  selectionAnchor = eligibleVisible[0] || null;
+  updateTrashSelection();
 }
 
 
 function resetMailStatus() {
-  selectedInfo.clear();
-  updateTrashSelection();
+  selectableNodes.clear();
+  eligibleVisible = [];
+  savedTriage = null;
+  activeMailFilter = "all";
+  clearMailSelection();
+  for (const [key] of mailCategories) {
+    const button = el("filter-" + key);
+    button.className = "filter-pill";
+    button.ariaPressed = "false";
+  }
+  el("filter-all").className = "filter-pill is-active";
+  el("filter-all").ariaPressed = "true";
+  for (const id of ["stat-mail", "stat-actions", "stat-tasks", "stat-review"])
+    el(id).textContent = "—";
   el("morning-title").textContent = "صباحك فل!";
   el("morning-text").textContent = "افتح OKAL لعرض موجز يومك المحلي.";
   el("morning-status").textContent = "مهام مؤكدة وبريد محفوظ؛ مش متصل بتقويم Google.";
@@ -102,25 +194,33 @@ function renderMailStatus(mail) {
   el("integration-status").textContent = parts.join(" ");
 }
 
-function renderTriage(result) {
+function renderTriage(result, preserve = false) {
   if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
+  savedTriage = result;
   const groups = el("triage-groups");
   groups.replaceChildren();
-  selectedInfo.clear();
-  updateTrashSelection();
-  const categories = [
-    ["manual_review", "00", "مراجعة يدوية", "Manual review"],
-    ["action", "01", "يحتاج إجراء", "Action required"],
-    ["information", "02", "للاطلاع", "Information"],
-    ["low_priority", "03", "لاحقًا", "Low priority"],
-  ];
-  const counts = categories.map(([key]) => result.items.filter((item) => item.category === key).length);
-  el("triage-count").textContent = `${result.items.length} رسالة مرصودة · ${counts[0]} للمراجعة اليدوية · ${counts[1]} تحتاج متابعة`;
-  el("triage-note").textContent = "الترتيب اقتراح AI محلي، وليس دليلًا على أهمية الرسالة أو صحتها. افتح Gmail للتحقق قبل أي قرار.";
-  for (let index = 0; index < categories.length; index += 1) {
-    const [key, number, arabic, english] = categories[index];
+  selectableNodes.clear();
+  eligibleVisible = [];
+  if (!preserve) {
+    selectedInfo.clear();
+    selectionAnchor = null;
+  }
+  const counts = mailCategories.map(([key]) =>
+    result.items.filter((item) => item.category === key).length
+  );
+  el("triage-count").textContent =
+    `${result.items.length} رسالة محفوظة · ${counts[1]} للمتابعة · ${counts[0]} للمراجعة`;
+  el("stat-mail").textContent = String(result.items.length);
+  el("stat-actions").textContent = String(counts[1]);
+  el("stat-review").textContent = String(counts[0]);
+  el("triage-note").textContent =
+    "التصنيف اقتراح من AI المحلي، مش دليل على صحة الرسالة. افتح Gmail للتحقق.";
+  let visibleCount = 0;
+  for (const [key, number, arabic, english] of mailCategories) {
+    if (activeMailFilter !== "all" && key !== activeMailFilter) continue;
     const items = result.items.filter((item) => item.category === key);
     if (!items.length) continue;
+    visibleCount += items.length;
     const column = document.createElement("section");
     column.className = `triage-column triage-${key}`;
     const head = document.createElement("div");
@@ -135,47 +235,70 @@ function renderTriage(result) {
       article.append(text("span", item.sender, "triage-sender"),
         text("h5", item.subject),
         text("p", item.summary, "triage-summary"));
-      if (item.suggested_action) {
-        article.append(text("p", `Next step · ${item.suggested_action}`, "triage-action"));
-      }
-      if (item.has_unread_attachments) {
-        article.append(text("p", "مرفقات لم تُحلَّل · Attachments not reviewed", "triage-warning"));
-      }
+      if (item.suggested_action)
+        article.append(text("p", `Next step · ${item.suggested_action}`,
+          "triage-action"));
+      if (item.has_unread_attachments)
+        article.append(text("p", "مرفقات لم تُراجع · Attachments not reviewed",
+          "triage-warning"));
+
       const link = document.createElement("a");
       link.textContent = "فتح الرسالة الأصلية في Gmail";
       link.href = item.link;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
+      // Never select messages when the user opens the original in Gmail.
+      link.addEventListener("click", (event) => event.stopPropagation());
       article.append(link);
-      if (key === "information" && typeof item.id === "string" &&
-          /^[a-fA-F0-9]{1,64}$/.test(item.id) &&
-          !((item.labels || []).some((v) =>
-            ["SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "IMPORTANT"].includes(v)))) {
+
+      if (canSelectInfo(item)) {
+        eligibleVisible.push(item.id);
+        article.className = "triage-message selectable";
+        article.tabIndex = 0;
+        article.setAttribute("role", "option");
+        article.setAttribute("aria-label", "تحديد رسالة: " + item.subject);
+        article.ariaSelected = "false";
         const selection = document.createElement("label");
         selection.className = "trash-selector";
         const check = document.createElement("input");
         check.type = "checkbox";
-        check.checked = false;
-        check.addEventListener("change", () => {
-          if (check.checked) {
-            if (selectedInfo.size >= 20) {
-              check.checked = false;
-              el("trash-help").textContent = "20 رسالة كحد أقصى في كل طلب.";
-              return;
-            }
-            selectedInfo.add(item.id);
-          } else {
-            selectedInfo.delete(item.id);
-          }
-          updateTrashSelection();
+        check.checked = selectedInfo.has(item.id);
+        check.setAttribute("aria-label", "تحديد للمعاينة: " + item.subject);
+        check.addEventListener("click", (event) => event.stopPropagation());
+        check.addEventListener("change", (event) => {
+          // The checkbox is an explicit additive control; Shift supports
+          // range selection consistently with clicking the row.
+          selectInformation(item.id, {
+            ctrlKey: true, shiftKey: !!event.shiftKey,
+          });
         });
-        selection.append(check, text("span", "اختيار لنقلها إلى Trash"));
+        selection.append(check, text("span", "تحديد للمعاينة فقط"));
         article.append(selection);
+        article.addEventListener("click", (event) => {
+          if (event.target === check || event.target === link) return;
+          selectInformation(item.id, event);
+        });
+        article.addEventListener("keydown", (event) => {
+          if (event.target !== article) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectInformation(item.id, event);
+          }
+        });
+        selectableNodes.set(item.id, {article, checkbox: check});
       }
       column.append(article);
     }
     groups.append(column);
   }
+  // Prevent previously selected hidden or now-protected messages from being
+  // included in a copy-only Trash command after filtering/re-synchronizing.
+  for (const id of [...selectedInfo]) {
+    if (!eligibleVisible.includes(id)) selectedInfo.delete(id);
+  }
+  if (!eligibleVisible.includes(selectionAnchor)) selectionAnchor = null;
+  el("triage-empty").hidden = visibleCount > 0;
+  updateTrashSelection();
 }
 
 function renderAssistant(result) {
@@ -247,6 +370,7 @@ function renderTasks(result) {
   list.replaceChildren();
   el("tasks-count").textContent =
     `${result.total_in_sample} مهمة مفتوحة · ${result.overdue_in_sample || 0} فات موعدها`;
+  el("stat-tasks").textContent = String(result.total_in_sample);
   el("tasks-note").textContent =
     "المواعيد أدخلتها أنت؛ بدون Google Calendar أو تنبيهات نظام مجدولة حتى الآن.";
   for (const item of result.items) {
@@ -458,6 +582,34 @@ el("login-form").addEventListener("submit", async (event) => {
   setBusy(false);
   load(true);
 });
+// Select only eligible, currently displayed Information messages. These
+// shortcuts are scoped to a focused inbox list: never override browser-wide
+// Ctrl+A on other sections, inputs, or pages.
+el("triage-groups").addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    selectVisibleInformation();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    clearMailSelection();
+  }
+});
+for (const filter of ["all", ...mailCategories.map(([key]) => key)]) {
+  el("filter-" + filter).addEventListener("click", () => {
+    activeMailFilter = filter;
+    for (const key of ["all", ...mailCategories.map(([name]) => name)]) {
+      const button = el("filter-" + key);
+      const on = key === filter;
+      button.className = "filter-pill" + (on ? " is-active" : "");
+      button.ariaPressed = String(on);
+    }
+    clearMailSelection();
+    if (savedTriage) renderTriage(savedTriage, true);
+  });
+}
+el("select-visible").addEventListener("click", () => selectVisibleInformation());
+el("clear-selection").addEventListener("click", () => clearMailSelection());
+
 el("trash-selected").addEventListener("click", async () => {
   const ids = [...selectedInfo].filter((mid) => /^[a-fA-F0-9]{1,64}$/.test(mid));
   if (!ids.length || ids.length > 20) return;
