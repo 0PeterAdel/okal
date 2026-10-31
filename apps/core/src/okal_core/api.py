@@ -285,10 +285,10 @@ def create_app(
 
     @app.get("/api/v1/morning")
     def morning():
-        """Read-only voice-ready briefing, generated locally on dashboard read."""
-        from .morning import morning_brief
+        """Read-only cached AI morning view; NEVER invokes Ollama on HTTP GET."""
+        from .morning_ai import view
 
-        return morning_brief(store)
+        return view(store)
 
     @app.get("/api/v1/tasks")
     def local_tasks():
