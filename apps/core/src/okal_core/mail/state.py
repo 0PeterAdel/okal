@@ -286,6 +286,22 @@ class MailState:
             for run in ids:
                 db.execute("DELETE FROM summaries WHERE run_id=?", (run,))
                 db.execute("DELETE FROM runs WHERE id=?", (run,))
+            # Only old history-generated summaries and message metadata are pruned.
+            # Keep mail_sync_seen and the last committed history cursor for idempotency.
+            tables = {r[0] for r in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+            history_ids = []
+            if "mail_sync_insights" in tables:
+                history_ids = [r[0] for r in db.execute(
+                    "SELECT id FROM runs WHERE workflow='mail' "
+                    "AND occurrence LIKE 'gmail-history:%' AND created_at<?",
+                    (before,),
+                )]
+                for rid in history_ids:
+                    db.execute("DELETE FROM mail_sync_insights WHERE run_id=?", (rid,))
+                    db.execute("DELETE FROM summaries WHERE run_id=?", (rid,))
+                    db.execute("DELETE FROM runs WHERE id=?", (rid,))
             # Keep the job idempotency tombstone, so pruning cannot republish the interval.
             deleted = db.execute(
                 "DELETE FROM mail_sources WHERE job_id IN (SELECT id FROM mail_jobs WHERE updated<?)",
@@ -293,6 +309,7 @@ class MailState:
             ).rowcount
         return {
             "source_rows_deleted": deleted,
+            "history_briefings_deleted": len(history_ids),
             "inbox_digests_deleted": len(ids),
             "job_tombstones_and_send_receipts_retained": True,
         }
