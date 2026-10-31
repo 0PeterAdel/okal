@@ -711,8 +711,7 @@ class LocalInferenceTests(unittest.TestCase):
                 }
                 data.update(change or {})
                 return httpx.Response(200, json={"models": [data]})
-            answer = output or {
-                "source_id": "ab",
+            answer = output if output is not None else {
                 "category": "action",
                 "summary": "راجع الرسالة",
                 "suggested_action": "",
@@ -734,8 +733,26 @@ class LocalInferenceTests(unittest.TestCase):
         payload = json.loads(self.calls[-1].content)
         self.assertNotIn("tools", payload)
         self.assertEqual(payload["format"]["additionalProperties"], False)
+        self.assertNotIn("source_id", payload["format"]["properties"])
+        self.assertNotIn("source_id", json.loads(payload["messages"][1]["content"]))
+        self.assertEqual(set(payload["format"]["properties"]),
+                         {"category", "summary", "suggested_action"})
         self.assertEqual(payload["keep_alive"], 0)
         self.assertTrue(all(r.url.host == "127.0.0.1" for r in self.calls))
+
+    def test_provider_owned_source_cannot_be_changed_by_model_output(self):
+        model = self.model(output={
+            "category": "information",
+            "summary": "A concise safe summary",
+            "suggested_action": "",
+        })
+        try:
+            result = model.summarize(message())
+            self.assertEqual(result.source_id, "ab")
+            self.assertEqual(result.category, "information")
+            self.assertEqual(result.summary, "A concise safe summary")
+        finally:
+            model.close()
 
     def test_remote_changed_or_unknown_format_models_denied_before_prompt(self):
         for change in (
@@ -773,7 +790,6 @@ class LocalInferenceTests(unittest.TestCase):
     def test_length_stop_is_rejected_even_with_parseable_content(self):
         valid = json.dumps(
             {
-                "source_id": "ab",
                 "category": "action",
                 "summary": "Review",
                 "suggested_action": "",
