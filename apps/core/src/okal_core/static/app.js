@@ -7,8 +7,20 @@ let cursor = null;
 let controller = null;
 let generation = 0;
 let busy = false;
+const selectedInfo = new Set();
+
+function updateTrashSelection() {
+  el("trash-count").textContent =
+    `${selectedInfo.size} محدد من Information · آخر خطوة تتطلب موافقتك في Terminal`;
+  el("trash-selected").disabled = selectedInfo.size === 0;
+  el("trash-command").hidden = true;
+  el("trash-command").textContent = "";
+}
+
 
 function resetMailStatus() {
+  selectedInfo.clear();
+  updateTrashSelection();
   el("morning-title").textContent = "صباحك فل!";
   el("morning-text").textContent = "افتح OKAL لعرض موجز يومك المحلي.";
   el("morning-status").textContent = "مهام مؤكدة وبريد محفوظ؛ مش متصل بتقويم Google.";
@@ -94,6 +106,8 @@ function renderTriage(result) {
   if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
   const groups = el("triage-groups");
   groups.replaceChildren();
+  selectedInfo.clear();
+  updateTrashSelection();
   const categories = [
     ["manual_review", "00", "مراجعة يدوية", "Manual review"],
     ["action", "01", "يحتاج إجراء", "Action required"],
@@ -133,6 +147,31 @@ function renderTriage(result) {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       article.append(link);
+      if (key === "information" && typeof item.id === "string" &&
+          /^[a-fA-F0-9]{1,64}$/.test(item.id) &&
+          !((item.labels || []).some((v) =>
+            ["SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "IMPORTANT"].includes(v)))) {
+        const selection = document.createElement("label");
+        selection.className = "trash-selector";
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = false;
+        check.addEventListener("change", () => {
+          if (check.checked) {
+            if (selectedInfo.size >= 20) {
+              check.checked = false;
+              el("trash-help").textContent = "20 رسالة كحد أقصى في كل طلب.";
+              return;
+            }
+            selectedInfo.add(item.id);
+          } else {
+            selectedInfo.delete(item.id);
+          }
+          updateTrashSelection();
+        });
+        selection.append(check, text("span", "اختيار لنقلها إلى Trash"));
+        article.append(selection);
+      }
       column.append(article);
     }
     groups.append(column);
@@ -418,6 +457,24 @@ el("login-form").addEventListener("submit", async (event) => {
   }
   setBusy(false);
   load(true);
+});
+el("trash-selected").addEventListener("click", async () => {
+  const ids = [...selectedInfo].filter((mid) => /^[a-fA-F0-9]{1,64}$/.test(mid));
+  if (!ids.length || ids.length > 20) return;
+  const command =
+    "bash scripts/run-okal-core.sh mail trash --ids " + ids.join(" ");
+  el("trash-command").hidden = false;
+  el("trash-command").textContent = command;
+  el("trash-help").textContent =
+    "الأمر مجرد معاينة. انسخه للـ Terminal ثم راجع العناوين. للتنفيذ أضف --apply ووافِق على كل الرسائل. لا حذف من المتصفح.";
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(command);
+      el("trash-count").textContent = "تم نسخ أمر المعاينة فقط · راجعه محليًا";
+    } catch (_) {
+      // Command is displayed for manual copy; don't claim clipboard success.
+    }
+  }
 });
 el("refresh").addEventListener("click", () => load(true));
 el("more").addEventListener("click", () => load(false));
