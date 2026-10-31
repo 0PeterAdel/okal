@@ -8,19 +8,84 @@ let controller = null;
 let generation = 0;
 let busy = false;
 const selectedInfo = new Set();
+let selectableInfoIds = [];
+let selectionAnchor = null;
+const informationRows = new Map();
 
 function updateTrashSelection() {
   el("trash-count").textContent =
-    `${selectedInfo.size} محدد من Information · آخر خطوة تتطلب موافقتك في Terminal`;
+    `${selectedInfo.size} من ${selectableInfoIds.length} رسالة محددة (الحد الأقصى 20)`;
   el("trash-selected").disabled = selectedInfo.size === 0;
+  el("clear-selection").disabled = selectedInfo.size === 0;
+  el("select-all-info").disabled = selectableInfoIds.length === 0 ||
+    selectedInfo.size === Math.min(20, selectableInfoIds.length);
+  // Any edit invalidates the previously copied approval preview.
   el("trash-command").hidden = true;
   el("trash-command").textContent = "";
+  for (const [mid, entry] of informationRows) {
+    const active = selectedInfo.has(mid);
+    entry.article.className =
+      "triage-message is-selectable" + (active ? " is-selected" : "");
+    entry.checkbox.checked = active;
+    entry.checkbox.setAttribute("aria-checked", String(active));
+    entry.article.setAttribute("data-selected", String(active));
+  }
+}
+
+function clearInformationSelection() {
+  selectedInfo.clear();
+  selectionAnchor = null;
+  updateTrashSelection();
+}
+
+function commitSelection(next) {
+  if (next.size > 20) {
+    el("trash-help").textContent =
+      "لا يمكن تحديد أكثر من 20 رسالة مرة واحدة. قلّل النطاق أو استخدم دفعات.";
+    updateTrashSelection();
+    return false;
+  }
+  selectedInfo.clear();
+  for (const mid of next) selectedInfo.add(mid);
+  el("trash-help").textContent =
+    "حدد الرسائل ثم راجع أمر النقل محليًا. النقل إلى Trash قابل للاسترجاع، مش حذف نهائي.";
+  updateTrashSelection();
+  return true;
+}
+
+function chooseInformation(mid, modifiers = {}, checkboxToggle = false) {
+  const index = selectableInfoIds.indexOf(mid);
+  if (index < 0) return false;
+  const additive = Boolean(modifiers.ctrlKey || modifiers.metaKey);
+  const shift = Boolean(modifiers.shiftKey);
+  const next = (additive || checkboxToggle) ? new Set(selectedInfo) : new Set();
+  if (shift && selectionAnchor && selectableInfoIds.includes(selectionAnchor)) {
+    const start = selectableInfoIds.indexOf(selectionAnchor);
+    const from = Math.min(start, index), to = Math.max(start, index);
+    for (let i = from; i <= to; i += 1) next.add(selectableInfoIds[i]);
+  } else if (additive || checkboxToggle) {
+    if (next.has(mid)) next.delete(mid);
+    else next.add(mid);
+  } else {
+    next.add(mid);
+  }
+  if (commitSelection(next)) {
+    if (!shift || selectionAnchor === null) selectionAnchor = mid;
+    return true;
+  }
+  return false;
 }
 
 
 function resetMailStatus() {
   selectedInfo.clear();
+  selectionAnchor = null;
+  selectableInfoIds = [];
+  informationRows.clear();
   updateTrashSelection();
+  el("metric-mail").textContent = "—";
+  el("metric-tasks").textContent = "—";
+  el("metric-action").textContent = "—";
   el("morning-title").textContent = "صباحك فل!";
   el("morning-text").textContent = "افتح OKAL لعرض موجز يومك المحلي.";
   el("morning-status").textContent = "مهام مؤكدة وبريد محفوظ؛ مش متصل بتقويم Google.";
@@ -103,10 +168,14 @@ function renderMailStatus(mail) {
 }
 
 function renderTriage(result) {
-  if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
+  if (!result || !Array.isArray(result.items))
+    throw new Error("invalid triage payload");
   const groups = el("triage-groups");
   groups.replaceChildren();
   selectedInfo.clear();
+  informationRows.clear();
+  selectableInfoIds = [];
+  selectionAnchor = null;
   updateTrashSelection();
   const categories = [
     ["manual_review", "00", "مراجعة يدوية", "Manual review"],
@@ -114,15 +183,30 @@ function renderTriage(result) {
     ["information", "02", "للاطلاع", "Information"],
     ["low_priority", "03", "لاحقًا", "Low priority"],
   ];
-  const counts = categories.map(([key]) => result.items.filter((item) => item.category === key).length);
-  el("triage-count").textContent = `${result.items.length} رسالة مرصودة · ${counts[0]} للمراجعة اليدوية · ${counts[1]} تحتاج متابعة`;
-  el("triage-note").textContent = "الترتيب اقتراح AI محلي، وليس دليلًا على أهمية الرسالة أو صحتها. افتح Gmail للتحقق قبل أي قرار.";
+  const eligible = (item) => (
+    item && item.category === "information" &&
+    typeof item.id === "string" && /^[a-fA-F0-9]{1,64}$/.test(item.id) &&
+    Array.isArray(item.labels) &&
+    !item.labels.some((v) =>
+      ["SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "IMPORTANT"].includes(v))
+  );
+  const counts = categories.map(([key]) =>
+    result.items.filter((item) => item.category === key).length);
+  el("triage-count").textContent =
+    `${result.items.length} رسالة · ${counts[1]} تحتاج إجراء · ${counts[0]} مراجعة يدوية`;
+  el("triage-note").textContent =
+    "اقتراحات AI للعرض والمراجعة، وليست تأكيدًا لصحة الرسالة. افتح Gmail للتحقق.";
+  el("metric-mail").textContent = String(result.items.length);
+  el("metric-action").textContent = String(counts[0] + counts[1]);
   for (let index = 0; index < categories.length; index += 1) {
     const [key, number, arabic, english] = categories[index];
     const items = result.items.filter((item) => item.category === key);
     if (!items.length) continue;
     const column = document.createElement("section");
     column.className = `triage-column triage-${key}`;
+    if (key === "information") {
+      column.setAttribute("aria-label", "Information messages — select with Click, Ctrl, or Shift");
+    }
     const head = document.createElement("div");
     head.className = "triage-column-head";
     head.append(text("span", number, "triage-number"),
@@ -136,10 +220,13 @@ function renderTriage(result) {
         text("h5", item.subject),
         text("p", item.summary, "triage-summary"));
       if (item.suggested_action) {
-        article.append(text("p", `Next step · ${item.suggested_action}`, "triage-action"));
+        article.append(text("p", `Next step · ${item.suggested_action}`,
+          "triage-action"));
       }
       if (item.has_unread_attachments) {
-        article.append(text("p", "مرفقات لم تُحلَّل · Attachments not reviewed", "triage-warning"));
+        article.append(text("p",
+          "مرفقات لم تُحلَّل · Attachments not reviewed",
+          "triage-warning"));
       }
       const link = document.createElement("a");
       link.textContent = "فتح الرسالة الأصلية في Gmail";
@@ -147,35 +234,57 @@ function renderTriage(result) {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       article.append(link);
-      if (key === "information" && typeof item.id === "string" &&
-          /^[a-fA-F0-9]{1,64}$/.test(item.id) &&
-          !((item.labels || []).some((v) =>
-            ["SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "IMPORTANT"].includes(v)))) {
+      if (eligible(item) && !informationRows.has(item.id)) {
         const selection = document.createElement("label");
         selection.className = "trash-selector";
         const check = document.createElement("input");
         check.type = "checkbox";
         check.checked = false;
-        check.addEventListener("change", () => {
-          if (check.checked) {
-            if (selectedInfo.size >= 20) {
-              check.checked = false;
-              el("trash-help").textContent = "20 رسالة كحد أقصى في كل طلب.";
-              return;
-            }
-            selectedInfo.add(item.id);
-          } else {
-            selectedInfo.delete(item.id);
+        check.setAttribute("aria-label",
+          `اختيار رسالة للاطلاع: ${String(item.subject).slice(0, 120)}`);
+        // Native checkbox remains usable for touch, keyboard and screen readers.
+        check.addEventListener("click", (event) => {
+          if (event?.shiftKey) {
+            event.preventDefault();
+            event.stopPropagation();
+            chooseInformation(item.id, event);
           }
-          updateTrashSelection();
         });
-        selection.append(check, text("span", "اختيار لنقلها إلى Trash"));
+        check.addEventListener("change", () => {
+          // For native checkboxes, change toggles just this source ID;
+          // ctrl/shift desktop range gestures are also offered on the row.
+          const shouldSelect = check.checked;
+          const next = new Set(selectedInfo);
+          if (shouldSelect) next.add(item.id);
+          else next.delete(item.id);
+          if (commitSelection(next)) selectionAnchor = item.id;
+        });
+        selection.append(check, text("span", "تحديد الرسالة"));
         article.append(selection);
+        article.className = "triage-message is-selectable";
+        article.tabIndex = 0;
+        article.setAttribute("aria-label",
+          `رسالة للاطلاع: ${String(item.subject).slice(0, 120)}. Click أو Ctrl أو Shift للتحديد.`);
+        article.addEventListener("click", (event) => {
+          // Opening original mail or clicking the native checkbox must not
+          // accidentally select the entire message.
+          if (event?.target?.closest?.("a, label, input, button")) return;
+          chooseInformation(item.id, event);
+        });
+        article.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          if (event?.target?.closest?.("a, label, input, button")) return;
+          event.preventDefault();
+          chooseInformation(item.id, event);
+        });
+        selectableInfoIds.push(item.id);
+        informationRows.set(item.id, {article, checkbox:check});
       }
       column.append(article);
     }
     groups.append(column);
   }
+  updateTrashSelection();
 }
 
 function renderAssistant(result) {
@@ -247,6 +356,7 @@ function renderTasks(result) {
   list.replaceChildren();
   el("tasks-count").textContent =
     `${result.total_in_sample} مهمة مفتوحة · ${result.overdue_in_sample || 0} فات موعدها`;
+  el("metric-tasks").textContent = String(result.total_in_sample);
   el("tasks-note").textContent =
     "المواعيد أدخلتها أنت؛ بدون Google Calendar أو تنبيهات نظام مجدولة حتى الآن.";
   for (const item of result.items) {
@@ -458,8 +568,34 @@ el("login-form").addEventListener("submit", async (event) => {
   setBusy(false);
   load(true);
 });
+el("clear-selection").addEventListener("click", () => clearInformationSelection());
+el("select-all-info").addEventListener("click", () => {
+  const next = new Set(selectableInfoIds.slice(0, 20));
+  if (commitSelection(next)) selectionAnchor = selectableInfoIds[0] || null;
+});
+document.addEventListener("keydown", (event) => {
+  // Only intercept Ctrl/Cmd+A when focus is inside the Information group,
+  // not in the entire document or an editable field.
+  const inside = event.target?.closest?.(".triage-information");
+  if (inside && (event.ctrlKey || event.metaKey) &&
+      event.key?.toLowerCase() === "a") {
+    event.preventDefault();
+    const next = new Set(selectableInfoIds.slice(0, 20));
+    if (commitSelection(next)) selectionAnchor = selectableInfoIds[0] || null;
+  }
+  if (inside && event.key === "Escape") clearInformationSelection();
+});
+try {
+  el("current-date").textContent = new Intl.DateTimeFormat("ar-EG", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+    timeZone: "Africa/Cairo",
+  }).format(new Date());
+} catch (_) {
+  el("current-date").textContent = "Your local command center";
+}
+
 el("trash-selected").addEventListener("click", async () => {
-  const ids = [...selectedInfo].filter((mid) => /^[a-fA-F0-9]{1,64}$/.test(mid));
+  const ids = selectableInfoIds.filter((mid) => selectedInfo.has(mid));
   if (!ids.length || ids.length > 20) return;
   const command =
     "bash scripts/run-okal-core.sh mail trash --ids " + ids.join(" ");
