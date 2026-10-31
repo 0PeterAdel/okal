@@ -478,3 +478,33 @@ footer {
     flex-wrap: wrap;
   }
 }
+
+/* Structured Gmail briefing. Untrusted message content is inserted as text only. */
+.triage { border: 1px solid var(--line); border-radius: 14px; padding: 20px;
+  margin: 22px 0 8px; background: #111d16; }
+.triage-head { display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap; }
+.triage-head h3 { font-size: 20px; line-height: 1.5; margin: 4px 0 8px; }
+.triage-count { font-size: 12px; color: var(--accent); padding: 8px 12px;
+  border: 1px solid #465b3d; border-radius: 25px; }
+.triage-groups { display: grid; gap: 14px; grid-template-columns: repeat(3,minmax(0,1fr));
+  margin-top: 18px; }
+.triage-column { min-width: 0; border-radius: 12px; border: 1px solid var(--line);
+  background: #17231b; padding: 14px; }
+.triage-column-head { display: flex; align-items: center; gap: 9px;
+  border-bottom: 1px solid var(--line); padding-bottom: 13px; }
+.triage-column-head h4 { flex: 1; font-size: 13px; margin: 0; }
+.triage-number { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.triage-message { margin-top: 13px; overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--line); padding-bottom: 13px; }
+.triage-message:last-child { border-bottom: 0; }
+.triage-sender { font-size: 11px; color: var(--muted); }
+.triage-message h5 { margin: 7px 0; font-size: 14px; line-height: 1.45; }
+.triage-message p { font-size: 12px; line-height: 1.75; margin: 7px 0; }
+.triage-message a { display: inline-block; color: var(--accent);
+  font-size: 12px; margin-top: 5px; }
+.triage-warning { color: var(--orange); }
+.triage-action { color: var(--accent); background: #223526;
+  padding: 6px 10px; border-radius: 7px; }
+@media (max-width: 1000px) { .triage-groups { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .triage { padding: 14px; } .triage-head h3 { font-size: 17px; } }
