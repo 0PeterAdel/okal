@@ -77,11 +77,14 @@ test("local dashboard auto-opens without a key and uses only local read endpoint
       ? { items: [], next_cursor: null, fetched_at: 100 }
       : url === "/api/v1/mail/assistant"
         ? { items: [], counts: {}, total_in_sample: 0, state: "local_suggestion_preview" }
-        : { mail: configured });
+        : url === "/api/v1/tasks"
+          ? { items: [], total_in_sample: 0, overdue_in_sample: 0 }
+          : { mail: configured });
   });
   await context.load(true);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.equal(calls[2], "/api/v1/mail/assistant");
+  assert.equal(calls[3], "/api/v1/tasks");
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
   assert.equal(get("inbox-panel").hidden, false);
   assert.equal(get("login-panel").hidden, true);
@@ -157,6 +160,25 @@ test("inbox action preview is owner-only text, never executes email payload", ()
   assert.equal(get("assistant-groups").children.length, 0);
 });
 
+test("approved local tasks render dates and untrusted titles as text", () => {
+  const { context, get } = harness();
+  context.renderTasks({
+    items: [{
+      title: "<svg onload=alert(1)>",
+      due_at: 1800000000,
+      source_link: "https://mail.google.com/mail/#all/ab",
+    }],
+    total_in_sample: 1, overdue_in_sample: 0,
+  });
+  assert.equal(get("tasks-list").children.length, 1);
+  const row = get("tasks-list").children[0];
+  assert.equal(row.children[0].textContent, "<svg onload=alert(1)>");
+  assert.match(row.children[1].textContent, /الموعد المؤكد/);
+  assert.equal(row.children.at(-1).href,
+               "https://mail.google.com/mail/#all/ab");
+  context.lock();
+  assert.equal(get("tasks-list").children.length, 0);
+});
 test("OAuth reauthorization and unfinished catch-up have distinct honest labels", () => {
   const { context, get } = harness();
   context.renderMailStatus({
