@@ -4,6 +4,8 @@ Owner selects exact known message IDs; preview is read-only. Applying requires
 an interactive terminal and a fresh exact confirmation digest. Local operation
 ledger prevents silent duplicate writes after an ambiguous Gmail response.
 """
+from email.message import Message as HeaderMessage
+from email import policy
 from hashlib import sha256
 import json
 import re
@@ -83,8 +85,13 @@ def _native(api, mid, saved):
         h["value"] for h in row.get("payload", {}).get("headers", [])
         if h.get("name", "").casefold() == "subject"
     ]
+    decoded = (
+        str(HeaderMessage(policy=policy.default).policy.header_fetch_parse(
+            "subject", subjects[0]
+        )) if len(subjects) == 1 and isinstance(subjects[0], str) else None
+    )
     if (row.get("id") != mid or labels & EXCLUDED or len(subjects) != 1
-            or subjects[0] != saved["subject"]):
+            or decoded != saved["subject"]):
         raise MailError("trash_native_metadata_changed_or_protected")
     return labels
 
@@ -119,6 +126,9 @@ def apply(store, cfg, api, selected_ids, expected_digest):
     done = []
     for item in approval["items"]:
         mid = item["id"]
+        # Other clients may change Gmail labels between batch preview and
+        # this individual call; fail closed if source is no longer eligible.
+        _native(api, mid, _read_record(store, cfg.account.casefold(), mid))
         # Write an attempt tombstone BEFORE the provider call. If the client
         # crashes or Gmail fails ambiguously, never send the write again.
         with store.connect() as db, db:
