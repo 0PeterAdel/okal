@@ -10,8 +10,8 @@ from okal_core.api import create_app
 from okal_core.store import Store
 from okal_core.mail.contracts import Config, Insight, Message, MailError
 from okal_core.mail.history import HistoryState, run, local_status
-from okal_core.mail.private import root, write_private
-from okal_core.mail.provider import Gmail
+from okal_core.mail.private import root, write_private, read_private
+from okal_core.mail.provider import Gmail, READ, GoogleTransport
 from okal_core.mail.scheduler import Worker
 
 
@@ -221,6 +221,8 @@ class HistoryTests(unittest.TestCase):
         worker.tick()
         self.assertEqual(local_status(self.store, self.cfg.account)["state"],
                          "failed_last_attempt")
+        self.assertEqual(local_status(self.store, self.cfg.account)["last_error"],
+                         "authorization_required")
 
     def test_provider_history_pages_and_budgets(self):
         service = MagicMock()
@@ -241,6 +243,77 @@ class HistoryTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(MailError, "budget"):
             Gmail(service).history_changes("100", 1)
+
+    def test_refresh_token_rotation_persisted_and_retained(self):
+        class FakeCred:
+            valid = False
+
+            def __init__(self):
+                self.token = "short-lived-access-token"
+                self.refresh_token = "refresh-rotated"
+
+            def refresh(self, request):
+                self.token = "new-access-token"
+
+            def to_json(self):
+                import json
+                return json.dumps({
+                    "token": self.token,
+                    # Simulate a library/token endpoint that omits refresh_token
+                    # when only the access credential is rotated.
+                    "refresh_token": None,
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "scopes": [READ],
+                    "client_id": "synthetic",
+                    "client_secret": "synthetic",
+                })
+
+        path = root(self.store) / "token.json"
+        write_private(path, {
+            "scopes": [READ],
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "refresh_token": "original-refresh",
+            "token": "old-access",
+            "client_id": "synthetic", "client_secret": "synthetic",
+        })
+        cred = FakeCred()
+        provider = MagicMock()
+        with patch("google.oauth2.credentials.Credentials.from_authorized_user_info",
+                   return_value=cred), patch.object(
+                       Gmail, "from_credentials", return_value=provider):
+            self.assertIs(Gmail.open(self.store, self.cfg), provider)
+        saved = read_private(path)
+        self.assertEqual(saved["token"], "new-access-token")
+        self.assertEqual(saved["refresh_token"], "original-refresh")
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_transport_persists_credential_after_before_request_refresh(self):
+        import httpx
+
+        class FakeCred:
+            token = "old"
+
+            def before_request(self, request, method, uri, headers):
+                self.token = "renewed"
+                headers["Authorization"] = "Bearer renewed"
+
+        persisted = []
+        client = httpx.Client(transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json={"historyId": "100"})
+        ), trust_env=False)
+        credential = FakeCred()
+        transport = GoogleTransport(
+            credential, client=client, persist=lambda cred: persisted.append(cred.token)
+        )
+        try:
+            response, payload = transport.request(
+                "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+            )
+        finally:
+            transport.close()
+        self.assertEqual(int(response.status), 200)
+        self.assertIn(b"100", payload)
+        self.assertEqual(persisted, ["renewed"])
 
     def test_authenticated_structured_triage_no_provider_access(self):
         run(self.store, self.cfg, self.api, self.model)
