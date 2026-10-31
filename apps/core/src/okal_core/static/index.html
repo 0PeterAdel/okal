@@ -24,7 +24,7 @@
         </div>
         <div class="local-note">
           <span class="dot"></span> محلي على جهازك
-          <p>هذه الواجهة للقراءة فقط · بدون تنفيذ أو إرسال</p>
+          <p>فتح تلقائي على هذا الجهاز · قراءة فقط · بدون تنفيذ أو إرسال</p>
         </div>
       </aside>
       <main>
@@ -46,7 +46,7 @@
             افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.
           </p>
         </div>
-        <section id="login-panel" class="panel" aria-labelledby="login-title">
+        <section id="login-panel" class="panel" hidden aria-labelledby="login-title">
           <div class="section-title">
             <div>
               <p class="eyebrow">وصول خاص</p>
@@ -55,8 +55,8 @@
             <span class="lock-icon" aria-hidden="true">⌑</span>
           </div>
           <p class="muted">
-            اربط المتصفح مرة واحدة بمفتاح القراءة المحلي. بعد الربط تُحفظ جلسة قراءة
-            خاصة في Cookie آمن من قراءة JavaScript؛ ويمكن إلغاؤها بتسجيل الخروج أو إلغاء الجهاز.
+            تم تفعيل وضع الحماية بالمفتاح على هذا الجهاز. أدخل مفتاح القراءة
+            المحلي للمتصفح؛ الوضع الافتراضي يفتح تلقائيًا من دون مفتاح.
           </p>
           <form id="login-form">
             <label for="token">مفتاح القراءة</label>
@@ -90,7 +90,7 @@
             </div>
             <div class="actions">
               <button id="refresh" class="secondary">تحديث</button
-              ><button id="logout" class="quiet">قفل الصندوق</button>
+              ><button id="logout" class="quiet">إخفاء العرض</button>
             </div>
           </div>
           <p id="sync" class="muted">لم يتم التحديث بعد</p>
