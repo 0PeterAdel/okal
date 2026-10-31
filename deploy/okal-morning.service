@@ -7,7 +7,8 @@ PartOf=graphical-session.target
 [Service]
 Type=oneshot
 WorkingDirectory=/home/okal/Projects/okal
-ExecStart=/home/okal/Projects/okal/.venv-okal-core/bin/python -m okal_core morning --notify
+ExecStart=/home/okal/Projects/okal/.venv-okal-core/bin/python -m okal_core morning --refresh-ai --notify
+TimeoutStartSec=180
 Environment=PYTHONPATH=/home/okal/Projects/okal/apps/core/src
 Environment=PYTHONNOUSERSITE=1
 Environment=PYTHONDONTWRITEBYTECODE=1
