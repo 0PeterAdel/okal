@@ -107,8 +107,21 @@ Then:
 .venv-okal-core/bin/python scripts/mail-live-acceptance.py check
 ```
 
-`outage-finish` starts Core; automatic sync runs in the service. `check`
-reads **local SQLite only**, without querying Gmail or invoking Ollama. It
+**Safety guard:** `outage-finish` now checks the two **exact** subject markers
+in native Gmail metadata first and verifies both messages arrived after
+`outage-start`. Gmail message **bodies are not downloaded** for this preflight.
+If they are absent, from an older test, sent from the connected account, or
+arrived before the outage, it prints
+`test_messages_missing_or_not_sent_during_core_outage` and keeps Core
+**stopped**, so the owner can send the correct messages and retry the SAME
+`outage-finish`. Do not run `outage-start` again while this probe is pending.
+A Gmail read/auth failure prints a safe code; inspect locally without pasting
+private credentials or messages. The background worker must not be manually
+started until verification succeeds, except as an emergency owner recovery.
+
+Once the two subjects are verified, `outage-finish` starts Core and automatic
+sync runs inside the service. `check` reads **local SQLite only**, without
+querying Gmail or invoking Ollama. It
 requires the two unique test subjects to appear as **one classified message
 each**, an advanced completed Gmail checkpoint, and no recorded sync failure.
 Exit 0 means this narrow catch-up proof succeeded; exit 2 means a still-pending
