@@ -165,7 +165,13 @@ class HistoryTests(unittest.TestCase):
     def test_worker_immediate_first_sync_then_throttles(self):
         write_private(root(self.store) / "config.json", self.cfg.model_dump())
         called = []
-        worker = Worker(self.store, sync_run=lambda cfg: called.append(cfg.account))
+        def fake_run(cfg):
+            called.append(cfg.account)
+            current = HistoryState(self.store).current(cfg.account)
+            HistoryState(self.store).commit(cfg.account,
+                current["cursor"] if current else None,
+                str(100 + len(called)), "history_delta", [], "")
+        worker = Worker(self.store, sync_run=fake_run)
         worker.tick()
         self.assertEqual(called, [self.cfg.account])
         worker.tick()
