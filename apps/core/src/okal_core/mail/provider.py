@@ -9,7 +9,7 @@ import json
 import re
 import time
 
-from .contracts import MailError, Message
+from .contracts import MailError, Message, UNREADABLE_CODES
 from .private import read_private, root, write_private
 
 READ = "https://www.googleapis.com/auth/gmail.readonly"
@@ -496,7 +496,11 @@ class Gmail:
             raise MailError("provider_id_mismatch")
         return message
 
-    def collect(self, start, end, limit):
+    def collect(self, start, end, limit, quarantine=None):
+        """When opted in, record unreadable IDs for explicit manual review.
+
+        Existing strict digest/search behavior is unchanged with quarantine=None.
+        """
         query = (
             f"after:{start - 1} before:{end + 1} -in:sent -in:drafts -in:spam -in:trash"
         )
@@ -505,7 +509,16 @@ class Gmail:
         for mid in self.ids(query, limit):
             if time.monotonic() - started > 180:
                 raise MailError("read_time_budget_exceeded")
-            msg = self.get(mid)
+            try:
+                msg = self.get_optional(mid) if quarantine is not None else self.get(mid)
+            except MailError as exc:
+                if quarantine is None or str(exc) not in UNREADABLE_CODES:
+                    raise
+                quarantine.append((mid, str(exc)))
+                continue
+            if msg is None:
+                quarantine.append((mid, "message_disappeared"))
+                continue
             if start * 1000 <= msg.received_ms < end * 1000 and not set(msg.labels) & {
                 "SENT",
                 "DRAFT",
