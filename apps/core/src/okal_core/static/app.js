@@ -2,6 +2,7 @@
 // Read-only shell. Tokens and reports stay in memory, never browser storage.
 const el = (id) => document.getElementById(id);
 let token = "";
+let keyProtected = false;
 let cursor = null;
 let controller = null;
 let generation = 0;
@@ -192,8 +193,9 @@ function lock() {
   el("token").value = "";
   el("items").replaceChildren();
   el("inbox-panel").hidden = true;
-  el("login-panel").hidden = false;
-  el("connection").textContent = "غير متصل";
+  // Hide content; this does not revoke access in auto-unlock mode.
+  el("login-panel").hidden = true;
+  el("connection").textContent = "العرض مخفي";
   el("connection").classList.remove("connected");
   resetMailStatus();
   setBusy(false);
@@ -255,13 +257,16 @@ async function load(reset) {
     if (active !== generation) return;
     if (response.status === 401 || capsResponse.status === 401) {
       lock();
+      keyProtected = true;
+      el("login-panel").hidden = false;
       el("message").textContent =
-        "جلسة المتصفح غير متاحة أو انتهت؛ اربط هذا المتصفح بمفتاح قراءة محلي مرة واحدة.";
+        "الوضع المحمي مفعّل؛ أدخل مفتاح القراءة المحلي للمتصفح.";
       return;
     }
     if (!response.ok || !capsResponse.ok) throw new Error("read failed");
     const [result, caps] = await Promise.all([response.json(), capsResponse.json()]);
     if (active !== generation) return;
+    keyProtected = caps.read_key_required === true;
     renderMailStatus(caps.mail);
     if (caps.mail?.sync_enabled) {
       try {
@@ -302,7 +307,8 @@ async function load(reset) {
       `آخر قراءة للملخصات المحفوظة: ${new Date(result.fetched_at * 1000).toLocaleString("ar-EG")} · زر التحديث لا يجلب بريدًا جديدًا من Gmail`;
     el("inbox-panel").hidden = false;
     el("login-panel").hidden = true;
-    el("connection").textContent = "متصل · قراءة فقط";
+    el("connection").textContent = keyProtected
+      ? "متصل · وضع محمي" : "متصل محليًا · بدون مفتاح";
     el("connection").classList.add("connected");
   } catch (error) {
     if (active !== generation || error.name === "AbortError") return;
@@ -345,20 +351,29 @@ el("refresh").addEventListener("click", () => load(true));
 el("more").addEventListener("click", () => load(false));
 el("logout").addEventListener("click", async () => {
   let revoked = false;
-  try {
-    const response = await fetch("/api/v1/session", {
-      method: "DELETE", credentials: "same-origin", cache: "no-store",
-    });
-    revoked = response.ok;
-  } catch (_) {
-    // Clear the display even if the server cannot currently revoke a cookie.
+  if (keyProtected) {
+    try {
+      const response = await fetch("/api/v1/session", {
+        method: "DELETE", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+      });
+      revoked = response.ok;
+    } catch (_) {
+      // Do not claim that the protected session has been revoked.
+    }
   }
   lock();
-  el("message").textContent = revoked
-    ? "تم تسجيل الخروج وإلغاء جلسة هذا المتصفح."
-    : "تم مسح بيانات الصفحة، لكن تعذر التأكد من إلغاء الجلسة على الخادم.";
+  if (keyProtected) {
+    el("login-panel").hidden = false;
+    el("message").textContent = revoked
+      ? "تم إلغاء جلسة المتصفح. للوصول مجددًا أدخل مفتاح القراءة."
+      : "أُخفي المحتوى، ولكن لم يُؤكَّد إلغاء الجلسة على الخادم.";
+  } else {
+    el("message").textContent =
+      "تم إخفاء العرض مؤقتًا فقط، وليس قفلًا أمنيًا. أعد تحميل الصفحة لفتحه تلقائيًا.";
+  }
 });
 window.addEventListener("pagehide", lock);
 
-// A paired browser resumes after reload without reentering the local read key.
+// Default single-user loopback mode auto-opens; protected mode falls back to pairing.
 window.addEventListener("DOMContentLoaded", () => load(true));
