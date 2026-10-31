@@ -19,7 +19,11 @@ def main():
     parser.add_argument("--state-dir", type=Path, default=default)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
-    commands.add_parser("morning", help="Offline voice-ready daily briefing from saved evidence")
+    morning = commands.add_parser(
+        "morning", help="Offline voice-ready daily briefing from saved evidence"
+    )
+    morning.add_argument("--notify", action="store_true",
+                         help="Optional once-daily local desktop notification")
     mail = commands.add_parser(
         "mail", help="optional Gmail backend; explicit local onboarding"
     )
@@ -65,9 +69,10 @@ def main():
     try:
         store = Store(args.state_dir)
         if args.command == "morning":
-            from .morning import morning_brief
+            from .morning import morning_brief, notify_login_once
 
-            print(json.dumps(morning_brief(store), ensure_ascii=True, indent=2))
+            result = notify_login_once(store) if args.notify else morning_brief(store)
+            print(json.dumps(result, ensure_ascii=True, indent=2))
             return 0
         if args.command == "mail":
             from .mail.cli import main as mail_main
