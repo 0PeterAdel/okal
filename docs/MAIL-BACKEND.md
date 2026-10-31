@@ -269,6 +269,25 @@ mail off until you return to the tested mail code.
 
 ## Verification
 
+### Thinking-budget regression
+
+Mail summary and reply requests explicitly set `think: false`, with the existing
+8K context and 1200-token output limit. The owner's synthetic Qwen3.5 4B probe on
+2026-10-31 exhausted 1200 tokens with an empty answer under the model default;
+the same probe with thinking disabled stopped normally after 67 tokens and
+passed schema validation. This is owner-reported synthetic compatibility evidence,
+not acceptance of real-mail factual quality. No private mail or reasoning text
+is included in the regression fixtures.
+
+Truncated responses remain failures even if their content parses as JSON. There
+is no automatic larger-budget retry or relaxed schema validation. See
+[Ollama thinking controls](https://docs.ollama.com/capabilities/thinking).
+
+After updating, retry the exact failed interval with explicit `--start`/`--end`.
+Do not rely on a default incremental digest to recover an older failed backfill.
+
+### Automated checks
+
 ```bash
 PYTHONPATH=apps/core/src .venv-okal-core/bin/python -m unittest discover -s apps/core/tests -v
 PYTHONPATH=apps/core/src .venv-okal-core/bin/python apps/core/tools/verify_runtime.py

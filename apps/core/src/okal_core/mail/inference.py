@@ -59,6 +59,8 @@ class LocalModel:
             {
                 "model": self.cfg.model,
                 "stream": False,
+                # Bounded mail JSON must not spend its answer budget on reasoning.
+                "think": False,
                 "format": schema.model_json_schema(),
                 "messages": [
                     {"role": "system", "content": system},

@@ -698,7 +698,7 @@ class MailTests(unittest.TestCase):
 
 
 class LocalInferenceTests(unittest.TestCase):
-    def model(self, change=None, output=None):
+    def model(self, change=None, output=None, envelope=None):
         self.calls = []
 
         def transport(request):
@@ -718,7 +718,9 @@ class LocalInferenceTests(unittest.TestCase):
                 "suggested_action": "",
             }
             return httpx.Response(
-                200, json={"done": True, "message": {"content": json.dumps(answer)}}
+                200,
+                json=envelope
+                or {"done": True, "message": {"content": json.dumps(answer)}},
             )
 
         client = httpx.Client(
@@ -746,6 +748,51 @@ class LocalInferenceTests(unittest.TestCase):
             with self.assertRaises(MailError):
                 model.summarize(message())
             self.assertEqual(len(self.calls), 1)
+
+    def test_digest_explicitly_disables_thinking_with_original_budget(self):
+        model = self.model()
+        try:
+            model.summarize(message())
+            payload = json.loads(self.calls[-1].content)
+            self.assertIs(payload["think"], False)
+            self.assertEqual(payload["options"]["num_predict"], 1200)
+            self.assertEqual(payload["options"]["num_ctx"], 8192)
+        finally:
+            model.close()
+
+    def test_reply_explicitly_disables_thinking(self):
+        model = self.model(output={"body": "Thank you."})
+        try:
+            self.assertEqual(
+                model.draft_reply(message(), "Reply briefly"), "Thank you."
+            )
+            self.assertIs(json.loads(self.calls[-1].content)["think"], False)
+        finally:
+            model.close()
+
+    def test_length_stop_is_rejected_even_with_parseable_content(self):
+        valid = json.dumps(
+            {
+                "source_id": "ab",
+                "category": "action",
+                "summary": "Review",
+                "suggested_action": "",
+            }
+        )
+        for content in ("", valid):
+            model = self.model(
+                envelope={
+                    "done": True,
+                    "done_reason": "length",
+                    "eval_count": 1200,
+                    "message": {"thinking": "synthetic reasoning", "content": content},
+                }
+            )
+            try:
+                with self.assertRaisesRegex(MailError, "invalid_model_output"):
+                    model.summarize(message())
+            finally:
+                model.close()
 
     def test_unknown_source_or_extra_action_field_rejected(self):
         for output in (
