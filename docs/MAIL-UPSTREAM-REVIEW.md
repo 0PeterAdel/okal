@@ -123,3 +123,34 @@ Useful primary documentation:
 - [Ollama structured output](https://docs.ollama.com/capabilities/structured-outputs)
 - [Ollama local-only setting](https://docs.ollama.com/faq)
 - [APScheduler 3.x trigger](https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html)
+
+## Gmail history/triage follow-up review (2026-10-31, PR #42)
+
+The owner also supplied the Google Workspace CLI
+([gws-gmail](https://www.skills.sh/googleworkspace/cli/gws-gmail),
+[gws-gmail-triage](https://www.skills.sh/googleworkspace/cli/gws-gmail-triage),
+[gws-gmail-read](https://github.com/googleworkspace/cli/blob/main/skills/gws-gmail-read/SKILL.md),
+[gws-gmail-reply](https://github.com/googleworkspace/cli/blob/main/skills/gws-gmail-reply/SKILL.md),
+[gws-gmail-watch](https://github.com/googleworkspace/cli/blob/main/skills/gws-gmail-watch/SKILL.md),
+[email-to-task](https://github.com/googleworkspace/cli/blob/main/skills/gws-workflow-email-to-task/SKILL.md),
+[executive assistant](https://github.com/googleworkspace/cli/blob/main/skills/persona-exec-assistant/SKILL.md),
+[label-and-archive](https://github.com/googleworkspace/cli/blob/main/skills/recipe-label-and-archive-emails/SKILL.md)),
+[Google Workspace MCP](https://github.com/taylorwilsdon/google_workspace_mcp),
+and [Inbox Zero](https://github.com/elie222/inbox-zero).
+
+The useful patterns are bounded provider operations, source-grounded read and
+triage views, and explicit separation between observing a message and executing
+a reply/label/archive action. Google Workspace CLI's Gmail watch pattern uses
+Google Cloud Pub/Sub infrastructure; for this one-owner, free-only, local
+service we chose restart-safe paginated Gmail history polling rather than
+adding Pub/Sub/another background daemon. Google Workspace MCP provides a
+reference for separable provider tools, but exposing provider writes as
+general-purpose agent tools would violate OKAL's exact-content sending gate.
+Inbox Zero provides product references for action grouping and inbox views;
+its runtime/data architecture and licensing were not imported or copied.
+
+The new code uses the official Gmail history protocol directly and does not
+install any of those upstream agents/CLI integrations, execute downloaded
+skills, add remote LLM calls, or silently grant send/modify scopes.
+See [history sync operations](MAIL-HISTORY-SYNC.md). This was a design-pattern
+comparison, not an exhaustive audit or benchmark of every upstream tool.
