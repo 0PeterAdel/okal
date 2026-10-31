@@ -27,7 +27,9 @@ class AcceptanceScriptTests(unittest.TestCase):
             "send_enabled": False, "model": "local:test",
             "model_digest": "a" * 64, "local_only_confirmed": True,
         })
-        self.db = sqlite3.connect(self.state / "core.sqlite3")
+        db_path = self.state / "core.sqlite3"
+        self.db = sqlite3.connect(db_path)
+        db_path.chmod(0o600)
         self.addCleanup(self.db.close)
         self.db.executescript("""
             CREATE TABLE mail_sync_state(
