@@ -302,6 +302,12 @@ class MailState:
                     db.execute("DELETE FROM mail_sync_insights WHERE run_id=?", (rid,))
                     db.execute("DELETE FROM summaries WHERE run_id=?", (rid,))
                     db.execute("DELETE FROM runs WHERE id=?", (rid,))
+            quarantines_deleted = 0
+            if "mail_sync_quarantine" in tables:
+                quarantines_deleted = db.execute(
+                    "DELETE FROM mail_sync_quarantine WHERE detected_at<?",
+                    (before,),
+                ).rowcount
             # Keep the job idempotency tombstone, so pruning cannot republish the interval.
             deleted = db.execute(
                 "DELETE FROM mail_sources WHERE job_id IN (SELECT id FROM mail_jobs WHERE updated<?)",
@@ -310,6 +316,7 @@ class MailState:
         return {
             "source_rows_deleted": deleted,
             "history_briefings_deleted": len(history_ids),
+            "manual_review_records_deleted": quarantines_deleted,
             "inbox_digests_deleted": len(ids),
             "job_tombstones_and_send_receipts_retained": True,
         }
