@@ -9,6 +9,7 @@ import sys
 from .contracts import Config, Draft, MailError
 from .private import config, locked, read_private, root, write_private
 from .state import MailState
+from .history import local_status
 
 
 def emit(value):
@@ -103,7 +104,6 @@ def main(store, argv):
                 return 0
             if args.command == "sync" and args.mode == "status":
                 cfg = config(store)
-                from .history import local_status
                 emit(local_status(store, cfg.account))
                 return 0
             if args.command == "status":
@@ -113,7 +113,8 @@ def main(store, argv):
                         "jobs": state.jobs(),
                         "drafts": state.drafts(),
                         "schedule": state.schedule_status(),
-                        "sync": __import__("okal_core.mail.history", fromlist=["local_status"]).local_status(store, config(store).account) if (root(store) / "config.json").exists() else None,
+                        "sync": local_status(store, config(store).account)
+                        if (root(store) / "config.json").exists() else None,
                     }
                 )
                 return 0
