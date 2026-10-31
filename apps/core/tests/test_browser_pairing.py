@@ -16,7 +16,7 @@ class BrowserSessionTests(unittest.TestCase):
         self.store = Store(Path(tmp.name) / "state", clock=lambda: self.now)
         self.device = self.store.issue_device("trusted-local-browser", days=2)
         self.client = TestClient(
-            create_app(self.store), base_url="http://127.0.0.1:8766",
+            create_app(self.store, require_read_key=True), base_url="http://127.0.0.1:8766",
             client=("127.0.0.1", 1234),
         )
         self.addCleanup(self.client.close)
