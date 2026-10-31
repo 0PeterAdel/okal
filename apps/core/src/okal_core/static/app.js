@@ -15,6 +15,9 @@ function resetMailStatus() {
   el("triage-groups").replaceChildren();
   el("triage-count").textContent = "لا توجد بيانات بعد";
   el("triage-note").textContent = "الواجهة تعرض نتائج محفوظة فقط؛ لا تُنفّذ أفعالًا على Gmail.";
+  el("assistant-groups").replaceChildren();
+  el("assistant-count").textContent = "لم يتم التحميل";
+  el("assistant-note").textContent = "اقتراحات محلية فقط؛ لا إرسال أو إنشاء مهام خارج OKAL.";
 }
 
 function renderMailStatus(mail) {
@@ -119,6 +122,68 @@ function renderTriage(result) {
   }
 }
 
+function renderAssistant(result) {
+  if (!result || !Array.isArray(result.items) || !result.counts)
+    throw new Error("invalid assistant preview");
+  const groups = el("assistant-groups");
+  groups.replaceChildren();
+  const buckets = [
+    ["manual_review", "00", "مراجعة يدوية", "Manual review"],
+    ["reply_review", "01", "رد يحتاج موافقة", "Reply review"],
+    ["task_review", "02", "مهام مقترحة", "Suggested tasks"],
+    ["read_later", "03", "اقرأ لاحقًا", "Read later"],
+  ];
+  el("assistant-count").textContent =
+    `${result.total_in_sample} رسالة · ${result.counts.task_review || 0} مهام · ${result.counts.reply_review || 0} ردود للمراجعة`;
+  el("assistant-note").textContent =
+    "قواعد محلية فوق نتائج AI المحفوظة؛ لا Google Tasks أو Calendar أو Send. التواريخ غير مؤكدة ولا تُضاف تلقائيًا.";
+  if (result.state === "awaiting_saved_gmail_insights") {
+    el("assistant-count").textContent = "بانتظار أول مزامنة محفوظة";
+    return;
+  }
+  for (const [bucket, number, arabic, english] of buckets) {
+    const items = result.items.filter((item) => item.bucket === bucket);
+    if (!items.length) continue;
+    const column = document.createElement("section");
+    column.className = `triage-column triage-${bucket}`;
+    const head = document.createElement("div");
+    head.className = "triage-column-head";
+    head.append(text("span", number, "triage-number"),
+      text("h4", `${arabic} · ${english}`),
+      text("span", String(items.length), "triage-number"));
+    column.append(head);
+    for (const item of items) {
+      const article = document.createElement("article");
+      article.className = "triage-message";
+      article.append(text("span", item.sender, "triage-sender"),
+        text("h5", item.subject),
+        text("p", item.summary, "triage-summary"));
+      if (item.proposed_task) {
+        article.append(text("p",
+          `مقترح فقط · ${item.proposed_task.title} · بدون موعد تلقائي`,
+          "triage-action"));
+      } else if (bucket === "reply_review") {
+        article.append(text("p",
+          "مسودة الرد لم تُنشأ؛ محتاجة تعليماتك ومراجعتك قبل الإرسال.",
+          "triage-action"));
+      }
+      if (item.attachments_unreviewed) {
+        article.append(text("p",
+          "المرفقات لم تُراجع · Attachments not reviewed",
+          "triage-warning"));
+      }
+      const link = document.createElement("a");
+      link.href = item.source_link;
+      link.textContent = "مراجعة البريد الأصلي في Gmail";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      article.append(link);
+      column.append(article);
+    }
+    groups.append(column);
+  }
+}
+
 function lock() {
   generation += 1;
   if (controller) controller.abort();
@@ -212,6 +277,21 @@ async function load(reset) {
     } else {
       el("triage-groups").replaceChildren();
       el("triage-count").textContent = "المزامنة المستمرة غير مفعّلة";
+    }
+    if (caps.mail?.configuration === "configured") {
+      try {
+        const actionsResponse = await fetch("/api/v1/mail/assistant", options);
+        if (active !== generation) return;
+        if (!actionsResponse.ok) throw new Error("assistant read failed");
+        renderAssistant(await actionsResponse.json());
+      } catch (error) {
+        if (active !== generation || error.name === "AbortError") return;
+        el("assistant-groups").replaceChildren();
+        el("assistant-count").textContent = "تعذر قراءة الاقتراحات المحلية";
+      }
+    } else {
+      el("assistant-groups").replaceChildren();
+      el("assistant-count").textContent = "البريد غير مهيأ";
     }
     if (reset) el("items").replaceChildren();
     for (const item of result.items) el("items").append(card(item));
