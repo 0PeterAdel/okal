@@ -516,3 +516,13 @@ footer {
 .triage-reply_review { border-color: #57698a; background: #1b2732; }
 .triage-task_review { border-color: #557e54; }
 .triage-read_later { opacity: .93; }
+
+/* Local owner-approved tasks: no browser write controls. */
+.task-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr));
+  gap: 12px; margin-top: 18px; }
+.task-card { min-width: 0; padding: 16px; border: 1px solid var(--line);
+  border-radius: 12px; background: #17231b; overflow-wrap: anywhere; }
+.task-card h4 { margin: 0 0 10px; font-size: 14px; line-height: 1.6; }
+.task-card .task-due { color: var(--accent); font-size: 12px; }
+.task-card a { display: inline-block; color: var(--accent); font-size: 12px;
+  margin-top: 6px; }
