@@ -414,6 +414,8 @@ class Gmail:
             page = self.call(
                 self.service.users().history().list(
                     userId="me", startHistoryId=start_id,
+                    # Label-only churn is irrelevant to new-message ingestion.
+                    historyTypes=["messageAdded", "messageDeleted"],
                     maxResults=500, pageToken=token,
                 ),
                 missing="history_cursor_expired",
