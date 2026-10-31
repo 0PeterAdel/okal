@@ -156,10 +156,10 @@ class InboxActionsTests(unittest.TestCase):
         self.assertEqual(result["counts"]["task_review"], 1)
         self.assertEqual(result["items"], [])
 
-    def test_web_route_uses_existing_read_token(self):
+    def test_protected_web_route_still_uses_existing_read_token(self):
         self.add()
         key = self.store.issue_device("owner", 1)["token"]
-        with TestClient(create_app(self.store), base_url="http://127.0.0.1:8766",
+        with TestClient(create_app(self.store, require_read_key=True), base_url="http://127.0.0.1:8766",
                         client=("127.0.0.1", 40000)) as client:
             self.assertEqual(client.get("/api/v1/mail/assistant").status_code, 401)
             r = client.get("/api/v1/mail/assistant",
