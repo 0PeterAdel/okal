@@ -77,6 +77,9 @@ class Store:
                 id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL UNIQUE
                 REFERENCES runs(id), title TEXT NOT NULL, body TEXT NOT NULL,
                 data_kind TEXT NOT NULL CHECK(data_kind IN ('fixture','live')))""")
+            db.execute("""CREATE TABLE IF NOT EXISTS browser_sessions (
+                verifier TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES devices(id),
+                created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)""")
             db.execute("PRAGMA user_version=1")
 
     @contextmanager
@@ -130,6 +133,63 @@ class Store:
                 (verifier, int(self.clock())),
             ).fetchone()
         return row is not None and secrets.compare_digest(row["verifier"], verifier)
+
+    def issue_browser_session(self, read_token: str) -> dict | None:
+        """Exchange a local read key ONCE for a revocable HttpOnly browser cookie.
+
+        The cookie only gives the same inbox:read scope and is tied to its
+        device's expiry and revocation. No browser storage contains the key.
+        """
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", read_token):
+            return None
+        verifier = hashlib.sha256(read_token.encode("ascii")).hexdigest()
+        now = int(self.clock())
+        with self.connect() as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            device = db.execute(
+                "SELECT id,expires_at,verifier FROM devices WHERE verifier=? "
+                "AND revoked=0 AND expires_at>? AND scope='inbox:read'",
+                (verifier, now),
+            ).fetchone()
+            if not device or not secrets.compare_digest(device["verifier"], verifier):
+                return None
+            token = secrets.token_urlsafe(32)
+            expiry = min(device["expires_at"], now + 30 * 86400)
+            db.execute("DELETE FROM browser_sessions WHERE expires_at<=?", (now,))
+            db.execute("INSERT INTO browser_sessions VALUES(?,?,?,?)", (
+                hashlib.sha256(token.encode("ascii")).hexdigest(),
+                device["id"], now, expiry,
+            ))
+            # Keep at most ten active browser sessions per paired device.
+            db.execute(
+                "DELETE FROM browser_sessions WHERE device_id=? AND verifier NOT IN "
+                "(SELECT verifier FROM browser_sessions WHERE device_id=? "
+                "ORDER BY created_at DESC,verifier DESC LIMIT 10)",
+                (device["id"], device["id"]),
+            )
+        return {"token": token, "expires_at": expiry}
+
+    def authenticate_browser_session(self, token: str) -> bool:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            return False
+        verifier = hashlib.sha256(token.encode("ascii")).hexdigest()
+        with self.connect() as db:
+            session = db.execute(
+                "SELECT s.verifier FROM browser_sessions s JOIN devices d "
+                "ON s.device_id=d.id WHERE s.verifier=? AND s.expires_at>? "
+                "AND d.expires_at>? AND d.revoked=0 AND d.scope='inbox:read'",
+                (verifier, int(self.clock()), int(self.clock())),
+            ).fetchone()
+        return bool(session and secrets.compare_digest(session["verifier"], verifier))
+
+    def revoke_browser_session(self, token: str) -> bool:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            return False
+        verifier = hashlib.sha256(token.encode("ascii")).hexdigest()
+        with self.connect() as db, db:
+            return db.execute(
+                "DELETE FROM browser_sessions WHERE verifier=?", (verifier,)
+            ).rowcount == 1
 
     def revoke_device(self, device_id: str) -> bool:
         with self.connect() as db, db:
