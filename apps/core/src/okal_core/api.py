@@ -110,6 +110,37 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             "mail": mail_status,
         }
 
+    @app.get("/api/v1/mail/triage")
+    def mail_triage():
+        """Read-only bounded structured triage; never triggers Gmail or Ollama."""
+        from .mail.private import config
+        from .mail.history import HistoryState
+
+        try:
+            cfg = config(store)
+        except Exception:
+            return {"items": [], "state": "not_configured"}
+        with store.connect() as db:
+            exists = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_sync_insights'"
+            ).fetchone()
+        if not exists:
+            return {"items": [], "state": "not_initialized"}
+        items = []
+        for row in HistoryState(store).recent(cfg.account, 60):
+            m, i = row["metadata"], row["insight"]
+            items.append({
+                "id": m["id"], "subject": m["subject"], "sender": m["sender"],
+                "received_ms": m["received_ms"], "labels": m["labels"],
+                "category": i["category"], "summary": i["summary"],
+                "suggested_action": i["suggested_action"],
+                "has_unread_attachments": m["attachment_count"] > 0,
+                "link": "https://mail.google.com/mail/?authuser="
+                + __import__("urllib.parse", fromlist=["quote"]).quote(cfg.account, safe="")
+                + "#all/" + m["id"], "created_at": row["created_at"],
+            })
+        return {"items": items, "state": "recorded_local_insights"}
+
     @app.get("/api/v1/summaries")
     def summaries(
         limit: int = Query(20, ge=1, le=100),
