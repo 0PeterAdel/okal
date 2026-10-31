@@ -136,6 +136,43 @@ The operator probe state lives in a private 0600
 and timestamps, **not** account credentials or message bodies. Backups may
 include previous markers.
 
+## Alternative: read-only evidence audit, without sending test emails
+
+For owners who already have live Gmail messages in the OKAL inbox and do not
+want to send artificial email repeatedly, run the **independent native-source
+reconciliation**:
+
+```bash
+.venv-okal-core/bin/python scripts/mail-live-readonly-audit.py
+```
+
+This is a **single, no-send** command. It checks the saved SQLite checkpoint
+and dedupe ledger, locally recorded source IDs and strict AI output, selected
+source message IDs against Gmail's **native metadata** (not mail bodies),
+current Gmail History deltas and recent visible-mail coverage. It prints
+**only counters, safe status and booleans**, not message IDs, account names,
+subjects, text, OAuth material or source links. Access-token refresh may still
+update the existing private token file. This command does **not** stop/restart
+`okal-core.service`, alter the inbox DB or approve outgoing sends.
+
+A true `mail_reconciliation_passed: true` verifies existing messages, the
+live Gmail identity and that recorded message IDs still match Gmail; it is
+**not** retrospective proof of arrivals during a *specific* powered-off period,
+nor does it certify that every historical email has been processed. The report
+explicitly says `specific_outage_catchup_proven: false` and
+`bilingual_summary_quality_reviewed: false`. Do not fake/override either
+status. A passing audit can be accepted as operational evidence for a
+**limited read-only rollout**, with the separate unattended catch-up guarantee
+proven by synthetic restart tests and monitored during normal future outages.
+The owner still must review summary quality and privacy before permitting
+automatic actions or final release acceptance.
+
+If native Gmail history has expired, Gmail responds with `history_cursor_expired`
+and the audit ends **incomplete**; run ordinary sync/status and the documented
+expired-history recovery instead of fabricating missing events. A large mailbox
+may exceed the audit's bounded recent query; narrow the audit time window with
+a reviewed code change, not by deleting local messages.
+
 ## 3. Human review, security acceptance, and merge gates
 
 Open `http://127.0.0.1:8766` on the laptop, pair locally with the owner-only
