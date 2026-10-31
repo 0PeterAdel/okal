@@ -2,6 +2,7 @@
 
 import ipaddress
 from pathlib import Path
+from urllib.parse import quote
 import json
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -166,7 +167,7 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
     def mail_triage():
         """Read-only bounded structured triage; never triggers Gmail or Ollama."""
         from .mail.private import config
-        from .mail.history import HistoryState
+        from .mail.history import recent_evidence
 
         try:
             cfg = config(store)
@@ -179,7 +180,7 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
         if not exists:
             return {"items": [], "state": "not_initialized"}
         items = []
-        for row in HistoryState(store).recent(cfg.account, 60):
+        for row in recent_evidence(store, cfg.account, 60):
             m, i = row["metadata"], row["insight"]
             items.append({
                 "id": m["id"], "subject": m["subject"], "sender": m["sender"],
@@ -188,7 +189,7 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
                 "suggested_action": i["suggested_action"],
                 "has_unread_attachments": m["attachment_count"] > 0,
                 "link": "https://mail.google.com/mail/?authuser="
-                + __import__("urllib.parse", fromlist=["quote"]).quote(cfg.account, safe="")
+                + quote(cfg.account, safe="")
                 + "#all/" + m["id"], "created_at": row["created_at"],
             })
         return {"items": items, "state": "recorded_local_insights"}
