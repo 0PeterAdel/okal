@@ -207,11 +207,19 @@ def recent_quarantines(store, account, limit=60):
 
 
 def recent_evidence(store, account, limit=60):
-    """Pure SELECT for GET endpoints, with no migrations or write transactions."""
+    """Pure SELECT for GET endpoints; exclude confirmed Gmail Trash items."""
     with store.connect() as db:
+        has_trash_ledger = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_trash_events'"
+        ).fetchone() is not None
+        excluded = (""" AND NOT EXISTS (
+            SELECT 1 FROM mail_trash_events e
+            WHERE e.account=i.account AND e.message_id=i.message_id
+            AND e.status='confirmed_trash')""" if has_trash_ledger else "")
         rows = db.execute("""SELECT i.metadata,i.insight,r.created_at
             FROM mail_sync_insights i JOIN runs r ON r.id=i.run_id
-            WHERE i.account=? ORDER BY r.created_at DESC,i.message_id DESC LIMIT ?""",
+            WHERE i.account=? """ + excluded +
+            """ ORDER BY r.created_at DESC,i.message_id DESC LIMIT ?""",
             (account.casefold(), limit),
         ).fetchall()
     return [{"metadata": json.loads(r[0]), "insight": json.loads(r[1]),
