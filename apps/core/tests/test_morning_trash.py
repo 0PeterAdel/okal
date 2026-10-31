@@ -18,7 +18,7 @@ from okal_core.mail.contracts import Config, Insight, MailError
 from okal_core.mail.history import HistoryState, recent_evidence
 from okal_core.mail.private import root, write_private
 from okal_core.mail.trash import apply, preview
-from okal_core.morning import morning_brief
+from okal_core.morning import morning_brief, notify_login_once
 from okal_core.store import Store
 from okal_core.tasks import TaskBoard
 
@@ -100,6 +100,32 @@ class MorningAndTrashTests(unittest.TestCase):
         self.assertIn("صباح الفل", result["spoken_text"])
         self.assertIn("16:30", result["spoken_text"])
         self.assertIn("تقويم Google", result["spoken_text"])
+
+    def test_login_notification_is_once_per_day_and_escapes_mail_markup(self):
+        self.insert("aa", subject="<b>Untrusted</b>", category="action")
+        fake = MagicMock()
+        fake.returncode = 0
+        with patch.dict("os.environ", {"WAYLAND_DISPLAY": "wayland-1"}), \
+             patch("okal_core.morning.shutil.which", return_value="/usr/bin/notify-send"), \
+             patch("okal_core.morning.subprocess.run", return_value=fake) as run:
+            result = notify_login_once(self.store)
+            again = notify_login_once(self.store)
+        self.assertEqual(result["status"], "delivered")
+        self.assertEqual(again["status"], "already_delivered_today")
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][0], "notify-send")
+        self.assertFalse(run.call_args.kwargs.get("shell", False))
+        with self.store.connect() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM morning_notifications").fetchone()[0],
+                1,
+            )
+
+    def test_notification_without_desktop_does_not_claim_delivery(self):
+        with patch.dict("os.environ", {"DISPLAY": "", "WAYLAND_DISPLAY": ""}):
+            result = notify_login_once(self.store)
+        self.assertFalse(result["delivered"])
+        self.assertEqual(result["status"], "display_unavailable")
 
     def test_stale_mail_does_not_claim_inbox_is_empty(self):
         with self.store.connect() as db, db:
