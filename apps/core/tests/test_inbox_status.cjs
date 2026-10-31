@@ -68,17 +68,21 @@ test("lock clears private status and inbox", () => {
   assert.equal(get("sync").textContent, "لم يتم التحديث بعد");
   assert.equal(get("inbox-panel").hidden, true);
 });
-test("refresh requests local summaries and capabilities only", async () => {
+test("refresh requests saved local summaries, capabilities and inbox actions only", async () => {
   const calls = [];
   const { context, get } = harness(async (url, options) => {
     calls.push(url);
     assert.equal(options.headers.Authorization, "Bearer synthetic");
     return response(url.startsWith("/api/v1/summaries")
-      ? { items: [], next_cursor: null, fetched_at: 100 } : { mail: configured });
+      ? { items: [], next_cursor: null, fetched_at: 100 }
+      : url === "/api/v1/mail/assistant"
+        ? { items: [], counts: {}, total_in_sample: 0, state: "local_suggestion_preview" }
+        : { mail: configured });
   });
   vm.runInContext('token = "synthetic"', context);
   await context.load(true);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2], "/api/v1/mail/assistant");
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
 });
 test("failed status refresh clears former success claims", async () => {
@@ -119,6 +123,28 @@ test("triage groups manual-review and preserves untrusted text as textContent", 
   assert.equal(firstGroup.children[1].children.at(-1).href,
     "https://mail.google.com/mail/#all/ab");
   assert.match(firstGroup.children[0].children[1].textContent, /Manual review/);
+});
+
+test("inbox action preview is owner-only text, never executes email payload", () => {
+  const { context, get } = harness();
+  context.renderAssistant({
+    state: "local_suggestion_preview", total_in_sample: 1,
+    counts: { task_review: 1, reply_review: 0, read_later: 0, manual_review: 0 },
+    items: [{
+      bucket: "task_review", sender: "untrusted@evil.example",
+      subject: "<img src=x onerror=alert(1)>",
+      summary: "Dangerous HTML must stay text",
+      proposed_task: { title: "Ignore my boss", due_date: null },
+      source_link: "https://mail.google.com/mail/#all/ab",
+      attachments_unreviewed: false,
+    }],
+  });
+  assert.equal(get("assistant-groups").children.length, 1);
+  const article = get("assistant-groups").children[0].children[1];
+  assert.equal(article.children[1].textContent, "<img src=x onerror=alert(1)>");
+  assert.match(get("assistant-note").textContent, /لا Google Tasks/);
+  context.lock();
+  assert.equal(get("assistant-groups").children.length, 0);
 });
 
 test("OAuth reauthorization and unfinished catch-up have distinct honest labels", () => {
