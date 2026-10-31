@@ -280,3 +280,13 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   *,*::before,*::after{animation-duration:.01ms!important;
     transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* Local Lucide-style outline icons; no emoji fonts, no third-party network. */
+.icon-defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.icon{width:20px;height:20px;display:block;fill:none;stroke:currentColor;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-icon{border:0;border-radius:0;opacity:.85}
+.metric-icon .icon{width:24px;height:24px}
+.morning-orb .icon{width:28px;height:28px}
+.icon-inline{display:inline-block;vertical-align:middle;width:16px;height:16px;
+  margin-inline-end:6px}
