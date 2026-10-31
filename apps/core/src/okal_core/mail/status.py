@@ -11,6 +11,8 @@ def snapshot(store):
         "timezone": None,
         "local_send_enabled": False,
         "history": "not_checked",
+        "sync_enabled": False,
+        "sync": None,
         "latest_attempt": None,
         "latest_success": None,
     }
@@ -27,7 +29,11 @@ def snapshot(store):
         daily_at=cfg.daily_at,
         timezone=cfg.timezone,
         local_send_enabled=cfg.send_enabled,
+        sync_enabled=cfg.sync_enabled,
     )
+    from .history import local_status
+
+    result["sync"] = local_status(store, cfg.account)
     try:
         with store.connect() as db:
             db.execute("BEGIN")

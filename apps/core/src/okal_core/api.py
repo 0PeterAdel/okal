@@ -2,6 +2,10 @@
 
 import ipaddress
 from pathlib import Path
+from urllib.parse import quote
+import json
+import os
+import re
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -15,9 +19,33 @@ CSP = (
 )
 
 
-def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
+def create_app(
+    store: Store, port: int = 8766, lifespan=None,
+    require_read_key: bool | None = None,
+) -> FastAPI:
+    # Single-user desktop default: no repetitive read key on loopback.
+    # Explicit opt-in restores key-protected API and browser pairing.
+    if require_read_key is None:
+        setting = os.environ.get("OKAL_REQUIRE_READ_KEY", "0")
+        if setting not in {"0", "1"}:
+            raise ValueError("OKAL_REQUIRE_READ_KEY must be 0 or 1")
+        require_read_key = setting == "1"
+    if type(require_read_key) is not bool:
+        raise ValueError("require_read_key must be boolean")
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+
+    # Never let a future privileged /api/ endpoint inherit passwordless access.
+    local_read_paths = {
+        "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
+        "/api/v1/mail/triage", "/api/v1/mail/assistant",
+    }
+
+    def public_local_read(path, method):
+        return method == "GET" and (
+            path in local_read_paths
+            or re.fullmatch(r"/api/v1/runs/[a-f0-9]{32}", path) is not None
+        )
 
     @app.middleware("http")
     async def boundary(request: Request, call_next):
@@ -35,18 +63,52 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             not local
             or host not in hosts
             or (origin is not None and origin != f"http://{host}")
-            or request.headers.get("sec-fetch-site") == "cross-site"
+            or request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
+            or (
+                request.url.path == "/api/v1/session"
+                and request.method in {"POST", "DELETE"}
+                and (
+                    origin != f"http://{host}"
+                    or request.headers.get("sec-fetch-site", "same-origin")
+                    not in {"same-origin", "none"}
+                )
+            )
         ):
             response = JSONResponse(
                 {"detail": "local same-origin access required"}, status_code=403
             )
         elif (
+            not require_read_key
+            and request.url.path == "/api/v1/session"
+        ):
+            # The old session endpoints are not needed in local auto-unlock
+            # mode. Keep them available only in explicit protected mode.
+            response = JSONResponse(
+                {"detail": "pairing disabled in local auto-unlock mode"},
+                status_code=404,
+            )
+        elif (
             request.url.path.startswith("/api/")
             and request.url.path != "/api/v1/health"
-            and (
-                len(request.headers.getlist("authorization")) != 1
-                or not request.headers.get("authorization", "").startswith("Bearer ")
-                or not store.authenticate(request.headers.get("authorization", "")[7:])
+            and not (
+                not require_read_key
+                and public_local_read(request.url.path, request.method)
+            )
+            and not (
+                require_read_key
+                and request.url.path == "/api/v1/session"
+                and request.method == "POST"
+            )
+            and not (
+                require_read_key
+                and (
+                    store.authenticate_browser_session(request.cookies.get("okal_session", ""))
+                    or (
+                        len(request.headers.getlist("authorization")) == 1
+                        and request.headers.get("authorization", "").startswith("Bearer ")
+                        and store.authenticate(request.headers.get("authorization", "")[7:])
+                    )
+                )
             )
         ):
             response = JSONResponse(
@@ -76,8 +138,45 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
                 "Referrer-Policy": "no-referrer",
                 "Content-Security-Policy": CSP,
                 "X-Frame-Options": "DENY",
+                "Cross-Origin-Resource-Policy": "same-origin",
+                "Cross-Origin-Opener-Policy": "same-origin",
             }
         )
+        return response
+
+    @app.post("/api/v1/session")
+    async def pair_browser(request: Request):
+        """One-time local read-key exchange; cookie grants read scope only."""
+        body = await request.body()
+        if len(body) > 256:
+            raise HTTPException(400, "invalid pairing request")
+        try:
+            payload = json.loads(body)
+            if not isinstance(payload, dict) or set(payload) != {"token"}:
+                raise ValueError()
+            key = payload["token"]
+        except (ValueError, TypeError):
+            raise HTTPException(400, "invalid pairing request") from None
+        if not isinstance(key, str):
+            raise HTTPException(400, "invalid pairing request")
+        session = store.issue_browser_session(key)
+        if session is None:
+            raise HTTPException(401, "invalid or expired local read key")
+        age = max(0, session["expires_at"] - int(store.clock()))
+        response = JSONResponse({"status": "paired", "expires_at": session["expires_at"],
+                                 "permissions": ["inbox:read"]})
+        # Loopback HTTP, host-only, HttpOnly and SameSite Strict. No JS storage.
+        response.set_cookie(
+            "okal_session", session["token"], httponly=True,
+            samesite="strict", max_age=age, path="/api",
+        )
+        return response
+
+    @app.delete("/api/v1/session")
+    def unpair_browser(request: Request):
+        store.revoke_browser_session(request.cookies.get("okal_session", ""))
+        response = JSONResponse({"status": "session_revoked"})
+        response.delete_cookie("okal_session", path="/api")
         return response
 
     @app.get("/api/v1/health")
@@ -99,6 +198,8 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
         return {
             "schema_version": 1,
             "mode": "local-read-only",
+            "read_key_required": require_read_key,
+            "local_auto_unlock": not require_read_key,
             "permissions": ["inbox:read"],
             "external_writes": False,
             "providers": ["gmail-configured-not-verified"] if configured else [],
@@ -109,6 +210,77 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             "voice": False,
             "mail": mail_status,
         }
+
+    @app.get("/api/v1/mail/triage")
+    def mail_triage():
+        """Read-only bounded structured triage; never triggers Gmail or Ollama."""
+        from .mail.private import config
+        from .mail.history import recent_evidence, recent_quarantines
+
+        try:
+            cfg = config(store)
+        except Exception:
+            return {"items": [], "state": "not_configured"}
+        with store.connect() as db:
+            exists = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_sync_insights'"
+            ).fetchone()
+        if not exists:
+            return {"items": [], "state": "not_initialized"}
+        items = []
+        for row in recent_evidence(store, cfg.account, 60):
+            m, i = row["metadata"], row["insight"]
+            items.append({
+                "id": m["id"], "subject": m["subject"], "sender": m["sender"],
+                "received_ms": m["received_ms"], "labels": m["labels"],
+                "category": i["category"], "summary": i["summary"],
+                "suggested_action": i["suggested_action"],
+                "has_unread_attachments": m["attachment_count"] > 0,
+                "link": "https://mail.google.com/mail/?authuser="
+                + quote(cfg.account, safe="")
+                + "#all/" + m["id"], "created_at": row["created_at"],
+            })
+        manual_labels = {
+            "unreadable_message": "محتوى غير قابل للقراءة / Unreadable message",
+            "message_exceeds_size_budget": "رسالة كبيرة / Message too large",
+            "mime_complexity_budget_exceeded": "تركيب MIME معقد / Complex MIME",
+            "ambiguous_message_headers": "ترويسات غير واضحة / Ambiguous headers",
+            "body_requires_attachment_fetch_manual_review": "محتوى مرفق لم يُقرأ / Attached body",
+            "message_body_truncated_narrow_scope_or_review_manually": "محتوى طويل جدًا / Truncated text",
+            "message_disappeared": "رسالة لم تعد متاحة / Message disappeared",
+        }
+        for record in recent_quarantines(store, cfg.account, 60):
+            items.append({
+                "id": record["message_id"],
+                "subject": "مراجعة الرسالة الأصلية / Open original email",
+                "sender": "Gmail", "received_ms": record["detected_at"] * 1000,
+                "labels": [], "category": "manual_review",
+                "summary": manual_labels.get(record["code"], "تعذر التحليل / Cannot analyze"),
+                "suggested_action": "افتح Gmail وتحقق يدويًا / Review in Gmail",
+                "has_unread_attachments": False,
+                "link": "https://mail.google.com/mail/?authuser="
+                + quote(cfg.account, safe="") + "#all/" + record["message_id"],
+                "created_at": record["detected_at"],
+            })
+        return {"items": items, "state": "recorded_local_insights"}
+
+    @app.get("/api/v1/mail/assistant")
+    def mail_assistant():
+        """Rule-driven queue from saved evidence only; no provider/model calls."""
+        from .mail.assistant import proposals
+        from .mail.private import config
+        from .mail.contracts import MailError
+
+        try:
+            cfg = config(store)
+        except (MailError, OSError, ValueError):
+            return {"state": "not_configured", "items": [], "counts": {},
+                    "external_writes": False}
+        try:
+            return proposals(store, cfg.account, limit=60)
+        except (MailError, ValueError):
+            # Do not render potentially unsafe/malformed local rules as success.
+            raise HTTPException(422, "local assistant rules or saved evidence invalid") from None
 
     @app.get("/api/v1/summaries")
     def summaries(

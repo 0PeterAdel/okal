@@ -22,10 +22,11 @@ def next_due(cfg, now):
 
 
 class Worker:
-    def __init__(self, store, run=None):
+    def __init__(self, store, run=None, sync_run=None):
         self.store = store
         self.stop_event = threading.Event()
         self.run = run or self.live_run
+        self.sync_run = sync_run or self.live_sync_run
         self.thread = None
 
     def live_run(self, cfg, start, end):
@@ -43,6 +44,21 @@ class Worker:
             if api:
                 api.close()
 
+    def live_sync_run(self, cfg):
+        from .inference import LocalModel
+        from .provider import Gmail
+        from .history import run
+
+        model = LocalModel(cfg)
+        api = None
+        try:
+            api = Gmail.open(self.store, cfg)
+            return run(self.store, cfg, api, model)
+        finally:
+            model.close()
+            if api:
+                api.close()
+
     def tick(self):
         if not (root(self.store) / "config.json").exists():
             return
@@ -50,6 +66,21 @@ class Worker:
             cfg = config(self.store)
             state = MailState(self.store)
             now = int(self.store.clock())
+            if cfg.sync_enabled:
+                from .history import HistoryState
+
+                history = HistoryState(self.store)
+                if history.due(cfg.account, now):
+                    try:
+                        self.sync_run(cfg)
+                    except MailError as exc:
+                        # Persist a safe error code (e.g. authorization_required)
+                        # without exposing provider bodies or refreshing in a browser.
+                        history.failure(cfg.account, str(exc))
+                        log.warning("Gmail sync failed; inspect local mail sync status")
+                    except Exception:
+                        history.failure(cfg.account, "sync_failed_check_local_doctor")
+                        log.warning("Gmail sync failed; inspect local mail sync status")
             signature = f"{cfg.account.casefold()}:{cfg.timezone}:{cfg.daily_at}"
             with self.store.connect() as db, db:
                 previous = db.execute(

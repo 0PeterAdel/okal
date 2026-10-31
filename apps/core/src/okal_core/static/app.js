@@ -2,6 +2,7 @@
 // Read-only shell. Tokens and reports stay in memory, never browser storage.
 const el = (id) => document.getElementById(id);
 let token = "";
+let keyProtected = false;
 let cursor = null;
 let controller = null;
 let generation = 0;
@@ -12,6 +13,12 @@ function resetMailStatus() {
   el("integration-status").textContent =
     "افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.";
   el("sync").textContent = "لم يتم التحديث بعد";
+  el("triage-groups").replaceChildren();
+  el("triage-count").textContent = "لا توجد بيانات بعد";
+  el("triage-note").textContent = "الواجهة تعرض نتائج محفوظة فقط؛ لا تُنفّذ أفعالًا على Gmail.";
+  el("assistant-groups").replaceChildren();
+  el("assistant-count").textContent = "لم يتم التحميل";
+  el("assistant-note").textContent = "اقتراحات محلية فقط؛ لا إرسال أو إنشاء مهام خارج OKAL.";
 }
 
 function renderMailStatus(mail) {
@@ -41,6 +48,23 @@ function renderMailStatus(mail) {
       ? "آخر محاولة مسجلة فشلت؛ النجاح السابق لا يعني نجاحها."
       : "توجد محاولة مسجلة غير مكتملة؛ قد تكون جارية أو توقفت.");
   }
+  if (mail.sync_enabled) {
+    const sync = mail.sync;
+    if (sync?.last_checked) parts.push(`آخر Sync محفوظ: ${new Date(sync.last_checked * 1000).toLocaleString("ar-EG")} — ${sync.last_count} رسالة جديدة.`);
+    else parts.push("المزامنة المستمرة مفعّلة بالإعداد، ولم يثبت نجاح دورة بعد.");
+    if (sync?.last_error === "authorization_required") {
+      parts.push("Google Authorization Required · تحتاج إعادة تفويض Gmail محليًا. لم نفترض أن الاتصال صالح.");
+    } else if (sync?.last_error) {
+      parts.push("آخر فحص فشل؛ التقدم السابق محفوظ ولم نفترض التعافي. استخدم mail sync status وmail doctor.");
+    }
+    if (sync?.last_result === "history_chunk_pending") {
+      parts.push("Catch-up in progress · توجد رسائل إضافية لم تُعالج، والـ History Cursor لم يتقدم عنها.");
+    }
+    if (sync?.last_result === "history_expired_visible_mail_backfill") {
+      parts.push("استُعيد البريد الظاهر بعد انتهاء History Cursor؛ لا يمكن ضمان استرجاع الرسائل المحذوفة.");
+    }
+    if (sync?.manual_review_count) parts.push(`${sync.manual_review_count} رسالة تحتاج مراجعة يدوية؛ لم ينجح تحليل محتواها.`);
+  }
   parts.push(mail.daily_at
     ? `الجدولة مفعّلة في الإعداد: ${mail.daily_at} (${mail.timezone})؛ هذا ليس إثباتًا لتشغيل العامل.`
     : "الجدولة متوقفة في الإعداد.");
@@ -48,6 +72,117 @@ function renderMailStatus(mail) {
     ? "بوابة الإرسال المحلي مفعّلة في الإعداد؛ صلاحية Google لم تُفحص، والإرسال يتطلب مراجعة من سطر الأوامر."
     : "الإرسال المحلي مقفول في الإعداد.");
   el("integration-status").textContent = parts.join(" ");
+}
+
+function renderTriage(result) {
+  if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
+  const groups = el("triage-groups");
+  groups.replaceChildren();
+  const categories = [
+    ["manual_review", "00", "مراجعة يدوية", "Manual review"],
+    ["action", "01", "يحتاج إجراء", "Action required"],
+    ["information", "02", "للاطلاع", "Information"],
+    ["low_priority", "03", "لاحقًا", "Low priority"],
+  ];
+  const counts = categories.map(([key]) => result.items.filter((item) => item.category === key).length);
+  el("triage-count").textContent = `${result.items.length} رسالة مرصودة · ${counts[0]} للمراجعة اليدوية · ${counts[1]} تحتاج متابعة`;
+  el("triage-note").textContent = "الترتيب اقتراح AI محلي، وليس دليلًا على أهمية الرسالة أو صحتها. افتح Gmail للتحقق قبل أي قرار.";
+  for (let index = 0; index < categories.length; index += 1) {
+    const [key, number, arabic, english] = categories[index];
+    const items = result.items.filter((item) => item.category === key);
+    if (!items.length) continue;
+    const column = document.createElement("section");
+    column.className = `triage-column triage-${key}`;
+    const head = document.createElement("div");
+    head.className = "triage-column-head";
+    head.append(text("span", number, "triage-number"),
+      text("h4", `${arabic} · ${english}`),
+      text("span", String(items.length), "triage-number"));
+    column.append(head);
+    for (const item of items) {
+      const article = document.createElement("article");
+      article.className = "triage-message";
+      article.append(text("span", item.sender, "triage-sender"),
+        text("h5", item.subject),
+        text("p", item.summary, "triage-summary"));
+      if (item.suggested_action) {
+        article.append(text("p", `Next step · ${item.suggested_action}`, "triage-action"));
+      }
+      if (item.has_unread_attachments) {
+        article.append(text("p", "مرفقات لم تُحلَّل · Attachments not reviewed", "triage-warning"));
+      }
+      const link = document.createElement("a");
+      link.textContent = "فتح الرسالة الأصلية في Gmail";
+      link.href = item.link;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      article.append(link);
+      column.append(article);
+    }
+    groups.append(column);
+  }
+}
+
+function renderAssistant(result) {
+  if (!result || !Array.isArray(result.items) || !result.counts)
+    throw new Error("invalid assistant preview");
+  const groups = el("assistant-groups");
+  groups.replaceChildren();
+  const buckets = [
+    ["manual_review", "00", "مراجعة يدوية", "Manual review"],
+    ["reply_review", "01", "رد يحتاج موافقة", "Reply review"],
+    ["task_review", "02", "مهام مقترحة", "Suggested tasks"],
+    ["read_later", "03", "اقرأ لاحقًا", "Read later"],
+  ];
+  el("assistant-count").textContent =
+    `${result.total_in_sample} رسالة · ${result.counts.task_review || 0} مهام · ${result.counts.reply_review || 0} ردود للمراجعة`;
+  el("assistant-note").textContent =
+    "قواعد محلية فوق نتائج AI المحفوظة؛ لا Google Tasks أو Calendar أو Send. التواريخ غير مؤكدة ولا تُضاف تلقائيًا.";
+  if (result.state === "awaiting_saved_gmail_insights") {
+    el("assistant-count").textContent = "بانتظار أول مزامنة محفوظة";
+    return;
+  }
+  for (const [bucket, number, arabic, english] of buckets) {
+    const items = result.items.filter((item) => item.bucket === bucket);
+    if (!items.length) continue;
+    const column = document.createElement("section");
+    column.className = `triage-column triage-${bucket}`;
+    const head = document.createElement("div");
+    head.className = "triage-column-head";
+    head.append(text("span", number, "triage-number"),
+      text("h4", `${arabic} · ${english}`),
+      text("span", String(items.length), "triage-number"));
+    column.append(head);
+    for (const item of items) {
+      const article = document.createElement("article");
+      article.className = "triage-message";
+      article.append(text("span", item.sender, "triage-sender"),
+        text("h5", item.subject),
+        text("p", item.summary, "triage-summary"));
+      if (item.proposed_task) {
+        article.append(text("p",
+          `مقترح فقط · ${item.proposed_task.title} · بدون موعد تلقائي`,
+          "triage-action"));
+      } else if (bucket === "reply_review") {
+        article.append(text("p",
+          "مسودة الرد لم تُنشأ؛ محتاجة تعليماتك ومراجعتك قبل الإرسال.",
+          "triage-action"));
+      }
+      if (item.attachments_unreviewed) {
+        article.append(text("p",
+          "المرفقات لم تُراجع · Attachments not reviewed",
+          "triage-warning"));
+      }
+      const link = document.createElement("a");
+      link.href = item.source_link;
+      link.textContent = "مراجعة البريد الأصلي في Gmail";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      article.append(link);
+      column.append(article);
+    }
+    groups.append(column);
+  }
 }
 
 function lock() {
@@ -58,8 +193,9 @@ function lock() {
   el("token").value = "";
   el("items").replaceChildren();
   el("inbox-panel").hidden = true;
-  el("login-panel").hidden = false;
-  el("connection").textContent = "غير متصل";
+  // Hide content; this does not revoke access in auto-unlock mode.
+  el("login-panel").hidden = true;
+  el("connection").textContent = "العرض مخفي";
   el("connection").classList.remove("connected");
   resetMailStatus();
   setBusy(false);
@@ -109,9 +245,9 @@ async function load(reset) {
     const query = new URLSearchParams({ limit: "20" });
     if (!reset && cursor) query.set("cursor", cursor);
     const options = {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       cache: "no-store",
-      credentials: "omit",
+      credentials: "same-origin",
       signal: controller.signal,
     };
     const [response, capsResponse] = await Promise.all([
@@ -121,14 +257,47 @@ async function load(reset) {
     if (active !== generation) return;
     if (response.status === 401 || capsResponse.status === 401) {
       lock();
+      keyProtected = true;
+      el("login-panel").hidden = false;
       el("message").textContent =
-        "المفتاح غير صالح أو انتهت مدته أو تم إلغاؤه. أنشئ مفتاحًا محليًا جديدًا.";
+        "الوضع المحمي مفعّل؛ أدخل مفتاح القراءة المحلي للمتصفح.";
       return;
     }
     if (!response.ok || !capsResponse.ok) throw new Error("read failed");
     const [result, caps] = await Promise.all([response.json(), capsResponse.json()]);
     if (active !== generation) return;
+    keyProtected = caps.read_key_required === true;
     renderMailStatus(caps.mail);
+    if (caps.mail?.sync_enabled) {
+      try {
+        const triageResponse = await fetch("/api/v1/mail/triage", options);
+        if (active !== generation) return;
+        if (!triageResponse.ok) throw new Error("triage read failed");
+        renderTriage(await triageResponse.json());
+      } catch (error) {
+        if (active !== generation || error.name === "AbortError") return;
+        el("triage-groups").replaceChildren();
+        el("triage-count").textContent = "تعذر قراءة التصنيف المحفوظ";
+      }
+    } else {
+      el("triage-groups").replaceChildren();
+      el("triage-count").textContent = "المزامنة المستمرة غير مفعّلة";
+    }
+    if (caps.mail?.configuration === "configured") {
+      try {
+        const actionsResponse = await fetch("/api/v1/mail/assistant", options);
+        if (active !== generation) return;
+        if (!actionsResponse.ok) throw new Error("assistant read failed");
+        renderAssistant(await actionsResponse.json());
+      } catch (error) {
+        if (active !== generation || error.name === "AbortError") return;
+        el("assistant-groups").replaceChildren();
+        el("assistant-count").textContent = "تعذر قراءة الاقتراحات المحلية";
+      }
+    } else {
+      el("assistant-groups").replaceChildren();
+      el("assistant-count").textContent = "البريد غير مهيأ";
+    }
     if (reset) el("items").replaceChildren();
     for (const item of result.items) el("items").append(card(item));
     cursor = result.next_cursor;
@@ -138,7 +307,8 @@ async function load(reset) {
       `آخر قراءة للملخصات المحفوظة: ${new Date(result.fetched_at * 1000).toLocaleString("ar-EG")} · زر التحديث لا يجلب بريدًا جديدًا من Gmail`;
     el("inbox-panel").hidden = false;
     el("login-panel").hidden = true;
-    el("connection").textContent = "متصل · قراءة فقط";
+    el("connection").textContent = keyProtected
+      ? "متصل · وضع محمي" : "متصل محليًا · بدون مفتاح";
     el("connection").classList.add("connected");
   } catch (error) {
     if (active !== generation || error.name === "AbortError") return;
@@ -154,17 +324,56 @@ async function load(reset) {
   }
 }
 
-el("login-form").addEventListener("submit", (event) => {
+el("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (busy) return;
-  token = el("token").value.trim();
+  const oneTimeKey = el("token").value.trim();
   el("token").value = "";
+  setBusy(true);
+  try {
+    const response = await fetch("/api/v1/session", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: oneTimeKey }),
+    });
+    if (!response.ok) throw new Error("pairing failed");
+    token = ""; // Never keep the pairing key in JS after the exchange.
+    el("message").textContent = "";
+  } catch (_) {
+    el("message").textContent = "تعذر ربط هذا المتصفح. تحقق من مفتاح القراءة المحلي أو صلاحيته.";
+    setBusy(false);
+    return;
+  }
+  setBusy(false);
   load(true);
 });
 el("refresh").addEventListener("click", () => load(true));
 el("more").addEventListener("click", () => load(false));
-el("logout").addEventListener("click", () => {
+el("logout").addEventListener("click", async () => {
+  let revoked = false;
+  if (keyProtected) {
+    try {
+      const response = await fetch("/api/v1/session", {
+        method: "DELETE", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+      });
+      revoked = response.ok;
+    } catch (_) {
+      // Do not claim that the protected session has been revoked.
+    }
+  }
   lock();
-  el("message").textContent = "تم قفل الصندوق ومسح بيانات الصفحة.";
+  if (keyProtected) {
+    el("login-panel").hidden = false;
+    el("message").textContent = revoked
+      ? "تم إلغاء جلسة المتصفح. للوصول مجددًا أدخل مفتاح القراءة."
+      : "أُخفي المحتوى، ولكن لم يُؤكَّد إلغاء الجلسة على الخادم.";
+  } else {
+    el("message").textContent =
+      "تم إخفاء العرض مؤقتًا فقط، وليس قفلًا أمنيًا. أعد تحميل الصفحة لفتحه تلقائيًا.";
+  }
 });
 window.addEventListener("pagehide", lock);
+
+// Default single-user loopback mode auto-opens; protected mode falls back to pairing.
+window.addEventListener("DOMContentLoaded", () => load(true));

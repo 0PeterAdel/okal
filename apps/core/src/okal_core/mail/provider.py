@@ -9,12 +9,22 @@ import json
 import re
 import time
 
-from .contracts import MailError, Message
+from .contracts import MailError, Message, UNREADABLE_CODES
 from .private import read_private, root, write_private
 
 READ = "https://www.googleapis.com/auth/gmail.readonly"
 SEND = "https://www.googleapis.com/auth/gmail.send"
 RAW_LIMIT = 8 * 1024 * 1024
+
+
+def google_refresh_request(**kwargs):
+    """Google-auth refresh transport that ignores ambient proxy/CA env vars."""
+    import requests
+    from google.auth.transport.requests import Request
+
+    with requests.Session() as session:
+        session.trust_env = False
+        return Request(session=session)(**{**kwargs, "timeout": 30})
 
 
 class GoogleTransport:
@@ -24,10 +34,11 @@ class GoogleTransport:
     HTTPX defaults to zero transport retries. Google-auth still owns OAuth.
     """
 
-    def __init__(self, credentials, client=None):
+    def __init__(self, credentials, client=None, persist=None):
         import httpx
 
         self.credentials = credentials
+        self.persist = persist
         self.client = client or httpx.Client(
             trust_env=False,
             follow_redirects=False,
@@ -38,7 +49,6 @@ class GoogleTransport:
     def request(self, uri, method="GET", body=None, headers=None, **kwargs):
         from urllib.parse import urlsplit
         import httplib2
-        from google.auth.transport.requests import Request
 
         url = urlsplit(uri)
         if (
@@ -49,8 +59,10 @@ class GoogleTransport:
             raise MailError("unapproved_google_destination")
         outgoing = dict(headers or {})
         self.credentials.before_request(
-            lambda **kw: Request()(**{**kw, "timeout": 30}), method, uri, outgoing
+            google_refresh_request, method, uri, outgoing
         )
+        if self.persist:
+            self.persist(self.credentials)
         started = time.monotonic()
         with self.client.stream(
             method, uri, content=body, headers=outgoing
@@ -273,6 +285,8 @@ def authorize(store, cfg, client_path, enable_send=False):
     if set(granted or []) != set(scopes):
         raise MailError("unexpected_oauth_scopes")
     info = json.loads(creds.to_json())
+    if not info.get("refresh_token"):
+        raise MailError("offline_refresh_token_not_granted")
     info["scopes"] = list(granted)
     api = Gmail.from_credentials(creds)
     try:
@@ -291,10 +305,10 @@ class Gmail:
         self.sleep = sleep
 
     @classmethod
-    def from_credentials(cls, creds):
+    def from_credentials(cls, creds, persist=None):
         from googleapiclient.discovery import build
 
-        http = GoogleTransport(creds)
+        http = GoogleTransport(creds, persist=persist)
         return cls(
             build(
                 "gmail", "v1", http=http, static_discovery=True, cache_discovery=False
@@ -306,7 +320,6 @@ class Gmail:
 
     @classmethod
     def open(cls, store, cfg, sending=False):
-        from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
 
         info = read_private(root(store) / "token.json")
@@ -318,13 +331,39 @@ class Gmail:
         if info.get("token_uri") != "https://oauth2.googleapis.com/token":
             raise MailError("invalid_token_endpoint")
         creds = Credentials.from_authorized_user_info(info)
+        if not info.get("refresh_token"):
+            raise MailError("authorization_required")
         if not creds.valid:
             try:
-                creds.refresh(lambda **kw: Request()(**{**kw, "timeout": 30}))
+                creds.refresh(google_refresh_request)
             except Exception:
                 raise MailError("authorization_required") from None
-            write_private(root(store) / "token.json", json.loads(creds.to_json()))
-        api = cls.from_credentials(creds)
+            renewed = json.loads(creds.to_json())
+            renewed["refresh_token"] = renewed.get("refresh_token") or info["refresh_token"]
+            renewed["scopes"] = list(scopes)
+            write_private(root(store) / "token.json", renewed)
+            info = renewed
+
+        last_token = info.get("token")
+        last_expiry = info.get("expiry")
+        last_refresh = info["refresh_token"]
+
+        def persist(credential):
+            nonlocal last_token, last_expiry, last_refresh
+            next_data = json.loads(credential.to_json())
+            if not next_data.get("refresh_token"):
+                next_data["refresh_token"] = last_refresh
+            next_data["scopes"] = list(scopes)
+            values = (next_data.get("token"), next_data.get("expiry"),
+                      next_data["refresh_token"])
+            if values != (last_token, last_expiry, last_refresh):
+                write_private(root(store) / "token.json", next_data)
+                last_token, last_expiry, last_refresh = values
+                # Future token responses may omit refresh_token; fall back to
+                # the latest *persisted* token, not the original one.
+                info.update(next_data)
+
+        api = cls.from_credentials(creds, persist=persist)
         try:
             api.check_account(cfg.account)
         except Exception:
@@ -332,7 +371,7 @@ class Gmail:
             raise
         return api
 
-    def call(self, request, write=False):
+    def call(self, request, write=False, missing=None):
         for attempt in range(3 if not write else 1):
             try:
                 return request.execute(num_retries=0)
@@ -343,6 +382,8 @@ class Gmail:
                     continue
                 if code == 401:
                     raise MailError("authorization_required") from None
+                if code == 404 and missing:
+                    raise MailError(missing) from None
                 raise MailError(
                     "provider_write_uncertain" if write else "provider_read_failed"
                 ) from None
@@ -353,6 +394,75 @@ class Gmail:
         )
         if actual.casefold() != expected.casefold():
             raise MailError("wrong_google_account")
+
+    def history_marker(self):
+        marker = self.call(self.service.users().getProfile(userId="me")).get("historyId")
+        if not isinstance(marker, str) or not re.fullmatch(r"[0-9]{1,32}", marker):
+            raise MailError("invalid_gmail_history_id")
+        return marker
+
+    def history_changes(self, start_id, limit):
+        """Consume ALL history pages before authorizing a checkpoint advance."""
+        if not isinstance(start_id, str) or not re.fullmatch(r"[0-9]{1,32}", start_id):
+            raise MailError("invalid_gmail_history_id")
+        token, used, seen_pages, ids, deleted = None, 0, set(), set(), set()
+        started = time.monotonic()
+        marker = None
+        while used < 100:
+            if time.monotonic() - started > 120:
+                raise MailError("listing_time_budget_exceeded")
+            page = self.call(
+                self.service.users().history().list(
+                    userId="me", startHistoryId=start_id,
+                    # Label-only churn is irrelevant to new-message ingestion.
+                    historyTypes=["messageAdded", "messageDeleted"],
+                    maxResults=500, pageToken=token,
+                ),
+                missing="history_cursor_expired",
+            )
+            used += 1
+            marker = page.get("historyId")
+            if not isinstance(marker, str) or not re.fullmatch(r"[0-9]{1,32}", marker):
+                raise MailError("invalid_gmail_history_id")
+            for item in page.get("history", []):
+                for added in item.get("messagesAdded", []):
+                    mid = added.get("message", {}).get("id")
+                    if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+                        raise MailError("invalid_message_id")
+                    ids.add(mid)
+                for gone in item.get("messagesDeleted", []):
+                    mid = gone.get("message", {}).get("id")
+                    if isinstance(mid, str) and re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+                        deleted.add(mid)
+                if len(ids) > limit:
+                    raise MailError("message_budget_exceeded_narrow_interval")
+            token = page.get("nextPageToken")
+            if not token:
+                if int(marker) < int(start_id):
+                    raise MailError("history_cursor_regressed")
+                return marker, sorted(ids), len(deleted)
+            if token in seen_pages:
+                raise MailError("repeated_page_token")
+            seen_pages.add(token)
+        raise MailError("page_budget_exceeded")
+
+    def get_optional(self, mid):
+        if not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+            raise MailError("invalid_message_id")
+        try:
+            row = self.call(
+                self.service.users().messages().get(
+                    userId="me", id=mid, format="full"
+                ), missing="message_disappeared"
+            )
+        except MailError as exc:
+            if str(exc) == "message_disappeared":
+                return None
+            raise
+        msg = parse_full(row)
+        if msg.id != mid:
+            raise MailError("provider_id_mismatch")
+        return msg
 
     def ids(self, query, limit):
         cursor = None
@@ -394,7 +504,11 @@ class Gmail:
             raise MailError("provider_id_mismatch")
         return message
 
-    def collect(self, start, end, limit):
+    def collect(self, start, end, limit, quarantine=None):
+        """When opted in, record unreadable IDs for explicit manual review.
+
+        Existing strict digest/search behavior is unchanged with quarantine=None.
+        """
         query = (
             f"after:{start - 1} before:{end + 1} -in:sent -in:drafts -in:spam -in:trash"
         )
@@ -403,7 +517,16 @@ class Gmail:
         for mid in self.ids(query, limit):
             if time.monotonic() - started > 180:
                 raise MailError("read_time_budget_exceeded")
-            msg = self.get(mid)
+            try:
+                msg = self.get_optional(mid) if quarantine is not None else self.get(mid)
+            except MailError as exc:
+                if quarantine is None or str(exc) not in UNREADABLE_CODES:
+                    raise
+                quarantine.append((mid, str(exc)))
+                continue
+            if msg is None:
+                quarantine.append((mid, "message_disappeared"))
+                continue
             if start * 1000 <= msg.received_ms < end * 1000 and not set(msg.labels) & {
                 "SENT",
                 "DRAFT",

@@ -68,19 +68,33 @@ test("lock clears private status and inbox", () => {
   assert.equal(get("sync").textContent, "لم يتم التحديث بعد");
   assert.equal(get("inbox-panel").hidden, true);
 });
-test("refresh requests local summaries and capabilities only", async () => {
+test("local dashboard auto-opens without a key and uses only local read endpoints", async () => {
   const calls = [];
   const { context, get } = harness(async (url, options) => {
     calls.push(url);
-    assert.equal(options.headers.Authorization, "Bearer synthetic");
+    assert.equal(Object.hasOwn(options.headers, "Authorization"), false);
     return response(url.startsWith("/api/v1/summaries")
-      ? { items: [], next_cursor: null, fetched_at: 100 } : { mail: configured });
+      ? { items: [], next_cursor: null, fetched_at: 100 }
+      : url === "/api/v1/mail/assistant"
+        ? { items: [], counts: {}, total_in_sample: 0, state: "local_suggestion_preview" }
+        : { mail: configured });
   });
-  vm.runInContext('token = "synthetic"', context);
   await context.load(true);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2], "/api/v1/mail/assistant");
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
+  assert.equal(get("inbox-panel").hidden, false);
+  assert.equal(get("login-panel").hidden, true);
+  assert.match(get("connection").textContent, /بدون مفتاح/);
 });
+test("optional protected mode reveals read key form only after a 401", async () => {
+  const { context, get } = harness(async () => response({}, 401));
+  await context.load(true);
+  assert.equal(get("login-panel").hidden, false);
+  assert.equal(get("inbox-panel").hidden, true);
+  assert.match(get("message").textContent, /الوضع المحمي/);
+});
+
 test("failed status refresh clears former success claims", async () => {
   const { context, get } = harness(async () => response({}, 500));
   context.renderMailStatus({ ...configured, latest_success: { updated: 100, count: 2 } });
@@ -97,4 +111,66 @@ test("late refresh cannot restore private status after locking", async () => {
   await loading;
   assert.equal(get("mail-status").textContent, "افتح الصندوق لعرض الحالة");
   assert.equal(get("inbox-panel").hidden, true);
+});
+
+test("triage groups manual-review and preserves untrusted text as textContent", () => {
+  const { context, get } = harness();
+  context.renderTriage({
+    state: "recorded_local_insights",
+    items: [
+      { category: "manual_review", sender: "Gmail", subject: "<svg onload=alert(1)>",
+        summary: "مراجعة يدوية", suggested_action: "Open Gmail", has_unread_attachments: false,
+        link: "https://mail.google.com/mail/#all/ab" },
+      { category: "action", sender: "boss@example.com", subject: "Meeting",
+        summary: "Review the schedule", suggested_action: "", has_unread_attachments: false,
+        link: "https://mail.google.com/mail/#all/bb" },
+    ],
+  });
+  assert.match(get("triage-count").textContent, /1 للمراجعة اليدوية/);
+  assert.equal(get("triage-groups").children.length, 2);
+  const firstGroup = get("triage-groups").children[0];
+  assert.equal(firstGroup.children[1].children[1].textContent, "<svg onload=alert(1)>");
+  assert.equal(firstGroup.children[1].children.at(-1).href,
+    "https://mail.google.com/mail/#all/ab");
+  assert.match(firstGroup.children[0].children[1].textContent, /Manual review/);
+});
+
+test("inbox action preview is owner-only text, never executes email payload", () => {
+  const { context, get } = harness();
+  context.renderAssistant({
+    state: "local_suggestion_preview", total_in_sample: 1,
+    counts: { task_review: 1, reply_review: 0, read_later: 0, manual_review: 0 },
+    items: [{
+      bucket: "task_review", sender: "untrusted@evil.example",
+      subject: "<img src=x onerror=alert(1)>",
+      summary: "Dangerous HTML must stay text",
+      proposed_task: { title: "Ignore my boss", due_date: null },
+      source_link: "https://mail.google.com/mail/#all/ab",
+      attachments_unreviewed: false,
+    }],
+  });
+  assert.equal(get("assistant-groups").children.length, 1);
+  const article = get("assistant-groups").children[0].children[1];
+  assert.equal(article.children[1].textContent, "<img src=x onerror=alert(1)>");
+  assert.match(get("assistant-note").textContent, /لا Google Tasks/);
+  context.lock();
+  assert.equal(get("assistant-groups").children.length, 0);
+});
+
+test("OAuth reauthorization and unfinished catch-up have distinct honest labels", () => {
+  const { context, get } = harness();
+  context.renderMailStatus({
+    ...configured,
+    sync_enabled: true,
+    sync: {
+      state: "failed_last_attempt", last_error: "authorization_required",
+      last_result: "history_chunk_pending", last_checked: 100,
+      last_count: 12, manual_review_count: 2,
+    },
+  });
+  const status = get("integration-status").textContent;
+  assert.match(status, /Google Authorization Required/);
+  assert.match(status, /Catch-up in progress/);
+  assert.match(status, /مراجعة يدوية/);
+  assert.doesNotMatch(status, /نجحت المزامنة الآن/);
 });

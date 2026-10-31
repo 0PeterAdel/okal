@@ -7,6 +7,16 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+# Only per-message content decoding failures may be quarantined as manual review.
+# Global provider/auth/model failures must block checkpoint advancement.
+UNREADABLE_CODES = frozenset({
+    "unreadable_message", "message_exceeds_size_budget",
+    "mime_complexity_budget_exceeded", "ambiguous_message_headers",
+    "body_requires_attachment_fetch_manual_review",
+    "message_body_truncated_narrow_scope_or_review_manually",
+})
+
+
 class MailError(ValueError):
     """Safe operator-facing error code (no provider response/body/secret)."""
 
@@ -38,6 +48,7 @@ class Config(Strict):
     retention_days: int = Field(default=30, ge=1, le=365)
     daily_at: str | None = None
     send_enabled: bool = False
+    sync_enabled: bool = False
 
     @field_validator("account")
     @classmethod
@@ -75,11 +86,16 @@ class Message(Strict):
     attachment_count: int = Field(default=0, ge=0)
 
 
-class Insight(Strict):
-    source_id: str
+class InsightPayload(Strict):
+    """LLM-owned text fields only; source identities are never model-owned."""
     category: Literal["action", "information", "low_priority"]
     summary: str = Field(min_length=1, max_length=240)
     suggested_action: str = Field(max_length=160)
+
+
+class Insight(InsightPayload):
+    """Stored/returned triage record with provider-owned source identity."""
+    source_id: str
 
 
 class Reply(Strict):

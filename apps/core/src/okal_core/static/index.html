@@ -24,7 +24,7 @@
         </div>
         <div class="local-note">
           <span class="dot"></span> محلي على جهازك
-          <p>هذه الواجهة للقراءة فقط · بدون تنفيذ أو إرسال</p>
+          <p>فتح تلقائي على هذا الجهاز · قراءة فقط · بدون تنفيذ أو إرسال</p>
         </div>
       </aside>
       <main>
@@ -46,7 +46,7 @@
             افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.
           </p>
         </div>
-        <section id="login-panel" class="panel" aria-labelledby="login-title">
+        <section id="login-panel" class="panel" hidden aria-labelledby="login-title">
           <div class="section-title">
             <div>
               <p class="eyebrow">وصول خاص</p>
@@ -55,8 +55,8 @@
             <span class="lock-icon" aria-hidden="true">⌑</span>
           </div>
           <p class="muted">
-            استخدم مفتاح القراءة الذي أنشأته محليًا. يظل في ذاكرة الصفحة فقط،
-            ولا نحفظه في المتصفح.
+            تم تفعيل وضع الحماية بالمفتاح على هذا الجهاز. أدخل مفتاح القراءة
+            المحلي للمتصفح؛ الوضع الافتراضي يفتح تلقائيًا من دون مفتاح.
           </p>
           <form id="login-form">
             <label for="token">مفتاح القراءة</label>
@@ -69,8 +69,8 @@
                 required
                 maxlength="100"
                 dir="ltr"
-                placeholder="الصق المفتاح هنا"
-              /><button id="connect" type="submit">فتح الصندوق ←</button>
+                placeholder="مفتاح الربط لمرة واحدة"
+              /><button id="connect" type="submit">ربط المتصفح وفتح الصندوق ←</button>
             </div>
           </form>
           <p class="hint">
@@ -90,10 +90,33 @@
             </div>
             <div class="actions">
               <button id="refresh" class="secondary">تحديث</button
-              ><button id="logout" class="quiet">قفل الصندوق</button>
+              ><button id="logout" class="quiet">إخفاء العرض</button>
             </div>
           </div>
           <p id="sync" class="muted">لم يتم التحديث بعد</p>
+          <section class="triage" aria-labelledby="triage-title">
+            <div class="triage-head">
+              <div><p class="eyebrow">SMART TRIAGE · محلي</p>
+              <h3 id="triage-title">أهم رسائلك | Your priorities</h3></div>
+              <span id="triage-count" class="triage-count">لا توجد بيانات بعد</span>
+            </div>
+            <p id="triage-note" class="muted">ملخصات الذكاء الاصطناعي اقتراحات للمراجعة، بدون تعديل Gmail أو إرسال تلقائي.</p>
+            <div id="triage-groups" class="triage-groups"></div>
+          </section>
+          <section class="triage" aria-labelledby="assistant-title">
+            <div class="triage-head">
+              <div>
+                <p class="eyebrow">INBOX ACTIONS · RULES PREVIEW</p>
+                <h3 id="assistant-title">اقتراحات المهام والردود</h3>
+              </div>
+              <span id="assistant-count" class="triage-count">لم يتم التحميل</span>
+            </div>
+            <p id="assistant-note" class="muted">
+              اقتراحات محلية فقط؛ لا مهام أُنشئت في Google Tasks أو Calendar،
+              ولا ردود أُرسلت. راجع الرسالة الأصلية قبل أي قرار.
+            </p>
+            <div id="assistant-groups" class="triage-groups"></div>
+          </section>
           <div id="items" class="items"></div>
           <div id="empty" class="empty" hidden>
             <span aria-hidden="true">◫</span>
