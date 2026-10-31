@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--state-dir", type=Path, default=default)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    commands.add_parser("morning", help="Offline voice-ready daily briefing from saved evidence")
     mail = commands.add_parser(
         "mail", help="optional Gmail backend; explicit local onboarding"
     )
@@ -63,6 +64,11 @@ def main():
         parser.error("port must be between 1024 and 65535")
     try:
         store = Store(args.state_dir)
+        if args.command == "morning":
+            from .morning import morning_brief
+
+            print(json.dumps(morning_brief(store), ensure_ascii=True, indent=2))
+            return 0
         if args.command == "mail":
             from .mail.cli import main as mail_main
 
