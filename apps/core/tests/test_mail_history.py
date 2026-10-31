@@ -163,6 +163,38 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(len(set(self.model.calls)), 46)
         self.assertEqual(len(self.model.calls), 46)
 
+    def test_more_than_300_messages_are_drained_without_advance_or_duplicates(self):
+        run(self.store, self.cfg, self.api, self.model)
+        self.now += 3600
+        mids = [format(4096 + index, "x") for index in range(315)]
+        self.api.items.update({mid: incoming(mid, self.now - 60) for mid in mids})
+        self.api.delta = ("500", mids, 0)
+        requested_limits = []
+        original_history = self.api.history_changes
+
+        def capture_history(old, limit):
+            requested_limits.append(limit)
+            if len(mids) > limit:
+                raise MailError("message_budget_exceeded_narrow_interval")
+            return original_history(old, limit)
+
+        self.api.history_changes = capture_history
+        for batch in range(11):
+            out = run(self.store, self.cfg, self.api, self.model)
+            checkpoint = HistoryState(self.store).current(self.cfg.account)
+            if batch < 10:
+                self.assertEqual(out["status"], "history_chunk_pending")
+                self.assertEqual(checkpoint["cursor"], "100")
+                self.assertEqual(out["processed"], 30)
+            else:
+                self.assertEqual(out["status"], "history_delta")
+                self.assertEqual(checkpoint["cursor"], "500")
+                self.assertEqual(out["processed"], 15)
+            self.now += 30
+        self.assertTrue(all(limit >= 315 for limit in requested_limits))
+        self.assertEqual(len(set(self.model.calls)), 316)
+        self.assertEqual(len(self.model.calls), 316)
+
     def test_pending_history_batches_run_next_tick_but_failure_cools_down(self):
         run(self.store, self.cfg, self.api, self.model)
         self.now += 3600
