@@ -29,6 +29,16 @@ days fails without moving the cursor. Likewise, query pagination, message,
 runtime or model budget errors fail without claiming a complete sync.
 Very large backlogs may need controlled manual recovery / higher bounded config.
 
+Malformed, oversized, truncated, or MIME-unreadable individual messages are
+placed in the local **Manual review / مراجعة يدوية** queue with a safe error
+code and a native Gmail link. This exception is visible, and only that
+message is skipped for automated AI summarization; its ID becomes a persistent
+deduplication tombstone. The checkpoint can then advance after recording the
+manual-review record in the SAME SQLite transaction. These are **not**
+considered successfully understood messages. OAuth, provider/network, database,
+and model failures are not quarantined and still block cursor advancement.
+A vanished message is also recorded as unavailable during backfill.
+
 Only messagesAdded are treated as new for AI summaries. Read/unread or label
 changes, deleted messages and attachment contents are NOT a mailbox mirror or
 guaranteed forensic record. History IDs are monotonic, not contiguous.
