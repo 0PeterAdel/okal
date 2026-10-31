@@ -346,16 +346,22 @@ class Gmail:
 
         last_token = info.get("token")
         last_expiry = info.get("expiry")
+        last_refresh = info["refresh_token"]
 
         def persist(credential):
-            nonlocal last_token, last_expiry
+            nonlocal last_token, last_expiry, last_refresh
             next_data = json.loads(credential.to_json())
             if not next_data.get("refresh_token"):
-                next_data["refresh_token"] = info["refresh_token"]
+                next_data["refresh_token"] = last_refresh
             next_data["scopes"] = list(scopes)
-            if (next_data.get("token"), next_data.get("expiry")) != (last_token, last_expiry):
+            values = (next_data.get("token"), next_data.get("expiry"),
+                      next_data["refresh_token"])
+            if values != (last_token, last_expiry, last_refresh):
                 write_private(root(store) / "token.json", next_data)
-                last_token, last_expiry = next_data.get("token"), next_data.get("expiry")
+                last_token, last_expiry, last_refresh = values
+                # Future token responses may omit refresh_token; fall back to
+                # the latest *persisted* token, not the original one.
+                info.update(next_data)
 
         api = cls.from_credentials(creds, persist=persist)
         try:
