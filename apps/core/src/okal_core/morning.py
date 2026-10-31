@@ -43,7 +43,7 @@ def morning_brief(store):
         "new_action_emails": [], "new_info_emails": [],
         "automation_notifications": 0, "excluded_synthetic_tests": 0,
         "duplicates_suppressed": 0, "manual_review_count": 0,
-        "spoken_text": "", "calendar_note": "Google Calendar مش مربوط لسه.",
+        "spoken_text": "", "calendar_note": "تقويم Google مش مربوط لسه؛ المواعيد دي من مهامك المحلية المؤكدة فقط.",
         "no_external_actions": True,
     }
     task_rows = TaskBoard(store).list(status="open", limit=100)["items"]
@@ -164,7 +164,7 @@ def morning_brief(store):
             ": " + _short(first["summary"], 115).rstrip(".") + "."
         )
     elif info["mail_sync_stale"]:
-        sentences.append("آخر تحديث للبريد قديم، فمش هأكد إن مفيش رسائل جديدة.")
+        sentences.append("آخر تحديث للبريد قديم، فمش هفترض إن مفيش رسائل جديدة.")
     else:
         sentences.append("مافيش طلبات جديدة محتاجة متابعة ضمن البريد المحفوظ خلال آخر يوم.")
     if info["manual_review_count"]:
