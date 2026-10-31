@@ -86,11 +86,16 @@ class Message(Strict):
     attachment_count: int = Field(default=0, ge=0)
 
 
-class Insight(Strict):
-    source_id: str
+class InsightPayload(Strict):
+    """LLM-owned text fields only; source identities are never model-owned."""
     category: Literal["action", "information", "low_priority"]
     summary: str = Field(min_length=1, max_length=240)
     suggested_action: str = Field(max_length=160)
+
+
+class Insight(InsightPayload):
+    """Stored/returned triage record with provider-owned source identity."""
+    source_id: str
 
 
 class Reply(Strict):
