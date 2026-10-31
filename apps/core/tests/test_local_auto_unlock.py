@@ -58,7 +58,14 @@ class LocalDashboardAutoUnlockTests(unittest.TestCase):
         with self.client() as client:
             self.assertEqual(client.post("/api/v1/summaries", json={}).status_code, 401)
             self.assertEqual(client.get("/api/v1/new-privileged-command").status_code, 401)
-            self.assertEqual(client.get("/api/v1/runs/no-such-run").status_code, 404)
+            self.assertEqual(client.get("/api/v1/runs/no-such-run").status_code, 401)
+            self.assertEqual(
+                client.get("/api/v1/runs/" + "a" * 32).status_code, 404
+            )
+            self.assertEqual(
+                client.get("/api/v1/runs/" + "a" * 32 + "/send").status_code,
+                401,
+            )
 
     def test_remote_client_and_rebinding_host_are_forbidden(self):
         with self.client(address="192.168.1.42") as client:
