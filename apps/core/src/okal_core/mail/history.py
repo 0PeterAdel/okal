@@ -12,7 +12,7 @@ import uuid
 
 from ..models import SummaryInput
 from .contracts import MailError
-from .state import fingerprint
+from .state import MailState, fingerprint
 from .workflows import source_link
 
 MAX_WINDOW = 31 * 86400
@@ -245,11 +245,18 @@ def run(store, cfg, api, model):
     try:
         api.check_account(account)
         if previous is None:
+            # Cut over from the legacy contiguous digest watermark if it exists.
+            # Otherwise use a bounded initial 24-hour baseline. Never silently
+            # discard a known last-success time after a shutdown.
+            legacy = MailState(store).progress(account)
+            start = legacy if legacy is not None else max(0, now - 86400)
+            if not 0 <= start < now or now - start > MAX_WINDOW:
+                raise MailError("history_backfill_window_exceeded_manual_review_required")
             # Capture cursor *before* fetching so arrivals during backfill replay.
             cursor = api.history_marker()
-            start = max(0, now - 86400)
             messages = api.collect(start, now, cfg.max_messages)
-            result = "initial_24h_backfill"
+            result = ("initial_legacy_checkpoint_backfill"
+                      if legacy is not None else "initial_24h_backfill")
         else:
             start = current["checked_at"]
             try:
