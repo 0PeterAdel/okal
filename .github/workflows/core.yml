@@ -52,6 +52,7 @@ jobs:
           bash -n scripts/run-okal-core.sh
           shellcheck scripts/run-okal-core.sh
           node --check apps/core/src/okal_core/static/app.js
+          node --test apps/core/tests/test_inbox_status.cjs
       - name: Verify real process restart
         env:
           PYTHONPATH: apps/core/src

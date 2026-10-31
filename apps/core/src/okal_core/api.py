@@ -86,17 +86,16 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
 
     @app.get("/api/v1/capabilities")
     def capabilities():
-        configured = (store.directory / "mail" / "config.json").exists()
-        scheduled = False
-        setup_state = "disabled"
-        if configured:
-            try:
-                from .mail.private import config
+        from .mail.status import snapshot
 
-                scheduled = config(store).daily_at is not None
-                setup_state = "configured_not_verified"
-            except Exception:
-                setup_state = "invalid_configuration"
+        mail_status = snapshot(store)
+        configured = mail_status["configuration"] == "configured"
+        scheduled = configured and mail_status["daily_at"] is not None
+        setup_state = {
+            "absent": "disabled",
+            "configured": "configured_not_verified",
+            "invalid": "invalid_configuration",
+        }[mail_status["configuration"]]
         return {
             "schema_version": 1,
             "mode": "local-read-only",
@@ -108,6 +107,7 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             "scheduler_status": setup_state,
             "remote_pairing": False,
             "voice": False,
+            "mail": mail_status,
         }
 
     @app.get("/api/v1/summaries")

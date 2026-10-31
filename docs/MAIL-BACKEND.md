@@ -269,6 +269,23 @@ mail off until you return to the tested mail code.
 
 ## Verification
 
+### Inbox status evidence
+
+Opening or refreshing the authenticated inbox reads local summaries and a local
+capability snapshot only. It does not contact Gmail or run inference. The snapshot
+separates configuration, latest recorded attempt, latest successful digest and
+configured schedule/send gates; it exposes no account address, credential, draft
+or mail body. Configuration is not proof of valid OAuth, an enabled schedule is
+not proof of worker health, and past success is not current provider/model health.
+Zero-message runs do not prove inference. Demo fixtures never count as mail jobs.
+Snapshot reads do not initialize or migrate mail tables; unsupported history
+schemas and invalid configurations are displayed as unknown/error, not success.
+
+Status and summaries are cleared on page lock/navigation, with no browser token
+storage. Refresh errors clear success labels; late responses cannot unlock a
+locked page. Retained summaries may still be visible after an ordinary refresh
+failure, explicitly marked stale. The UI never grants sending permissions.
+
 ### Thinking-budget regression
 
 Mail summary and reply requests explicitly set `think: false`, with the existing

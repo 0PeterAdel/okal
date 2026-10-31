@@ -19,12 +19,12 @@
         <div class="nav-active">◫ <span>صندوق الملخصات</span></div>
         <div class="roadmap">
           <p>لاحقًا، خطوة بخطوة</p>
-          <span>البريد والتقويم</span><span>السوشيال والفريلانس</span
+          <span>التقويم</span><span>السوشيال والفريلانس</span
           ><span>الصوت · مؤجّل</span>
         </div>
         <div class="local-note">
           <span class="dot"></span> محلي على جهازك
-          <p>قراءة فقط · بدون تنفيذ أو إرسال</p>
+          <p>هذه الواجهة للقراءة فقط · بدون تنفيذ أو إرسال</p>
         </div>
       </aside>
       <main>
@@ -41,10 +41,9 @@
           </p>
         </section>
         <div class="notice">
-          <span>R1a</span>
-          <p>
-            نسخة تأسيسية محلية. لا يوجد اتصال بالبريد أو التقويم، ولا نموذج ذكاء
-            اصطناعي شغّال هنا بعد.
+          <span>الحالة</span>
+          <p id="integration-status" aria-live="polite">
+            افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.
           </p>
         </div>
         <section id="login-panel" class="panel" aria-labelledby="login-title">
@@ -108,14 +107,14 @@
         </section>
         <p id="message" role="status" aria-live="polite"></p>
         <section class="integrations" aria-label="حالة الربط">
-          <div><span>البريد</span><small>غير مربوط</small></div>
+          <div><span>البريد</span><small id="mail-status">افتح الصندوق لعرض الحالة</small></div>
           <div><span>التقويم</span><small>غير مربوط</small></div>
           <div><span>السوشيال</span><small>غير مربوط</small></div>
           <div><span>الفريلانس</span><small>غير مربوط</small></div>
         </section>
         <footer>
-          <span>بياناتك تفضل عندك.</span
-          ><span>لا مزامنة سحابية · لا إرسال تلقائي</span>
+          <span>الملخصات محفوظة محليًا.</span
+          ><span>جلب Gmail يحتاج الإنترنت · لا إرسال من هذه الواجهة</span>
         </footer>
       </main>
     </div>
