@@ -19,6 +19,9 @@ function resetMailStatus() {
   el("assistant-groups").replaceChildren();
   el("assistant-count").textContent = "لم يتم التحميل";
   el("assistant-note").textContent = "اقتراحات محلية فقط؛ لا إرسال أو إنشاء مهام خارج OKAL.";
+  el("tasks-list").replaceChildren();
+  el("tasks-count").textContent = "لم يتم التحميل";
+  el("tasks-note").textContent = "مهام محلية بموافقتك؛ لا إنشاء أحداث في Google Calendar.";
 }
 
 function renderMailStatus(mail) {
@@ -185,6 +188,43 @@ function renderAssistant(result) {
   }
 }
 
+function renderTasks(result) {
+  if (!result || !Array.isArray(result.items))
+    throw new Error("invalid local tasks payload");
+  const list = el("tasks-list");
+  list.replaceChildren();
+  el("tasks-count").textContent =
+    `${result.total_in_sample} مهمة مفتوحة · ${result.overdue_in_sample || 0} فات موعدها`;
+  el("tasks-note").textContent =
+    "المواعيد أدخلتها أنت؛ بدون Google Calendar أو تنبيهات نظام مجدولة حتى الآن.";
+  for (const item of result.items) {
+    const article = document.createElement("article");
+    article.className = "task-card";
+    article.append(text("h4", item.title));
+    if (item.due_at !== null && item.due_at !== undefined) {
+      const due = new Date(item.due_at * 1000);
+      if (!Number.isNaN(due.getTime())) {
+        article.append(text("p",
+          `الموعد المؤكد · ${due.toLocaleString("ar-EG")}`, "task-due"));
+      }
+    } else {
+      article.append(text("p", "بدون موعد محدد", "muted"));
+    }
+    if (item.source_link) {
+      const link = document.createElement("a");
+      link.textContent = "الرسالة الأصلية في Gmail";
+      link.href = item.source_link;
+      link.rel = "noopener noreferrer";
+      link.target = "_blank";
+      article.append(link);
+    }
+    list.append(article);
+  }
+  if (!result.items.length)
+    list.append(text("p", "لسه مفيش مهام مؤكدة. اقتراحات البريد موجودة فوق.",
+      "muted"));
+}
+
 function lock() {
   generation += 1;
   if (controller) controller.abort();
@@ -297,6 +337,16 @@ async function load(reset) {
     } else {
       el("assistant-groups").replaceChildren();
       el("assistant-count").textContent = "البريد غير مهيأ";
+    }
+    try {
+      const tasksResponse = await fetch("/api/v1/tasks", options);
+      if (active !== generation) return;
+      if (!tasksResponse.ok) throw new Error("task board unavailable");
+      renderTasks(await tasksResponse.json());
+    } catch (error) {
+      if (active !== generation || error.name === "AbortError") return;
+      el("tasks-list").replaceChildren();
+      el("tasks-count").textContent = "تعذر تحميل المهام المحلية";
     }
     if (reset) el("items").replaceChildren();
     for (const item of result.items) el("items").append(card(item));
