@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 import json
 import os
+import re
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -42,7 +43,8 @@ def create_app(
 
     def public_local_read(path, method):
         return method == "GET" and (
-            path in local_read_paths or path.startswith("/api/v1/runs/")
+            path in local_read_paths
+            or re.fullmatch(r"/api/v1/runs/[a-f0-9]{32}", path) is not None
         )
 
     @app.middleware("http")
