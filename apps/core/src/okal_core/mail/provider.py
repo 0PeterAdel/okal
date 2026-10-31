@@ -24,10 +24,11 @@ class GoogleTransport:
     HTTPX defaults to zero transport retries. Google-auth still owns OAuth.
     """
 
-    def __init__(self, credentials, client=None):
+    def __init__(self, credentials, client=None, persist=None):
         import httpx
 
         self.credentials = credentials
+        self.persist = persist
         self.client = client or httpx.Client(
             trust_env=False,
             follow_redirects=False,
@@ -51,6 +52,8 @@ class GoogleTransport:
         self.credentials.before_request(
             lambda **kw: Request()(**{**kw, "timeout": 30}), method, uri, outgoing
         )
+        if self.persist:
+            self.persist(self.credentials)
         started = time.monotonic()
         with self.client.stream(
             method, uri, content=body, headers=outgoing
@@ -273,6 +276,8 @@ def authorize(store, cfg, client_path, enable_send=False):
     if set(granted or []) != set(scopes):
         raise MailError("unexpected_oauth_scopes")
     info = json.loads(creds.to_json())
+    if not info.get("refresh_token"):
+        raise MailError("offline_refresh_token_not_granted")
     info["scopes"] = list(granted)
     api = Gmail.from_credentials(creds)
     try:
@@ -291,10 +296,10 @@ class Gmail:
         self.sleep = sleep
 
     @classmethod
-    def from_credentials(cls, creds):
+    def from_credentials(cls, creds, persist=None):
         from googleapiclient.discovery import build
 
-        http = GoogleTransport(creds)
+        http = GoogleTransport(creds, persist=persist)
         return cls(
             build(
                 "gmail", "v1", http=http, static_discovery=True, cache_discovery=False
@@ -318,13 +323,33 @@ class Gmail:
         if info.get("token_uri") != "https://oauth2.googleapis.com/token":
             raise MailError("invalid_token_endpoint")
         creds = Credentials.from_authorized_user_info(info)
+        if not info.get("refresh_token"):
+            raise MailError("authorization_required")
         if not creds.valid:
             try:
                 creds.refresh(lambda **kw: Request()(**{**kw, "timeout": 30}))
             except Exception:
                 raise MailError("authorization_required") from None
-            write_private(root(store) / "token.json", json.loads(creds.to_json()))
-        api = cls.from_credentials(creds)
+            renewed = json.loads(creds.to_json())
+            renewed["refresh_token"] = renewed.get("refresh_token") or info["refresh_token"]
+            renewed["scopes"] = list(scopes)
+            write_private(root(store) / "token.json", renewed)
+            info = renewed
+
+        last_token = info.get("token")
+        last_expiry = info.get("expiry")
+
+        def persist(credential):
+            nonlocal last_token, last_expiry
+            next_data = json.loads(credential.to_json())
+            if not next_data.get("refresh_token"):
+                next_data["refresh_token"] = info["refresh_token"]
+            next_data["scopes"] = list(scopes)
+            if (next_data.get("token"), next_data.get("expiry")) != (last_token, last_expiry):
+                write_private(root(store) / "token.json", next_data)
+                last_token, last_expiry = next_data.get("token"), next_data.get("expiry")
+
+        api = cls.from_credentials(creds, persist=persist)
         try:
             api.check_account(cfg.account)
         except Exception:
@@ -332,7 +357,7 @@ class Gmail:
             raise
         return api
 
-    def call(self, request, write=False):
+    def call(self, request, write=False, missing=None):
         for attempt in range(3 if not write else 1):
             try:
                 return request.execute(num_retries=0)
@@ -343,6 +368,8 @@ class Gmail:
                     continue
                 if code == 401:
                     raise MailError("authorization_required") from None
+                if code == 404 and missing:
+                    raise MailError(missing) from None
                 raise MailError(
                     "provider_write_uncertain" if write else "provider_read_failed"
                 ) from None
@@ -353,6 +380,73 @@ class Gmail:
         )
         if actual.casefold() != expected.casefold():
             raise MailError("wrong_google_account")
+
+    def history_marker(self):
+        marker = self.call(self.service.users().getProfile(userId="me")).get("historyId")
+        if not isinstance(marker, str) or not re.fullmatch(r"[0-9]{1,32}", marker):
+            raise MailError("invalid_gmail_history_id")
+        return marker
+
+    def history_changes(self, start_id, limit):
+        """Consume ALL history pages before authorizing a checkpoint advance."""
+        if not isinstance(start_id, str) or not re.fullmatch(r"[0-9]{1,32}", start_id):
+            raise MailError("invalid_gmail_history_id")
+        token, used, seen_pages, ids, deleted = None, 0, set(), set(), set()
+        started = time.monotonic()
+        marker = None
+        while used < 100:
+            if time.monotonic() - started > 120:
+                raise MailError("listing_time_budget_exceeded")
+            page = self.call(
+                self.service.users().history().list(
+                    userId="me", startHistoryId=start_id,
+                    maxResults=500, pageToken=token,
+                ),
+                missing="history_cursor_expired",
+            )
+            used += 1
+            marker = page.get("historyId")
+            if not isinstance(marker, str) or not re.fullmatch(r"[0-9]{1,32}", marker):
+                raise MailError("invalid_gmail_history_id")
+            for item in page.get("history", []):
+                for added in item.get("messagesAdded", []):
+                    mid = added.get("message", {}).get("id")
+                    if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+                        raise MailError("invalid_message_id")
+                    ids.add(mid)
+                for gone in item.get("messagesDeleted", []):
+                    mid = gone.get("message", {}).get("id")
+                    if isinstance(mid, str) and re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+                        deleted.add(mid)
+                if len(ids) > limit:
+                    raise MailError("message_budget_exceeded_narrow_interval")
+            token = page.get("nextPageToken")
+            if not token:
+                if int(marker) < int(start_id):
+                    raise MailError("history_cursor_regressed")
+                return marker, sorted(ids), len(deleted)
+            if token in seen_pages:
+                raise MailError("repeated_page_token")
+            seen_pages.add(token)
+        raise MailError("page_budget_exceeded")
+
+    def get_optional(self, mid):
+        if not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+            raise MailError("invalid_message_id")
+        try:
+            row = self.call(
+                self.service.users().messages().get(
+                    userId="me", id=mid, format="full"
+                ), missing="message_disappeared"
+            )
+        except MailError as exc:
+            if str(exc) == "message_disappeared":
+                return None
+            raise
+        msg = parse_full(row)
+        if msg.id != mid:
+            raise MailError("provider_id_mismatch")
+        return msg
 
     def ids(self, query, limit):
         cursor = None
