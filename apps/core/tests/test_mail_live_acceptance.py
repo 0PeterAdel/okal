@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "mail-live-acceptance.py"
 spec = importlib.util.spec_from_file_location("okal_live_acceptance", SCRIPT)
@@ -24,7 +24,8 @@ class AcceptanceScriptTests(unittest.TestCase):
         (self.state / "mail").mkdir(mode=0o700)
         accept.write_private(self.state / "mail" / "config.json", {
             "account": "owner@example.com", "sync_enabled": True,
-            "send_enabled": False
+            "send_enabled": False, "model": "local:test",
+            "model_digest": "a" * 64, "local_only_confirmed": True,
         })
         self.db = sqlite3.connect(self.state / "core.sqlite3")
         self.addCleanup(self.db.close)
@@ -83,7 +84,9 @@ class AcceptanceScriptTests(unittest.TestCase):
         ))
 
     def test_restart_requires_both_messages_once_and_new_checkpoint(self):
-        with patch.object(accept, "systemd") as systemd:
+        with patch.object(accept, "systemd") as systemd, patch.object(
+            accept, "verify_arrivals", return_value=None
+        ):
             self.invoke("outage-start")
             code, response = self.invoke("outage-finish")
             self.assertEqual(code, 0)
@@ -108,7 +111,9 @@ class AcceptanceScriptTests(unittest.TestCase):
         self.assertTrue(result["human_quality_review_still_required"])
 
     def test_provider_error_or_unadvanced_cursor_never_passes(self):
-        with patch.object(accept, "systemd"):
+        with patch.object(accept, "systemd"), patch.object(
+            accept, "verify_arrivals", return_value=None
+        ):
             self.invoke("outage-start")
             self.invoke("outage-finish")
         probe = accept.load_probe(self.state)
@@ -125,6 +130,79 @@ class AcceptanceScriptTests(unittest.TestCase):
         code, result = self.invoke("check")
         self.assertEqual(code, 2)
         self.assertEqual(result["safe_error_code"], "authorization_required")
+
+    def test_outage_finish_requires_verified_new_mail_before_starting_service(self):
+        with patch.object(accept, "systemd") as systemd:
+            self.invoke("outage-start")
+            with patch.object(
+                accept, "verify_arrivals",
+                side_effect=accept.AcceptanceError(
+                    "test_messages_missing_or_not_sent_during_core_outage"
+                ),
+            ):
+                code, response = self.invoke("outage-finish")
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            response["safe_error_code"],
+            "test_messages_missing_or_not_sent_during_core_outage",
+        )
+        self.assertEqual(accept.load_probe(self.state)["phase"], "outage")
+        self.assertEqual([call.args for call in systemd.call_args_list],
+                         [("stop",)])
+
+    def test_arrival_verifier_checks_exact_metadata_and_outage_arrival_time(self):
+        with patch.object(accept, "systemd"):
+            self.invoke("outage-start")
+        probe = accept.load_probe(self.state)
+        from datetime import datetime
+        start_ms = int(datetime.fromisoformat(probe["started_at"]).timestamp() * 1000)
+        api = MagicMock()
+        api.ids.side_effect = lambda query, limit: ["aa"] if "-AR" in query else ["bb"]
+        rows = [
+            {"id": "aa", "internalDate": str(start_ms + 1000),
+             "labelIds": ["INBOX"], "payload": {"headers": [
+                 {"name": "Subject", "value": probe["ar_subject"]}]}},
+            {"id": "bb", "internalDate": str(start_ms + 2000),
+             "labelIds": ["INBOX"], "payload": {"headers": [
+                 {"name": "Subject", "value": probe["en_subject"]}]}},
+        ]
+        api.call.side_effect = rows.copy()
+        with patch(
+            "okal_core.mail.provider.Gmail.open", return_value=api
+        ):
+            self.assertIsNone(accept.verify_arrivals(
+                self.state, accept.settings(self.state), probe
+            ))
+        self.assertTrue(api.close.called)
+        # An older message must not be accepted, even with the exact subject.
+        rows[0]["internalDate"] = str(start_ms - 1000)
+        api.call.side_effect = rows.copy()
+        with patch("okal_core.mail.provider.Gmail.open", return_value=api):
+            with self.assertRaisesRegex(
+                accept.AcceptanceError, "test_messages_missing"
+            ):
+                accept.verify_arrivals(self.state, accept.settings(self.state), probe)
+
+    def test_arrival_verifier_does_not_accept_wrong_subject_or_sent_label(self):
+        with patch.object(accept, "systemd"):
+            self.invoke("outage-start")
+        probe = accept.load_probe(self.state)
+        from datetime import datetime
+        start_ms = int(datetime.fromisoformat(probe["started_at"]).timestamp() * 1000)
+        api = MagicMock()
+        api.ids.return_value = ["aa"]
+        api.call.return_value = {
+            "id": "aa", "internalDate": str(start_ms + 1000),
+            "labelIds": ["SENT"],
+            "payload": {"headers": [
+                {"name": "Subject", "value": probe["ar_subject"]}]},
+        }
+        with patch("okal_core.mail.provider.Gmail.open", return_value=api):
+            with self.assertRaisesRegex(
+                accept.AcceptanceError, "test_messages_missing"
+            ):
+                accept.verify_arrivals(self.state, accept.settings(self.state), probe)
+        self.assertTrue(api.close.called)
 
     def test_readonly_preflight_blocks_missing_oauth(self):
         code, data = self.invoke("preflight")
