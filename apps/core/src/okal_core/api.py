@@ -4,6 +4,7 @@ import ipaddress
 from pathlib import Path
 from urllib.parse import quote
 import json
+import os
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -17,9 +18,32 @@ CSP = (
 )
 
 
-def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
+def create_app(
+    store: Store, port: int = 8766, lifespan=None,
+    require_read_key: bool | None = None,
+) -> FastAPI:
+    # Single-user desktop default: no repetitive read key on loopback.
+    # Explicit opt-in restores key-protected API and browser pairing.
+    if require_read_key is None:
+        setting = os.environ.get("OKAL_REQUIRE_READ_KEY", "0")
+        if setting not in {"0", "1"}:
+            raise ValueError("OKAL_REQUIRE_READ_KEY must be 0 or 1")
+        require_read_key = setting == "1"
+    if type(require_read_key) is not bool:
+        raise ValueError("require_read_key must be boolean")
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+
+    # Never let a future privileged /api/ endpoint inherit passwordless access.
+    local_read_paths = {
+        "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
+        "/api/v1/mail/triage", "/api/v1/mail/assistant",
+    }
+
+    def public_local_read(path, method):
+        return method == "GET" and (
+            path in local_read_paths or path.startswith("/api/v1/runs/")
+        )
 
     @app.middleware("http")
     async def boundary(request: Request, call_next):
@@ -37,7 +61,7 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             not local
             or host not in hosts
             or (origin is not None and origin != f"http://{host}")
-            or request.headers.get("sec-fetch-site") == "cross-site"
+            or request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
             or (
                 request.url.path == "/api/v1/session"
                 and request.method in {"POST", "DELETE"}
@@ -52,18 +76,36 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
                 {"detail": "local same-origin access required"}, status_code=403
             )
         elif (
+            not require_read_key
+            and request.url.path == "/api/v1/session"
+        ):
+            # The old session endpoints are not needed in local auto-unlock
+            # mode. Keep them available only in explicit protected mode.
+            response = JSONResponse(
+                {"detail": "pairing disabled in local auto-unlock mode"},
+                status_code=404,
+            )
+        elif (
             request.url.path.startswith("/api/")
             and request.url.path != "/api/v1/health"
             and not (
-                request.url.path == "/api/v1/session"
+                not require_read_key
+                and public_local_read(request.url.path, request.method)
+            )
+            and not (
+                require_read_key
+                and request.url.path == "/api/v1/session"
                 and request.method == "POST"
             )
             and not (
-                store.authenticate_browser_session(request.cookies.get("okal_session", ""))
-                or (
-                    len(request.headers.getlist("authorization")) == 1
-                    and request.headers.get("authorization", "").startswith("Bearer ")
-                    and store.authenticate(request.headers.get("authorization", "")[7:])
+                require_read_key
+                and (
+                    store.authenticate_browser_session(request.cookies.get("okal_session", ""))
+                    or (
+                        len(request.headers.getlist("authorization")) == 1
+                        and request.headers.get("authorization", "").startswith("Bearer ")
+                        and store.authenticate(request.headers.get("authorization", "")[7:])
+                    )
                 )
             )
         ):
@@ -94,6 +136,8 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
                 "Referrer-Policy": "no-referrer",
                 "Content-Security-Policy": CSP,
                 "X-Frame-Options": "DENY",
+                "Cross-Origin-Resource-Policy": "same-origin",
+                "Cross-Origin-Opener-Policy": "same-origin",
             }
         )
         return response
@@ -152,6 +196,8 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
         return {
             "schema_version": 1,
             "mode": "local-read-only",
+            "read_key_required": require_read_key,
+            "local_auto_unlock": not require_read_key,
             "permissions": ["inbox:read"],
             "external_writes": False,
             "providers": ["gmail-configured-not-verified"] if configured else [],
