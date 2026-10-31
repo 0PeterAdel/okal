@@ -39,6 +39,9 @@ def main(store, argv):
     c = commands.add_parser("sync")
     c.add_argument("mode", choices=("on", "off", "now", "status"))
     commands.add_parser("doctor")
+    c = commands.add_parser("assistant", help="Local Inbox Actions preview; never fetches Gmail or sends")
+    c.add_argument("--view", choices=("summary", "queue"), default="summary")
+    c.add_argument("--limit", type=int, default=60)
     c = commands.add_parser("digest")
     c.add_argument("--start")
     c.add_argument("--end")
@@ -74,6 +77,15 @@ def main(store, argv):
     model = None
     api = None
     try:
+        if args.command == "assistant":
+            # Pure local read while the background sync holds operation.lock.
+            # Do not make an owner dashboard request contend with Gmail/Ollama.
+            from .assistant import proposals
+
+            cfg = config(store)
+            emit(proposals(store, cfg.account, args.limit,
+                           include_items=args.view == "queue"))
+            return 0
         with locked(store):
             if args.command == "configure":
                 cfg = Config.model_validate(read_private(args.file))
