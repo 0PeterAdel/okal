@@ -99,7 +99,57 @@ class MorningAndTrashTests(unittest.TestCase):
         self.assertTrue(result["voice_ready"])
         self.assertIn("صباح الفل", result["spoken_text"])
         self.assertIn("16:30", result["spoken_text"])
-        self.assertIn("تقويم Google", result["spoken_text"])
+        self.assertIn("تقويم Google", result["calendar_note"])
+        self.assertLess(len(result["spoken_text"]), 700)
+
+    def test_brief_ignores_synthetic_mail_and_groups_automatic_ci_alerts(self):
+        self.insert("aa", subject="OKAL-LIVE-0DACF4CE126B-EN", category="action")
+        self.insert("bb", subject="Run failed: Local Core Features CI - old",
+                    sender="GitHub <notifications@github.com>")
+        self.insert("cc", subject="Team project update", category="action",
+                    sender="Colleague <colleague@example.com>")
+        self.insert("dd", subject="Run failed: Local Core Features CI - newer",
+                    sender="GitHub <notifications@github.com>")
+        result = morning_brief(self.store)
+        self.assertEqual(result["excluded_synthetic_tests"], 1)
+        self.assertEqual(result["automation_notifications"], 2)
+        self.assertEqual(len(result["new_action_emails"]), 1)
+        self.assertEqual(result["new_action_emails"][0]["subject"], "Team project update")
+        self.assertEqual(len(result["new_info_emails"]), 0)
+        self.assertNotIn("OKAL-LIVE-", result["spoken_text"])
+        self.assertNotIn("Run failed:", result["spoken_text"])
+        self.assertIn("GitHub", result["spoken_text"])
+
+    def test_same_gmail_thread_only_counts_once_in_morning(self):
+        self.insert("aa", subject="Project followup 1", category="action")
+        self.insert("bb", subject="Project followup 2", category="action")
+        with self.store.connect() as db, db:
+            for mid in ("aa", "bb"):
+                row = db.execute(
+                    "SELECT metadata FROM mail_sync_insights WHERE message_id=?",
+                    (mid,),
+                ).fetchone()
+                data = json.loads(row[0])
+                data["thread_id"] = "same-thread"
+                db.execute(
+                    "UPDATE mail_sync_insights SET metadata=? WHERE message_id=?",
+                    (json.dumps(data), mid),
+                )
+        result = morning_brief(self.store)
+        self.assertEqual(len(result["new_action_emails"]), 1)
+        self.assertEqual(result["duplicates_suppressed"], 1)
+
+    def test_manual_review_count_is_clear_without_inventing_deadlines(self):
+        self.insert("aa", subject="Release status", category="information")
+        with self.store.connect() as db, db:
+            db.execute(
+                "INSERT INTO mail_sync_quarantine VALUES(?,?,?,?)",
+                (self.cfg.account, "ff", "unreadable_message", self.now),
+            )
+        result = morning_brief(self.store)
+        self.assertEqual(result["manual_review_count"], 1)
+        self.assertIn("مراجعة يدوية", result["spoken_text"])
+        self.assertNotIn("تقويم Google", result["spoken_text"])
 
     def test_login_notification_is_once_per_day_and_escapes_mail_markup(self):
         self.insert("aa", subject="<b>Untrusted</b>", category="action")
