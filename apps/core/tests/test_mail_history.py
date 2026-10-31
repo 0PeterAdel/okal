@@ -163,6 +163,21 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(len(set(self.model.calls)), 46)
         self.assertEqual(len(self.model.calls), 46)
 
+    def test_pending_history_batches_run_next_tick_but_failure_cools_down(self):
+        run(self.store, self.cfg, self.api, self.model)
+        self.now += 3600
+        mids = [format(600 + index, "x") for index in range(35)]
+        self.api.items.update({mid: incoming(mid, self.now - 30) for mid in mids})
+        self.api.delta = ("200", mids, 0)
+        first = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(first["status"], "history_chunk_pending")
+        state = HistoryState(self.store)
+        self.assertFalse(state.due(self.cfg.account, self.now + 29))
+        self.assertTrue(state.due(self.cfg.account, self.now + 30))
+        state.failure(self.cfg.account, "provider_read_failed")
+        self.assertFalse(state.due(self.cfg.account, self.now + 31))
+        self.assertTrue(state.due(self.cfg.account, self.now + 300))
+
     def test_explicit_prune_removes_old_triage_but_keeps_seen_tombstones(self):
         run(self.store, self.cfg, self.api, self.model)
         state = HistoryState(self.store)
@@ -346,6 +361,10 @@ class HistoryTests(unittest.TestCase):
              "historyId": "120"},
         ]
         marker, mids, deleted = Gmail(service).history_changes("100", 3)
+        self.assertEqual(
+            service.users.return_value.history.return_value.list.call_args.kwargs["historyTypes"],
+            ["messageAdded", "messageDeleted"],
+        )
         self.assertEqual((marker, mids, deleted), ("120", ["aa", "bb"], 1))
         service.users.return_value.history.return_value.list.return_value.execute.side_effect = None
         service.users.return_value.history.return_value.list.return_value.execute.return_value = {
