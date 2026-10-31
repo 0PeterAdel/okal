@@ -106,6 +106,40 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(HistoryState(reopen).current(self.cfg.account)["cursor"], "110")
         self.assertEqual(len(HistoryState(reopen).recent(self.cfg.account)), 2)
 
+    def test_high_volume_incremental_history_never_skips_unprocessed_ids(self):
+        first = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(first["processed"], 1)
+        original_checked = HistoryState(self.store).current(self.cfg.account)["checked_at"]
+        self.now += 3600
+        ids = [format(256 + index, "x") for index in range(45)]
+        self.api.items.update({mid: incoming(mid, self.now - 60) for mid in ids})
+        self.api.delta = ("210", ids, 0)
+
+        part = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(part["status"], "history_chunk_pending")
+        self.assertEqual(part["processed"], 30)
+        self.assertEqual(HistoryState(self.store).current(self.cfg.account)["cursor"], "100")
+        self.assertEqual(HistoryState(self.store).current(self.cfg.account)["checked_at"],
+                         original_checked)
+        self.now += 301
+        final = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(final["processed"], 15)
+        self.assertEqual(HistoryState(self.store).current(self.cfg.account)["cursor"], "210")
+        self.assertEqual(len(set(self.model.calls)), 46)
+        self.assertEqual(len(self.model.calls), 46)
+
+    def test_explicit_prune_removes_old_triage_but_keeps_seen_tombstones(self):
+        run(self.store, self.cfg, self.api, self.model)
+        state = HistoryState(self.store)
+        self.assertEqual(len(state.recent(self.cfg.account)), 1)
+        from okal_core.mail.state import MailState
+
+        result = MailState(self.store).prune(self.now + 1)
+        self.assertEqual(result["history_briefings_deleted"], 1)
+        self.assertEqual(len(state.recent(self.cfg.account)), 0)
+        self.assertIn("aa", state.seen(self.cfg.account, ["aa"]))
+        self.assertEqual(state.current(self.cfg.account)["cursor"], "100")
+
     def test_model_failure_keeps_cursor_and_retries_after_restart(self):
         run(self.store, self.cfg, self.api, self.model)
         self.now += 3600
