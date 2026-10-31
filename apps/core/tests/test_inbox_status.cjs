@@ -10,8 +10,9 @@ function harness(fetcher) {
   function node() {
     return {
       textContent: "", value: "", hidden: false, children: [], handlers: {},
-      classList: { add() {}, remove() {} },
+      attributes: {}, classList: { add() {}, remove() {} },
       addEventListener(type, fn) { this.handlers[type] = fn; },
+      setAttribute(name, value) { this.attributes[name] = value; },
       append(...items) { this.children.push(...items); },
       replaceChildren() { this.children = []; },
       get childElementCount() { return this.children.length; },
@@ -22,7 +23,7 @@ function harness(fetcher) {
     return nodes.get(id);
   };
   const context = vm.createContext({
-    document: { getElementById: get, createElement: node },
+    document: { getElementById: get, createElement: node, addEventListener() {} },
     window: { addEventListener() {} },
     URLSearchParams, AbortController, fetch: fetcher,
   });
@@ -211,6 +212,89 @@ test("Information multi-select creates a preview-only command, never Gmail write
   assert.match(get("trash-help").textContent, /Terminal/);
   context.lock();
   assert.equal(get("trash-command").textContent, "");
+});
+
+test("Information row click, Ctrl+Click and Shift+Click behave like a desktop list", async () => {
+  const { context, get } = harness();
+  const items = ["aa", "bb", "cc", "dd"].map((id) => ({
+    id, labels: ["INBOX"], category: "information", sender: "Sender",
+    subject: "Title " + id, summary: "Summary",
+    suggested_action: "", has_unread_attachments: false,
+    link: "https://mail.google.com/mail/#all/" + id,
+  }));
+  context.renderTriage({items});
+  const rows = get("triage-groups").children[0].children.slice(1);
+  const click = (row, options = {}) => row.handlers.click({
+    ...options, target: { closest() { return null; } },
+  });
+  click(rows[0]);
+  assert.equal(rows[0].children.at(-1).children[0].checked, true);
+  assert.equal(rows[1].children.at(-1).children[0].checked, false);
+  click(rows[2], {ctrlKey:true});
+  assert.equal(rows[0].children.at(-1).children[0].checked, true);
+  assert.equal(rows[2].children.at(-1).children[0].checked, true);
+  click(rows[3], {shiftKey:true});
+  assert.equal(rows[0].children.at(-1).children[0].checked, false);
+  assert.equal(rows[2].children.at(-1).children[0].checked, true);
+  assert.equal(rows[3].children.at(-1).children[0].checked, true);
+  assert.match(get("trash-count").textContent, /2 من 4/);
+  // Ctrl toggles one selected item, leaving the rest intact.
+  click(rows[2], {ctrlKey:true});
+  assert.equal(rows[2].children.at(-1).children[0].checked, false);
+  assert.equal(rows[3].children.at(-1).children[0].checked, true);
+  await get("trash-selected").handlers.click();
+  assert.match(get("trash-command").textContent, /--ids dd/);
+  assert.doesNotMatch(get("trash-command").textContent, /--apply/);
+  // Clicking Gmail link is never intercepted as a selection.
+  rows[0].handlers.click({target:{closest(){return {};}},ctrlKey:false});
+  assert.equal(rows[0].children.at(-1).children[0].checked, false);
+  get("clear-selection").handlers.click();
+  assert.equal(get("trash-selected").disabled, true);
+  assert.equal(get("trash-command").textContent, "");
+});
+
+test("Shift+Click ranges honor 20-item ceiling and protected labels never select", () => {
+  const { context, get } = harness();
+  const items = Array.from({length:25},(_,i)=>({
+    id: (i + 1).toString(16).padStart(2,"0"),
+    labels: i === 24 ? ["STARRED"] : ["INBOX"],
+    category:"information", subject:"Message "+i, sender:"Sender",
+    summary:"FYI", suggested_action:"", has_unread_attachments:false,
+    link:"https://mail.google.com/mail/#all/" + i,
+  }));
+  context.renderTriage({items});
+  const rows = get("triage-groups").children[0].children.slice(1);
+  rows[0].handlers.click({target:{closest(){return null;}}});
+  rows[23].handlers.click({target:{closest(){return null;}},shiftKey:true});
+  assert.match(get("trash-help").textContent, /20 رسالة/);
+  assert.match(get("trash-count").textContent, /1 من 24/);
+  get("select-all-info").handlers.click();
+  assert.match(get("trash-count").textContent, /20 من 24/);
+  assert.equal(rows[19].children.at(-1).children[0].checked, true);
+  assert.equal(rows[20].children.at(-1).children[0].checked, false);
+  // Starred row never gets a selection checkbox or selectable role.
+  assert.equal(rows[24].children.at(-1).href,
+    "https://mail.google.com/mail/#all/24");
+});
+
+test("Information keyboard Enter and Space preserve native accessible selection", () => {
+  const { context, get } = harness();
+  context.renderTriage({items:[{
+    id:"aa", labels:["INBOX"], category:"information", sender:"A",
+    subject:"Focusable message", summary:"FYI",
+    suggested_action:"",has_unread_attachments:false,link:"https://example.com",
+  }]});
+  const row = get("triage-groups").children[0].children[1];
+  let prevented=0;
+  row.handlers.keydown({
+    key:" ",preventDefault(){prevented++;},
+    target:{closest(){return null;}},
+  });
+  assert.equal(prevented,1);
+  assert.equal(row.attributes["data-selected"],"true");
+  assert.equal(row.children.at(-1).children[0].attributes["aria-checked"],"true");
+  get("clear-selection").handlers.click();
+  assert.equal(row.attributes["data-selected"],"false");
 });
 
 test("morning rendering resets private text on hide", () => {
