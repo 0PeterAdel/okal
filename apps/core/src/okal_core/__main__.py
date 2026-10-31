@@ -23,6 +23,27 @@ def main():
         "mail", help="optional Gmail backend; explicit local onboarding"
     )
     mail.add_argument("mail_args", nargs=argparse.REMAINDER)
+    tasks = commands.add_parser(
+        "tasks", help="Owner-approved local tasks; never writes to Gmail or Calendar"
+    )
+    task_commands = tasks.add_subparsers(dest="task_command", required=True)
+    t = task_commands.add_parser("list")
+    t.add_argument("--status", choices=("open", "done", "dismissed", "all"),
+                   default="open")
+    t.add_argument("--limit", type=int, default=100)
+    t = task_commands.add_parser("add")
+    t.add_argument("--title", required=True)
+    t.add_argument("--notes", default="")
+    t.add_argument("--due", help="Explicit ISO-8601 timestamp WITH timezone")
+    t = task_commands.add_parser("from-mail")
+    t.add_argument("message_id")
+    t.add_argument("--title")
+    t.add_argument("--due", help="Owner-verified ISO-8601 timestamp WITH timezone")
+    t.add_argument("--approve", action="store_true",
+                   help="Explicitly create local task; never sends email")
+    for verb in ("done", "dismiss"):
+        t = task_commands.add_parser(verb)
+        t.add_argument("task_id")
     commands.add_parser("demo", help="insert labeled fixtures, never connect to Gmail")
     issue = commands.add_parser(
         "device-add", help="print a read token once; keep it private"
@@ -46,6 +67,27 @@ def main():
             from .mail.cli import main as mail_main
 
             return mail_main(store, args.mail_args)
+        if args.command == "tasks":
+            from .tasks import TaskBoard
+            board = TaskBoard(store)
+            if args.task_command == "list":
+                result = board.list(args.status, args.limit)
+            elif args.task_command == "add":
+                result = board.add(args.title, args.notes, args.due)
+            elif args.task_command == "from-mail":
+                from .mail.private import config
+                cfg = config(store)
+                result = board.from_mail(
+                    cfg.account, args.message_id, args.title,
+                    args.due, approve=args.approve,
+                )
+            else:
+                result = board.transition(
+                    args.task_id,
+                    "done" if args.task_command == "done" else "dismissed",
+                )
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+            return 0
         if args.command == "device-add":
             print(
                 json.dumps(store.issue_device(args.name, args.days), ensure_ascii=False)
