@@ -76,12 +76,16 @@ class HistoryState:
     def seen(self, account, ids):
         if not ids:
             return set()
+        found = set()
         with self.store.connect() as db:
-            return {r[0] for r in db.execute(
-                "SELECT message_id FROM mail_sync_seen WHERE account=? AND message_id IN ("
-                + ",".join("?" for _ in ids) + ")",
-                [account.casefold(), *ids],
-            )}
+            for index in range(0, len(ids), 200):
+                batch = ids[index:index + 200]
+                found.update(r[0] for r in db.execute(
+                    "SELECT message_id FROM mail_sync_seen WHERE account=? AND message_id IN ("
+                    + ",".join("?" for _ in batch) + ")",
+                    [account.casefold(), *batch],
+                ))
+        return found
 
     def failure(self, account, code):
         # Error codes are allowlisted; never persist provider error bodies/credentials.
@@ -100,7 +104,8 @@ class HistoryState:
                 attempted_at=excluded.attempted_at,code=excluded.code""",
                 (account.casefold(), int(self.store.clock()), clean))
 
-    def commit(self, account, previous, new_cursor, result, observations, body):
+    def commit(self, account, previous, new_cursor, result, observations, body,
+               ignored_ids=(), advance=True, alert=False):
         """CAS prevents lost updates; both checkpoint and all visible data commit together."""
         account = account.casefold()
         safe_cursor(new_cursor)
@@ -108,16 +113,21 @@ class HistoryState:
             safe_cursor(previous)
             if int(new_cursor) < int(previous):
                 raise MailError("history_cursor_regressed")
+        if not advance and previous is None:
+            raise MailError("initial_sync_cannot_be_partial")
+        if not advance:
+            new_cursor = previous
         now = int(self.store.clock())
         with self.store.connect() as db, db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
-                "SELECT cursor FROM mail_sync_state WHERE account=?", (account,)
+                "SELECT cursor,checked_at FROM mail_sync_state WHERE account=?", (account,)
             ).fetchone()
             if (row[0] if row else None) != previous:
                 raise MailError("history_checkpoint_changed_retry")
+            row_checked_at = row[1] if row else now
             run_id = None
-            if observations:
+            if observations or alert:
                 item = SummaryInput(
                     workflow="mail", account_ref=fingerprint(account),
                     occurrence="gmail-history:" + fingerprint(
@@ -147,6 +157,10 @@ class HistoryState:
                     (run_id, account, message.id,
                      json.dumps(metadata, ensure_ascii=False), insight.model_dump_json()),
                 )
+            for mid in ignored_ids:
+                db.execute("INSERT OR IGNORE INTO mail_sync_seen VALUES(?,?)",
+                           (account, mid))
+            checked_at = now if advance else row_checked_at
             db.execute("""INSERT INTO mail_sync_state
                 (account,cursor,checked_at,attempted_at,last_result,last_error,last_count)
                 VALUES(?,?,?,?,?,NULL,?)
@@ -154,24 +168,30 @@ class HistoryState:
                 checked_at=excluded.checked_at,attempted_at=excluded.attempted_at,
                 last_result=excluded.last_result,last_error=NULL,
                 last_count=excluded.last_count""",
-                (account, new_cursor, now, now, result, len(observations)),
+                (account, new_cursor, checked_at, now, result, len(observations)),
             )
             db.execute("DELETE FROM mail_sync_failures WHERE account=?", (account,))
         return {"status": result, "processed": len(observations),
                 "run_id": run_id, "checked_at": now}
 
     def recent(self, account, limit=60):
-        with self.store.connect() as db:
-            rows = db.execute("""SELECT i.metadata,i.insight,r.created_at
-                FROM mail_sync_insights i JOIN runs r ON r.id=i.run_id
-                WHERE i.account=? ORDER BY r.created_at DESC,i.message_id DESC LIMIT ?""",
-                (account.casefold(), limit),
-            ).fetchall()
-        return [{"metadata": json.loads(r[0]), "insight": json.loads(r[1]),
-                 "created_at": r[2]} for r in rows]
+        return recent_evidence(self.store, account, limit)
 
 
-def briefing(account, start, end, observations, deleted=0, recovered=False):
+
+def recent_evidence(store, account, limit=60):
+    """Pure SELECT for GET endpoints, with no migrations or write transactions."""
+    with store.connect() as db:
+        rows = db.execute("""SELECT i.metadata,i.insight,r.created_at
+            FROM mail_sync_insights i JOIN runs r ON r.id=i.run_id
+            WHERE i.account=? ORDER BY r.created_at DESC,i.message_id DESC LIMIT ?""",
+            (account.casefold(), limit),
+        ).fetchall()
+    return [{"metadata": json.loads(r[0]), "insight": json.loads(r[1]),
+             "created_at": r[2]} for r in rows]
+
+
+def briefing(account, start, end, observations, deleted=0, recovered=False, pending=False):
     buckets = {"action": [], "information": [], "low_priority": []}
     for message, insight in observations:
         buckets[insight.category].append((message, insight))
@@ -199,7 +219,9 @@ def briefing(account, start, end, observations, deleted=0, recovered=False):
                 lines.append(f"  ⚠ {m.attachment_count} unread attachment(s) / مرفقات غير محللة")
             lines.append("  " + source_link(account, m.id))
     if deleted:
-        lines.append(f"⚠ {deleted} message(s) disappeared before reading; contents unavailable.")
+        lines.append(f"⚠ {deleted} Gmail deletion or unavailable-message events; contents may be unavailable.")
+    if pending:
+        lines.append("⚠ More history messages are queued; this checkpoint is NOT complete yet.")
     if recovered:
         lines.append("⚠ Gmail history expired: visible-mail backfill only; deleted past messages cannot be reconstructed.")
     lines.append("Source emails are untrusted; verify dates, amounts, links and commitments in Gmail.")
@@ -218,6 +240,8 @@ def run(store, cfg, api, model):
     previous = current["cursor"] if current else None
     recovered = False
     deleted = 0
+    pending = False
+    ignored_ids = []
     try:
         api.check_account(account)
         if previous is None:
@@ -229,16 +253,26 @@ def run(store, cfg, api, model):
         else:
             start = current["checked_at"]
             try:
-                cursor, ids, deleted = api.history_changes(previous, cfg.max_messages)
+                # A bounded history listing may span several model batches. The
+                # cursor stays unchanged until ALL listed IDs are accounted for.
+                cursor, ids, deleted = api.history_changes(previous, cfg.max_messages * 10)
+                already = state.seen(account, ids)
+                pending_ids = [mid for mid in ids if mid not in already]
+                batch = pending_ids[:cfg.max_messages]
+                pending = len(pending_ids) > len(batch)
+                ignored_ids = []
                 observed = []
-                for mid in ids:
+                for mid in batch:
                     msg = api.get_optional(mid)
                     if msg is None:
                         deleted += 1
+                        ignored_ids.append(mid)
+                    elif set(msg.labels) & SKIPPED_LABELS:
+                        ignored_ids.append(mid)
                     else:
                         observed.append(msg)
                 messages = observed
-                result = "history_delta"
+                result = "history_chunk_pending" if pending else "history_delta"
             except MailError as exc:
                 if str(exc) != "history_cursor_expired":
                     raise
@@ -260,8 +294,13 @@ def run(store, cfg, api, model):
             if msg.truncated:
                 raise MailError("message_body_truncated_narrow_scope_or_review_manually")
             observations.append((msg, model.summarize(msg)))
-        body = briefing(account, start, now, observations, deleted, recovered)
-        outcome = state.commit(account, previous, cursor, result, observations, body)
+        body = briefing(account, start, now, observations, deleted if not pending else 0,
+                        recovered, pending)
+        outcome = state.commit(
+            account, previous, cursor, result, observations, body,
+            ignored_ids=ignored_ids, advance=not pending,
+            alert=(not pending and (recovered or deleted > 0)),
+        )
         outcome.update(deleted_or_unavailable=deleted, recovered=recovered)
         return outcome
     except Exception as exc:
