@@ -5,6 +5,13 @@
 No new runtime, startup service, connector or mobile application is implemented
 by this documentation reset.
 
+Implementation checkpoint (2026-10-30): R0 merged via PR #37. The bounded R1a
+trial in [issue #38](https://github.com/0PeterAdel/okal/issues/38) adds a local-only
+inbox, read tokens and responsive shell; see [Core Inbox](../docs/CORE-INBOX.md).
+R1a is not full R1 acceptance: phone TLS/pairing and owner boot/lifecycle tests
+remain pending. The endpoint and dependency proposals below describe the full
+target; the runbook identifies the narrower implemented contract.
+
 ## Scope and authority
 
 One owner, one laptop, one center. Four workflows: mail, planning, social and
@@ -148,6 +155,14 @@ Disable only exact replaced legacy schedules after their replacement passes.
 - The calendar provider is an onboarding choice, not an implicit upload of local data.
 
 ## Delivery order
+
+Owner update (2026-10-30): backend/integrations precede UI/mobile work. Keep the
+current screen as a test client. The mail backend trial in
+[issue #40](https://github.com/0PeterAdel/okal/issues/40) includes the explicit
+unmerged #39 dependency while foundation acceptance is frozen; mail is the only
+active implementation track. No merge bypass is authorized. Phone TLS/pairing
+remains required before any non-loopback exposure, but is not a prerequisite
+for local Gmail implementation. See [mail scope and gates](../docs/MAIL-BACKEND.md).
 
 One active implementation PR at a time. Later rows are backlog, not parallel work.
 
