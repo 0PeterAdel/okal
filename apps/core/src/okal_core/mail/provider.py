@@ -14,6 +14,7 @@ from .private import read_private, root, write_private
 
 READ = "https://www.googleapis.com/auth/gmail.readonly"
 SEND = "https://www.googleapis.com/auth/gmail.send"
+MODIFY = "https://www.googleapis.com/auth/gmail.modify"
 RAW_LIMIT = 8 * 1024 * 1024
 
 
@@ -257,7 +258,7 @@ def parse_full(row):
         raise MailError("unreadable_message") from None
 
 
-def authorize(store, cfg, client_path, enable_send=False):
+def authorize(store, cfg, client_path, enable_send=False, enable_trash=False):
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     client = read_private(client_path)
@@ -268,7 +269,11 @@ def authorize(store, cfg, client_path, enable_send=False):
         or installed.get("token_uri") != "https://oauth2.googleapis.com/token"
     ):
         raise MailError("official_desktop_oauth_client_required")
-    scopes = [READ, SEND] if enable_send else [READ]
+    if enable_send and enable_trash:
+        raise MailError("separate_send_and_trash_authorization_required")
+    # Google does not expose a Trash-only scope. MODIFY grants broader
+    # provider capability, but OKAL keeps all writes behind explicit CLI gates.
+    scopes = [MODIFY] if enable_trash else [READ, SEND] if enable_send else [READ]
     flow = InstalledAppFlow.from_client_config(
         client, scopes, autogenerate_code_verifier=True
     )
@@ -296,6 +301,7 @@ def authorize(store, cfg, client_path, enable_send=False):
     # Commit token only after scope and account checks.
     write_private(root(store) / "token.json", info)
     cfg.send_enabled = enable_send
+    cfg.trash_enabled = enable_trash
     write_private(root(store) / "config.json", cfg.model_dump())
 
 
@@ -319,13 +325,15 @@ class Gmail:
         self.service.close()
 
     @classmethod
-    def open(cls, store, cfg, sending=False):
+    def open(cls, store, cfg, sending=False, trashing=False):
         from google.oauth2.credentials import Credentials
 
         info = read_private(root(store) / "token.json")
         scopes = set(info.get("scopes", []))
-        if scopes not in ({READ}, {READ, SEND}) or (
+        if scopes not in ({READ}, {READ, SEND}, {MODIFY}) or (
             sending and (not cfg.send_enabled or SEND not in scopes)
+        ) or (
+            trashing and (not cfg.trash_enabled or MODIFY not in scopes)
         ):
             raise MailError("scope_or_send_permission_mismatch")
         if info.get("token_uri") != "https://oauth2.googleapis.com/token":
@@ -387,6 +395,18 @@ class Gmail:
                 raise MailError(
                     "provider_write_uncertain" if write else "provider_read_failed"
                 ) from None
+
+    def move_to_trash(self, mid):
+        """One deliberate Gmail API write. NEVER retry an ambiguous write."""
+        if not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+            raise MailError("invalid_message_id")
+        row = self.call(
+            self.service.users().messages().trash(userId="me", id=mid),
+            write=True,
+        )
+        if row.get("id") != mid or "TRASH" not in row.get("labelIds", []):
+            raise MailError("trash_write_unverified_reconcile_before_retry")
+        return row
 
     def check_account(self, expected):
         actual = self.call(self.service.users().getProfile(userId="me")).get(
