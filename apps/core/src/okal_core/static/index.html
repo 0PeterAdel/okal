@@ -11,6 +11,16 @@
   <script defer src="/app.js"></script>
 </head>
 <body>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="ico-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="ico-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+    <symbol id="ico-checks" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="ico-spark" viewBox="0 0 24 24"><path d="m12 2 1.7 7.3L21 11l-7.3 1.7L12 20l-1.7-7.3L3 11l7.3-1.7L12 2Z"/><path d="M20 17v4m-2-2h4"/></symbol>
+    <symbol id="ico-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="ico-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0V8Zm6 10v4"/></symbol>
+    <symbol id="ico-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></symbol>
+    <symbol id="ico-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></symbol>
+  </svg>
   <a href="#main" class="skip-link">تخطّى إلى المحتوى</a>
   <div class="app-layout">
     <aside class="sidebar" aria-label="القائمة الرئيسية">
@@ -20,15 +30,15 @@
       </a>
       <div class="sidebar-section-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="أقسام OKAL">
-        <a class="nav-item active" href="#overview"><span class="nav-icon" aria-hidden="true">◈</span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
-        <a class="nav-item" href="#inbox-panel"><span class="nav-icon" aria-hidden="true">▤</span><span>البريد الذكي</span><span class="nav-english">Inbox</span></a>
-        <a class="nav-item" href="#task-section"><span class="nav-icon" aria-hidden="true">☑</span><span>المهام</span><span class="nav-english">Tasks</span></a>
-        <a class="nav-item" href="#assistant-section"><span class="nav-icon" aria-hidden="true">◇</span><span>اقتراحات OKAL</span><span class="nav-english">Assistant</span></a>
-        <a class="nav-item" href="#activity-section"><span class="nav-icon" aria-hidden="true">▥</span><span>السجل</span><span class="nav-english">Activity</span></a>
+        <a class="nav-item active" href="#overview"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg></span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
+        <a class="nav-item" href="#inbox-panel"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg></span><span>البريد الذكي</span><span class="nav-english">Inbox</span></a>
+        <a class="nav-item" href="#task-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-checks"></use></svg></span><span>المهام</span><span class="nav-english">Tasks</span></a>
+        <a class="nav-item" href="#assistant-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-spark"></use></svg></span><span>اقتراحات OKAL</span><span class="nav-english">Assistant</span></a>
+        <a class="nav-item" href="#activity-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-clock"></use></svg></span><span>السجل</span><span class="nav-english">Activity</span></a>
       </nav>
       <div class="sidebar-section-label">SYSTEM</div>
       <div class="sidebar-system">
-        <a class="nav-item" href="#integrations"><span class="nav-icon" aria-hidden="true">◎</span><span>الاتصالات</span></a>
+        <a class="nav-item" href="#integrations"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-plug"></use></svg></span><span>الاتصالات</span></a>
         <span class="system-note"><span class="presence-dot" aria-hidden="true"></span> Local-first · يعمل على جهازك</span>
         <p>لا إرسال أو حذف مباشر من المتصفح. البيانات المعروضة محفوظة محليًا.</p>
       </div>
@@ -58,16 +68,16 @@
         </section>
 
         <section class="overview-metrics" aria-label="ملخص الحالة">
-          <div class="metric"><span class="metric-icon" aria-hidden="true">▤</span><p>رسائل في العرض</p><strong id="metric-mail">—</strong><small>آخر بيانات محفوظة</small></div>
-          <div class="metric"><span class="metric-icon" aria-hidden="true">☑</span><p>مهام مفتوحة</p><strong id="metric-tasks">—</strong><small>مهام أكدتها بنفسك</small></div>
-          <div class="metric"><span class="metric-icon" aria-hidden="true">◈</span><p>تحتاج متابعة</p><strong id="metric-action">—</strong><small>اقتراحات للمراجعة</small></div>
+          <div class="metric"><span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg></span><p>رسائل في العرض</p><strong id="metric-mail">—</strong><small>آخر بيانات محفوظة</small></div>
+          <div class="metric"><span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#ico-checks"></use></svg></span><p>مهام مفتوحة</p><strong id="metric-tasks">—</strong><small>مهام أكدتها بنفسك</small></div>
+          <div class="metric"><span class="metric-icon"><svg class="icon" aria-hidden="true"><use href="#ico-spark"></use></svg></span><p>تحتاج متابعة</p><strong id="metric-action">—</strong><small>اقتراحات للمراجعة</small></div>
         </section>
 
         <section class="morning-brief" aria-label="موجز يومك">
           <div class="section-overline"><span class="eyebrow-mark"></span> YOUR DAILY BRIEF <span class="feature-tag">VOICE READY</span></div>
           <div class="morning-content">
             <div class="morning-heading">
-              <span class="morning-orb" aria-hidden="true">✳</span>
+              <span class="morning-orb"><svg class="icon" aria-hidden="true"><use href="#ico-sun"></use></svg></span>
               <div>
                 <h2 id="morning-title">صباح الفل!</h2>
                 <p class="morning-kicker">رسالتك اليومية من OKAL</p>
@@ -95,7 +105,7 @@
               <p class="section-sub">صنّف بسرعة، راجع المهم، وحدد رسائلك زي أي تطبيق Desktop.</p>
             </div>
             <div class="section-actions">
-              <button id="refresh" class="btn-secondary" type="button"><span aria-hidden="true">↻</span> تحديث العرض</button>
+              <button id="refresh" class="btn-secondary" type="button"><svg class="icon icon-inline" aria-hidden="true"><use href="#ico-refresh"></use></svg> تحديث العرض</button>
               <button id="logout" class="btn-quiet" type="button">إخفاء البيانات</button>
             </div>
           </div>
