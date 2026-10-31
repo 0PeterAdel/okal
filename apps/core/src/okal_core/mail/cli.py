@@ -35,6 +35,8 @@ def main(store, argv):
     c.add_argument("--client", type=Path, required=True)
     c.add_argument("--enable-send", action="store_true")
     commands.add_parser("status")
+    c = commands.add_parser("sync")
+    c.add_argument("mode", choices=("on", "off", "now", "status"))
     commands.add_parser("doctor")
     c = commands.add_parser("digest")
     c.add_argument("--start")
@@ -91,6 +93,19 @@ def main(store, argv):
                 emit({"configured": True, "sending": False, "schedule": False})
                 return 0
             state = MailState(store)
+            if args.command == "sync" and args.mode in {"on", "off"}:
+                cfg = config(store)
+                cfg.sync_enabled = args.mode == "on"
+                write_private(root(store) / "config.json", cfg.model_dump())
+                emit({"sync_enabled": cfg.sync_enabled,
+                      "poll_seconds": 300,
+                      "restart_core_service_if_worker_was_not_running": True})
+                return 0
+            if args.command == "sync" and args.mode == "status":
+                cfg = config(store)
+                from .history import local_status
+                emit(local_status(store, cfg.account))
+                return 0
             if args.command == "status":
                 emit(
                     {
@@ -98,6 +113,7 @@ def main(store, argv):
                         "jobs": state.jobs(),
                         "drafts": state.drafts(),
                         "schedule": state.schedule_status(),
+                        "sync": __import__("okal_core.mail.history", fromlist=["local_status"]).local_status(store, config(store).account) if (root(store) / "config.json").exists() else None,
                     }
                 )
                 return 0
@@ -147,9 +163,12 @@ def main(store, argv):
                 from . import workflows
 
                 api = Gmail.open(store, cfg, sending=args.command == "send")
-                if args.command in {"digest", "doctor", "reply"}:
+                if args.command in {"digest", "doctor", "reply"} or (args.command == "sync" and args.mode == "now"):
                     model = LocalModel(cfg)
-                if args.command == "doctor":
+                if args.command == "sync" and args.mode == "now":
+                    from .history import run as run_sync
+                    emit(run_sync(store, cfg, api, model))
+                elif args.command == "doctor":
                     model.verify()
                     emit(
                         {
