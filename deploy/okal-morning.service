@@ -1,0 +1,19 @@
+[Unit]
+Description=OKAL once-per-day friendly morning briefing notification
+Documentation=https://github.com/0PeterAdel/okal/blob/feat/core-morning-brief-gmail-trash/docs/CORE-MORNING-AND-TRASH.md
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/okal/Projects/okal
+ExecStart=/home/okal/Projects/okal/.venv-okal-core/bin/python -m okal_core morning --notify
+Environment=PYTHONPATH=/home/okal/Projects/okal/apps/core/src
+Environment=PYTHONNOUSERSITE=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target
