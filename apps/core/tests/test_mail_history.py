@@ -11,7 +11,7 @@ from okal_core.store import Store
 from okal_core.mail.contracts import Config, Insight, Message, MailError
 from okal_core.mail.history import HistoryState, run, local_status
 from okal_core.mail.private import root, write_private, read_private
-from okal_core.mail.provider import Gmail, READ, GoogleTransport
+from okal_core.mail.provider import Gmail, READ, GoogleTransport, google_refresh_request
 from okal_core.mail.scheduler import Worker
 
 
@@ -33,6 +33,8 @@ class Provider:
         self.expired = False
         self.collections = 0
         self.collect_starts = []
+        self.errors = {}
+        self.backfill_unreadable = []
 
     def check_account(self, address):
         assert address == "owner@example.com"
@@ -40,9 +42,11 @@ class Provider:
     def history_marker(self):
         return self.cursor
 
-    def collect(self, start, end, limit):
+    def collect(self, start, end, limit, quarantine=None):
         self.collections += 1
         self.collect_starts.append((start, end))
+        if quarantine is not None:
+            quarantine.extend(self.backfill_unreadable)
         result = [m for m in self.items.values()
                   if start * 1000 <= m.received_ms < end * 1000]
         if len(result) > limit:
@@ -55,6 +59,8 @@ class Provider:
         return self.delta
 
     def get_optional(self, mid):
+        if mid in self.errors:
+            raise MailError(self.errors[mid])
         return self.items.get(mid)
 
 
@@ -168,6 +174,83 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(len(state.recent(self.cfg.account)), 0)
         self.assertIn("aa", state.seen(self.cfg.account, ["aa"]))
         self.assertEqual(state.current(self.cfg.account)["cursor"], "100")
+
+    def test_malformed_message_goes_to_manual_review_without_stalling_cursor(self):
+        run(self.store, self.cfg, self.api, self.model)
+        self.now += 3600
+        self.api.delta = ("140", ["bb", "cc"], 0)
+        self.api.items["bb"] = incoming("bb", self.now - 2)
+        self.api.errors["cc"] = "unreadable_message"
+        outcome = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(outcome["processed"], 1)
+        self.assertEqual(outcome["manual_review"], 1)
+        state = HistoryState(self.store)
+        self.assertEqual(state.current(self.cfg.account)["cursor"], "140")
+        self.assertEqual(local_status(self.store, self.cfg.account)["manual_review_count"], 1)
+        self.assertEqual(
+            state.seen(self.cfg.account, ["bb", "cc"]), {"bb", "cc"}
+        )
+        from okal_core.mail.history import recent_quarantines
+
+        self.assertEqual(recent_quarantines(self.store, self.cfg.account)[0]["code"],
+                         "unreadable_message")
+        self.assertIn("Manual review", self.store.list_summaries()["items"][0]["body"])
+        self.assertEqual(run(self.store, self.cfg, self.api, self.model)["processed"], 0)
+
+    def test_malformed_message_during_initial_backfill_is_a_visible_warning(self):
+        self.api.backfill_unreadable = [("de", "message_exceeds_size_budget")]
+        outcome = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(outcome["manual_review"], 1)
+        self.assertEqual(HistoryState(self.store).current(self.cfg.account)["cursor"],
+                         "100")
+        self.assertIn("de", HistoryState(self.store).seen(self.cfg.account, ["de"]))
+        self.assertIn("https://mail.google.com", self.store.list_summaries()["items"][0]["body"])
+
+    def test_unexpected_message_errors_still_preserve_checkpoint(self):
+        run(self.store, self.cfg, self.api, self.model)
+        self.now += 3600
+        self.api.delta = ("150", ["bb"], 0)
+        self.api.errors["bb"] = "provider_read_failed"
+        with self.assertRaisesRegex(MailError, "provider_read_failed"):
+            run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(HistoryState(self.store).current(self.cfg.account)["cursor"],
+                         "100")
+
+    def test_truncated_email_is_flagged_for_manual_review(self):
+        run(self.store, self.cfg, self.api, self.model)
+        self.now += 3600
+        self.api.items["bb"] = incoming("bb", self.now - 10)
+        self.api.items["bb"].truncated = True
+        self.api.delta = ("190", ["bb"], 0)
+        outcome = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual((outcome["processed"], outcome["manual_review"]), (0, 1))
+        self.assertEqual(self.model.calls, ["aa"])
+
+    def test_proxy_environment_ignored_for_google_refresh(self):
+        class FakeSession:
+            def __init__(self):
+                self.trust_env = True
+                self.closed = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.closed = True
+
+        session = FakeSession()
+        def fake_request(session):
+            self.assertFalse(session.trust_env)
+            return lambda **kwargs: {"ok": kwargs["method"] == "POST"}
+
+        with patch("requests.Session", return_value=session), patch(
+            "google.auth.transport.requests.Request", side_effect=fake_request
+        ):
+            self.assertEqual(
+                google_refresh_request(method="POST", url="https://oauth2.googleapis.com/token"),
+                {"ok": True},
+            )
+        self.assertTrue(session.closed)
 
     def test_model_failure_keeps_cursor_and_retries_after_restart(self):
         run(self.store, self.cfg, self.api, self.model)
