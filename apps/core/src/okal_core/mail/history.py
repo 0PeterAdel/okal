@@ -298,7 +298,7 @@ def run(store, cfg, api, model):
                 # A bounded history listing may span several model batches. The
                 # cursor stays unchanged until ALL listed IDs are accounted for.
                 cursor, ids, deleted = api.history_changes(
-                    previous, min(10000, max(2000, cfg.max_messages * 100))
+                    previous, 100000  # 100 history pages x up to 500 events; bounded
                 )
                 already = state.seen(account, ids)
                 pending_ids = [mid for mid in ids if mid not in already]
