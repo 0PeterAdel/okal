@@ -12,6 +12,9 @@ function resetMailStatus() {
   el("integration-status").textContent =
     "افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.";
   el("sync").textContent = "لم يتم التحديث بعد";
+  el("triage-groups").replaceChildren();
+  el("triage-count").textContent = "لا توجد بيانات بعد";
+  el("triage-note").textContent = "الواجهة تعرض نتائج محفوظة فقط؛ لا تُنفّذ أفعالًا على Gmail.";
 }
 
 function renderMailStatus(mail) {
@@ -41,6 +44,12 @@ function renderMailStatus(mail) {
       ? "آخر محاولة مسجلة فشلت؛ النجاح السابق لا يعني نجاحها."
       : "توجد محاولة مسجلة غير مكتملة؛ قد تكون جارية أو توقفت.");
   }
+  if (mail.sync_enabled) {
+    const sync = mail.sync;
+    if (sync?.last_checked) parts.push(`آخر Sync محفوظ: ${new Date(sync.last_checked * 1000).toLocaleString("ar-EG")} — ${sync.last_count} رسالة جديدة.`);
+    else parts.push("المزامنة المستمرة مفعّلة بالإعداد، ولم يثبت نجاح دورة بعد.");
+    if (sync?.last_error) parts.push("آخر فحص فشل؛ التقدم السابق محفوظ ولم نفترض التعافي.");
+  }
   parts.push(mail.daily_at
     ? `الجدولة مفعّلة في الإعداد: ${mail.daily_at} (${mail.timezone})؛ هذا ليس إثباتًا لتشغيل العامل.`
     : "الجدولة متوقفة في الإعداد.");
@@ -48,6 +57,54 @@ function renderMailStatus(mail) {
     ? "بوابة الإرسال المحلي مفعّلة في الإعداد؛ صلاحية Google لم تُفحص، والإرسال يتطلب مراجعة من سطر الأوامر."
     : "الإرسال المحلي مقفول في الإعداد.");
   el("integration-status").textContent = parts.join(" ");
+}
+
+function renderTriage(result) {
+  if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
+  const groups = el("triage-groups");
+  groups.replaceChildren();
+  const categories = [
+    ["action", "01", "يحتاج إجراء", "Action required"],
+    ["information", "02", "للإطلاع", "Information"],
+    ["low_priority", "03", "لاحقًا", "Low priority"],
+  ];
+  const counts = categories.map(([key]) => result.items.filter((item) => item.category === key).length);
+  el("triage-count").textContent = `${result.items.length} رسالة تم تحليلها سابقًا · ${counts[0]} تحتاج متابعة`;
+  el("triage-note").textContent = "الترتيب اقتراح AI محلي، وليس دليلًا على أهمية الرسالة أو صحتها. افتح Gmail للتحقق قبل أي قرار.";
+  for (let index = 0; index < categories.length; index += 1) {
+    const [key, number, arabic, english] = categories[index];
+    const items = result.items.filter((item) => item.category === key);
+    if (!items.length) continue;
+    const column = document.createElement("section");
+    column.className = `triage-column triage-${key}`;
+    const head = document.createElement("div");
+    head.className = "triage-column-head";
+    head.append(text("span", number, "triage-number"),
+      text("h4", `${arabic} · ${english}`),
+      text("span", String(items.length), "triage-number"));
+    column.append(head);
+    for (const item of items) {
+      const article = document.createElement("article");
+      article.className = "triage-message";
+      article.append(text("span", item.sender, "triage-sender"),
+        text("h5", item.subject),
+        text("p", item.summary, "triage-summary"));
+      if (item.suggested_action) {
+        article.append(text("p", `Next step · ${item.suggested_action}`, "triage-action"));
+      }
+      if (item.has_unread_attachments) {
+        article.append(text("p", "مرفقات لم تُحلَّل · Attachments not reviewed", "triage-warning"));
+      }
+      const link = document.createElement("a");
+      link.textContent = "فتح الرسالة الأصلية في Gmail";
+      link.href = item.link;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      article.append(link);
+      column.append(article);
+    }
+    groups.append(column);
+  }
 }
 
 function lock() {
@@ -129,6 +186,21 @@ async function load(reset) {
     const [result, caps] = await Promise.all([response.json(), capsResponse.json()]);
     if (active !== generation) return;
     renderMailStatus(caps.mail);
+    if (caps.mail?.sync_enabled) {
+      try {
+        const triageResponse = await fetch("/api/v1/mail/triage", options);
+        if (active !== generation) return;
+        if (!triageResponse.ok) throw new Error("triage read failed");
+        renderTriage(await triageResponse.json());
+      } catch (error) {
+        if (active !== generation || error.name === "AbortError") return;
+        el("triage-groups").replaceChildren();
+        el("triage-count").textContent = "تعذر قراءة التصنيف المحفوظ";
+      }
+    } else {
+      el("triage-groups").replaceChildren();
+      el("triage-count").textContent = "المزامنة المستمرة غير مفعّلة";
+    }
     if (reset) el("items").replaceChildren();
     for (const item of result.items) el("items").append(card(item));
     cursor = result.next_cursor;
