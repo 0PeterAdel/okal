@@ -7,5 +7,6 @@
   "max_messages": 30,
   "retention_days": 30,
   "daily_at": null,
+  "sync_enabled": false,
   "send_enabled": false
 }
