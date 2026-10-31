@@ -48,6 +48,7 @@ class Config(Strict):
     retention_days: int = Field(default=30, ge=1, le=365)
     daily_at: str | None = None
     send_enabled: bool = False
+    trash_enabled: bool = False
     sync_enabled: bool = False
 
     @field_validator("account")
