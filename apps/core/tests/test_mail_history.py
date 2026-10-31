@@ -399,6 +399,26 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(saved["refresh_token"], "original-refresh")
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_provider_backfill_quarantine_is_opt_in_and_strict_digest_unchanged(self):
+        service = MagicMock()
+        api = Gmail(service)
+        api.ids = lambda query, limit: ["aa", "bb", "cc"]
+        original = incoming("aa", 3)
+        api.get_optional = MagicMock(side_effect=lambda mid: (
+            original if mid == "aa" else None if mid == "bb"
+            else (_ for _ in ()).throw(MailError("unreadable_message"))
+        ))
+        manual = []
+        messages = api.collect(1, 5, 10, quarantine=manual)
+        self.assertEqual([m.id for m in messages], ["aa"])
+        self.assertEqual(manual, [("bb", "message_disappeared"),
+                                  ("cc", "unreadable_message")])
+        # The original manual digest deliberately treats a read failure as
+        # a failed interval rather than quietly skipping a source.
+        api.get = MagicMock(side_effect=MailError("unreadable_message"))
+        with self.assertRaisesRegex(MailError, "unreadable_message"):
+            api.collect(1, 5, 10)
+
     def test_refresh_token_rotation_is_not_replaced_by_older_token(self):
         import json
 
