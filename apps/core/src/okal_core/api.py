@@ -167,7 +167,7 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
     def mail_triage():
         """Read-only bounded structured triage; never triggers Gmail or Ollama."""
         from .mail.private import config
-        from .mail.history import recent_evidence
+        from .mail.history import recent_evidence, recent_quarantines
 
         try:
             cfg = config(store)
@@ -191,6 +191,28 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
                 "link": "https://mail.google.com/mail/?authuser="
                 + quote(cfg.account, safe="")
                 + "#all/" + m["id"], "created_at": row["created_at"],
+            })
+        manual_labels = {
+            "unreadable_message": "محتوى غير قابل للقراءة / Unreadable message",
+            "message_exceeds_size_budget": "رسالة كبيرة / Message too large",
+            "mime_complexity_budget_exceeded": "تركيب MIME معقد / Complex MIME",
+            "ambiguous_message_headers": "ترويسات غير واضحة / Ambiguous headers",
+            "body_requires_attachment_fetch_manual_review": "محتوى مرفق لم يُقرأ / Attached body",
+            "message_body_truncated_narrow_scope_or_review_manually": "محتوى طويل جدًا / Truncated text",
+            "message_disappeared": "رسالة لم تعد متاحة / Message disappeared",
+        }
+        for record in recent_quarantines(store, cfg.account, 60):
+            items.append({
+                "id": record["message_id"],
+                "subject": "مراجعة الرسالة الأصلية / Open original email",
+                "sender": "Gmail", "received_ms": record["detected_at"] * 1000,
+                "labels": [], "category": "manual_review",
+                "summary": manual_labels.get(record["code"], "تعذر التحليل / Cannot analyze"),
+                "suggested_action": "افتح Gmail وتحقق يدويًا / Review in Gmail",
+                "has_unread_attachments": False,
+                "link": "https://mail.google.com/mail/?authuser="
+                + quote(cfg.account, safe="") + "#all/" + record["message_id"],
+                "created_at": record["detected_at"],
             })
         return {"items": items, "state": "recorded_local_insights"}
 
