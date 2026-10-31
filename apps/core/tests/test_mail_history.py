@@ -537,11 +537,11 @@ class HistoryTests(unittest.TestCase):
         self.assertIn(b"100", payload)
         self.assertEqual(persisted, ["renewed"])
 
-    def test_authenticated_structured_triage_no_provider_access(self):
+    def test_explicitly_protected_structured_triage_no_provider_access(self):
         run(self.store, self.cfg, self.api, self.model)
         write_private(root(self.store) / "config.json", self.cfg.model_dump())
         token = self.store.issue_device("browser")["token"]
-        with TestClient(create_app(self.store), base_url="http://127.0.0.1:8766",
+        with TestClient(create_app(self.store, require_read_key=True), base_url="http://127.0.0.1:8766",
                         client=("127.0.0.1", 1234)) as client:
             self.assertEqual(client.get("/api/v1/mail/triage").status_code, 401)
             response = client.get("/api/v1/mail/triage",
