@@ -9,6 +9,9 @@ let generation = 0;
 let busy = false;
 
 function resetMailStatus() {
+  el("morning-title").textContent = "صباحك فل!";
+  el("morning-text").textContent = "افتح OKAL لعرض موجز يومك المحلي.";
+  el("morning-status").textContent = "مهام مؤكدة وبريد محفوظ؛ مش متصل بتقويم Google.";
   el("mail-status").textContent = "افتح الصندوق لعرض الحالة";
   el("integration-status").textContent =
     "افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.";
@@ -22,6 +25,16 @@ function resetMailStatus() {
   el("tasks-list").replaceChildren();
   el("tasks-count").textContent = "لم يتم التحميل";
   el("tasks-note").textContent = "مهام محلية بموافقتك؛ لا إنشاء أحداث في Google Calendar.";
+}
+
+function renderMorning(data) {
+  if (!data || typeof data.spoken_text !== "string")
+    throw new Error("invalid daily briefing");
+  el("morning-title").textContent = data.greeting;
+  el("morning-text").textContent = data.spoken_text;
+  el("morning-status").textContent = data.mail_sync_stale
+    ? "آخر مزامنة بريد قديمة؛ الموجز ممكن يكون ناقص. مفيش أي مواعيد من Google Calendar."
+    : "ملخص من البريد المحفوظ والمهام المؤكدة محليًا، جاهز للصوت فيما بعد.";
 }
 
 function renderMailStatus(mail) {
@@ -308,6 +321,15 @@ async function load(reset) {
     if (active !== generation) return;
     keyProtected = caps.read_key_required === true;
     renderMailStatus(caps.mail);
+    try {
+      const morningResponse = await fetch("/api/v1/morning", options);
+      if (active !== generation) return;
+      if (!morningResponse.ok) throw new Error("morning unavailable");
+      renderMorning(await morningResponse.json());
+    } catch (error) {
+      if (active !== generation || error.name === "AbortError") return;
+      el("morning-text").textContent = "تعذر قراءة الموجز الصباحي من البيانات المحلية.";
+    }
     if (caps.mail?.sync_enabled) {
       try {
         const triageResponse = await fetch("/api/v1/mail/triage", options);
