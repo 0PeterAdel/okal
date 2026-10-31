@@ -166,9 +166,9 @@ async function load(reset) {
     const query = new URLSearchParams({ limit: "20" });
     if (!reset && cursor) query.set("cursor", cursor);
     const options = {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       cache: "no-store",
-      credentials: "omit",
+      credentials: "same-origin",
       signal: controller.signal,
     };
     const [response, capsResponse] = await Promise.all([
@@ -179,7 +179,7 @@ async function load(reset) {
     if (response.status === 401 || capsResponse.status === 401) {
       lock();
       el("message").textContent =
-        "المفتاح غير صالح أو انتهت مدته أو تم إلغاؤه. أنشئ مفتاحًا محليًا جديدًا.";
+        "جلسة المتصفح غير متاحة أو انتهت؛ اربط هذا المتصفح بمفتاح قراءة محلي مرة واحدة.";
       return;
     }
     if (!response.ok || !capsResponse.ok) throw new Error("read failed");
@@ -226,17 +226,47 @@ async function load(reset) {
   }
 }
 
-el("login-form").addEventListener("submit", (event) => {
+el("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (busy) return;
-  token = el("token").value.trim();
+  const oneTimeKey = el("token").value.trim();
   el("token").value = "";
+  setBusy(true);
+  try {
+    const response = await fetch("/api/v1/session", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: oneTimeKey }),
+    });
+    if (!response.ok) throw new Error("pairing failed");
+    token = ""; // Never keep the pairing key in JS after the exchange.
+    el("message").textContent = "";
+  } catch (_) {
+    el("message").textContent = "تعذر ربط هذا المتصفح. تحقق من مفتاح القراءة المحلي أو صلاحيته.";
+    setBusy(false);
+    return;
+  }
+  setBusy(false);
   load(true);
 });
 el("refresh").addEventListener("click", () => load(true));
 el("more").addEventListener("click", () => load(false));
-el("logout").addEventListener("click", () => {
+el("logout").addEventListener("click", async () => {
+  let revoked = false;
+  try {
+    const response = await fetch("/api/v1/session", {
+      method: "DELETE", credentials: "same-origin", cache: "no-store",
+    });
+    revoked = response.ok;
+  } catch (_) {
+    // Clear the display even if the server cannot currently revoke a cookie.
+  }
   lock();
-  el("message").textContent = "تم قفل الصندوق ومسح بيانات الصفحة.";
+  el("message").textContent = revoked
+    ? "تم تسجيل الخروج وإلغاء جلسة هذا المتصفح."
+    : "تم مسح بيانات الصفحة، لكن تعذر التأكد من إلغاء الجلسة على الخادم.";
 });
 window.addEventListener("pagehide", lock);
+
+// A paired browser resumes after reload without reentering the local read key.
+window.addEventListener("DOMContentLoaded", () => load(true));
