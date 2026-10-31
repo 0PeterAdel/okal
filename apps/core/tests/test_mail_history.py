@@ -32,6 +32,7 @@ class Provider:
         self.delta = (self.cursor, [], 0)
         self.expired = False
         self.collections = 0
+        self.collect_starts = []
 
     def check_account(self, address):
         assert address == "owner@example.com"
@@ -41,6 +42,7 @@ class Provider:
 
     def collect(self, start, end, limit):
         self.collections += 1
+        self.collect_starts.append((start, end))
         result = [m for m in self.items.values()
                   if start * 1000 <= m.received_ms < end * 1000]
         if len(result) > limit:
@@ -84,6 +86,33 @@ class HistoryTests(unittest.TestCase):
                           model_digest="a" * 64, sync_enabled=True)
         self.api = Provider(self.now)
         self.model = Model()
+
+    def test_first_sync_catches_up_from_previous_digest_watermark(self):
+        from okal_core.mail.state import MailState
+
+        legacy = MailState(self.store)
+        key, existing = legacy.begin(self.cfg.account, self.now - 7200,
+                                      self.now - 3600)
+        self.assertIsNone(existing)
+        legacy.complete(key, self.cfg.account, self.now - 7200,
+                        self.now - 3600, "Existing synthetic digest", [])
+        result = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(result["status"], "initial_legacy_checkpoint_backfill")
+        self.assertEqual(self.api.collect_starts,
+                         [(self.now - 3600, self.now)])
+
+    def test_old_legacy_watermark_requires_explicit_recovery(self):
+        from okal_core.mail.state import MailState
+
+        legacy = MailState(self.store)
+        old = self.now - 32 * 86400
+        key, _ = legacy.begin(self.cfg.account, old - 3600, old)
+        legacy.complete(key, self.cfg.account, old - 3600, old,
+                        "Historical synthetic digest", [])
+        with self.assertRaisesRegex(MailError, "window_exceeded"):
+            run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(self.api.collections, 0)
+        self.assertIsNone(HistoryState(self.store).current(self.cfg.account))
 
     def test_bootstrap_then_history_delta_no_duplicate_messages(self):
         first = run(self.store, self.cfg, self.api, self.model)
