@@ -9,9 +9,9 @@ function harness(fetcher) {
   const nodes = new Map();
   function node() {
     return {
-      textContent: "", value: "", hidden: false, children: [],
+      textContent: "", value: "", hidden: false, children: [], handlers: {},
       classList: { add() {}, remove() {} },
-      addEventListener() {},
+      addEventListener(type, fn) { this.handlers[type] = fn; },
       append(...items) { this.children.push(...items); },
       replaceChildren() { this.children = []; },
       get childElementCount() { return this.children.length; },
@@ -75,6 +75,9 @@ test("local dashboard auto-opens without a key and uses only local read endpoint
     assert.equal(Object.hasOwn(options.headers, "Authorization"), false);
     return response(url.startsWith("/api/v1/summaries")
       ? { items: [], next_cursor: null, fetched_at: 100 }
+      : url === "/api/v1/morning"
+        ? { spoken_text: "صباح الفل، عندك مهمة مؤكدة!", greeting: "صباح الفل!",
+            mail_sync_stale: false }
       : url === "/api/v1/mail/assistant"
         ? { items: [], counts: {}, total_in_sample: 0, state: "local_suggestion_preview" }
         : url === "/api/v1/tasks"
@@ -82,9 +85,11 @@ test("local dashboard auto-opens without a key and uses only local read endpoint
           : { mail: configured });
   });
   await context.load(true);
-  assert.equal(calls.length, 4);
-  assert.equal(calls[2], "/api/v1/mail/assistant");
-  assert.equal(calls[3], "/api/v1/tasks");
+  assert.equal(calls.length, 5);
+  assert.equal(calls[2], "/api/v1/morning");
+  assert.equal(calls[3], "/api/v1/mail/assistant");
+  assert.equal(calls[4], "/api/v1/tasks");
+  assert.match(get("morning-text").textContent, /عندك مهمة/);
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
   assert.equal(get("inbox-panel").hidden, false);
   assert.equal(get("login-panel").hidden, true);
@@ -179,6 +184,46 @@ test("approved local tasks render dates and untrusted titles as text", () => {
   context.lock();
   assert.equal(get("tasks-list").children.length, 0);
 });
+test("Information multi-select creates a preview-only command, never Gmail writes", async () => {
+  const { context, get } = harness();
+  context.renderTriage({
+    items: [
+      { id: "aa", labels: ["INBOX"], category: "information",
+        sender: "Fake <fake@example.com>", subject: "Note",
+        summary: "FYI", suggested_action: "", has_unread_attachments: false,
+        link: "https://mail.google.com/mail/#all/aa" },
+      { id: "bb", labels: ["STARRED"], category: "information",
+        sender: "Boss", subject: "Important", summary: "Read",
+        suggested_action: "", has_unread_attachments: false,
+        link: "https://mail.google.com/mail/#all/bb" },
+    ],
+  });
+  const article = get("triage-groups").children[0].children[1];
+  const label = article.children.at(-1);
+  const checkbox = label.children[0];
+  checkbox.checked = true;
+  checkbox.handlers.change();
+  assert.equal(get("trash-selected").disabled, false);
+  await get("trash-selected").handlers.click();
+  assert.match(get("trash-command").textContent, /mail trash --ids aa/);
+  assert.doesNotMatch(get("trash-command").textContent, /--apply/);
+  assert.equal(get("trash-command").hidden, false);
+  assert.match(get("trash-help").textContent, /Terminal/);
+  context.lock();
+  assert.equal(get("trash-command").textContent, "");
+});
+
+test("morning rendering resets private text on hide", () => {
+  const { context, get } = harness();
+  context.renderMorning({
+    greeting: "صباح الفل!", spoken_text: "Private morning email subject",
+    mail_sync_stale: false,
+  });
+  assert.equal(get("morning-text").textContent, "Private morning email subject");
+  context.lock();
+  assert.doesNotMatch(get("morning-text").textContent, /Private morning/);
+});
+
 test("OAuth reauthorization and unfinished catch-up have distinct honest labels", () => {
   const { context, get } = harness();
   context.renderMailStatus({
