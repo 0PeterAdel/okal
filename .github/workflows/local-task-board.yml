@@ -1,7 +1,11 @@
-name: Local Task Board CI
+name: Local Core Features CI
 
 on:
   push:
+    branches:
+      - feat/core-local-task-planning
+      - feat/core-morning-brief-gmail-trash
+  pull_request:
     branches:
       - feat/core-local-task-planning
   workflow_dispatch:
