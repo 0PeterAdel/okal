@@ -508,3 +508,6 @@ footer {
   padding: 6px 10px; border-radius: 7px; }
 @media (max-width: 1000px) { .triage-groups { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .triage { padding: 14px; } .triage-head h3 { font-size: 17px; } }
+
+.triage-manual_review { border-color: #9b644a; background: #31271f; }
+.triage-manual_review .triage-column-head { color: #ffd1ae; }
