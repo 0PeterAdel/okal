@@ -399,6 +399,45 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(saved["refresh_token"], "original-refresh")
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_refresh_token_rotation_is_not_replaced_by_older_token(self):
+        import json
+
+        original = {
+            "token": "access-before", "refresh_token": "refresh-before",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "scopes": [READ], "client_id": "synthetic",
+            "client_secret": "synthetic",
+        }
+        credential_path = root(self.store) / "token.json"
+        write_private(credential_path, original)
+        credentials = MagicMock(valid=True)
+        callbacks = []
+        google = MagicMock()
+
+        def capture(creds, persist=None):
+            callbacks.append(persist)
+            return google
+
+        with patch(
+            "google.oauth2.credentials.Credentials.from_authorized_user_info",
+            return_value=credentials,
+        ), patch.object(Gmail, "from_credentials", side_effect=capture):
+            self.assertIs(Gmail.open(self.store, self.cfg), google)
+        self.assertEqual(len(callbacks), 1)
+
+        rotated = {**original, "refresh_token": "refresh-rotated"}
+        credentials.to_json.return_value = json.dumps(rotated)
+        callbacks[0](credentials)
+        self.assertEqual(read_private(credential_path)["refresh_token"],
+                         "refresh-rotated")
+
+        next_access = {**rotated, "token": "access-after", "refresh_token": None}
+        credentials.to_json.return_value = json.dumps(next_access)
+        callbacks[0](credentials)
+        final = read_private(credential_path)
+        self.assertEqual(final["refresh_token"], "refresh-rotated")
+        self.assertEqual(final["token"], "access-after")
+
     def test_transport_persists_credential_after_before_request_refresh(self):
         import httpx
 
