@@ -10,6 +10,8 @@ on:
   pull_request:
     branches:
       - feat/core-local-task-planning
+      - feat/core-ai-morning-editor
+      - feat/core-pro-dashboard-multiselect
   workflow_dispatch:
 
 permissions:
