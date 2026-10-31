@@ -133,6 +133,22 @@ def audit(state, cfg, api, now=None):
                 "AND message_id IN (" + ",".join("?" for _ in recent) + ")",
                 (cfg.account.casefold(), *recent),
             )}
+    # The native history list can span older already-processed messages.
+    # Compare against the COMPLETE persisted dedupe ledger, not only the
+    # last two hours of visible messages.
+    unseen_history = 0
+    if added:
+        with sqlite3.connect(
+            (state / "core.sqlite3").as_uri() + "?mode=ro", uri=True, timeout=10
+        ) as db:
+            for n in range(0, len(added), 200):
+                chunk = added[n:n + 200]
+                accounted = {r[0] for r in db.execute(
+                    "SELECT message_id FROM mail_sync_seen WHERE account=? "
+                    "AND message_id IN (" + ",".join("?" for _ in chunk) + ")",
+                    (cfg.account.casefold(), *chunk),
+                )}
+                unseen_history += len(set(chunk) - accounted)
     fresh = now - e["checked_at"] <= 900 and now >= e["checked_at"]
     has_usable_evidence = e["unique_insight_messages"] >= 1 and checked >= 1
     valid_local = (
@@ -153,7 +169,7 @@ def audit(state, cfg, api, now=None):
         "native_sources_no_longer_available": unavailable,
         "historic_live_test_subjects": e["historic_test_subjects"],
         "manual_review_queue_size": e["quarantines"],
-        "unprocessed_new_gmail_history_ids": len(set(added) - seen_recent),
+        "unprocessed_new_gmail_history_ids": unseen_history,
         "recent_visible_gmail_messages_checked": len(recent),
         "recent_visible_messages_locally_seen": len(seen_recent),
         "recent_visible_messages_not_yet_seen": len(set(recent) - seen_recent),
