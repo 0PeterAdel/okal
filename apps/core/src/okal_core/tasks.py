@@ -9,7 +9,7 @@ import re
 import sqlite3
 from uuid import uuid4
 
-from .mail.contracts import Insight, MailError
+from .mail.contracts import Insight
 from .mail.workflows import source_link
 
 
@@ -209,10 +209,10 @@ class TaskBoard:
     def transition(self, task_id, status):
         if status not in {"done", "dismissed"} or not ID_PATTERN.fullmatch(task_id):
             raise ValueError("invalid_task_transition")
+        if not self._exists():
+            raise ValueError("task_not_found")
         with self.store.connect() as db, db:
             db.execute("BEGIN IMMEDIATE")
-            if not self._exists():
-                raise ValueError("task_not_found")
             updated = db.execute(
                 "UPDATE local_tasks SET status=?, updated_at=? "
                 "WHERE id=? AND status='open'",
