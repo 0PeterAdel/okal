@@ -242,22 +242,28 @@ function renderTriage(result) {
         check.checked = false;
         check.setAttribute("aria-label",
           `اختيار رسالة للاطلاع: ${String(item.subject).slice(0, 120)}`);
-        // Native checkbox remains usable for touch, keyboard and screen readers.
+        // Native checkbox default toggling happens before its change event.
+        // Capture modifiers, then reconcile on change; preventing the click
+        // default would make browsers undo our checked state after the handler.
+        let checkboxModifiers = {};
         check.addEventListener("click", (event) => {
-          if (event?.shiftKey) {
-            event.preventDefault();
-            event.stopPropagation();
-            chooseInformation(item.id, event);
-          }
+          checkboxModifiers = {
+            ctrlKey: Boolean(event?.ctrlKey),
+            metaKey: Boolean(event?.metaKey),
+            shiftKey: Boolean(event?.shiftKey),
+          };
+          event?.stopPropagation?.();
         });
         check.addEventListener("change", () => {
-          // For native checkboxes, change toggles just this source ID;
-          // ctrl/shift desktop range gestures are also offered on the row.
-          const shouldSelect = check.checked;
-          const next = new Set(selectedInfo);
-          if (shouldSelect) next.add(item.id);
-          else next.delete(item.id);
-          if (commitSelection(next)) selectionAnchor = item.id;
+          if (checkboxModifiers.shiftKey) {
+            chooseInformation(item.id, checkboxModifiers);
+          } else {
+            const next = new Set(selectedInfo);
+            if (check.checked) next.add(item.id);
+            else next.delete(item.id);
+            if (commitSelection(next)) selectionAnchor = item.id;
+          }
+          checkboxModifiers = {};
         });
         selection.append(check, text("span", "تحديد الرسالة"));
         article.append(selection);
