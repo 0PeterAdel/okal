@@ -131,6 +131,57 @@ def systemd(action):
         raise AcceptanceError("core_service_not_stopped")
 
 
+
+def verify_arrivals(state, cfg, probe):
+    """Read only two exact native Gmail probe subjects before restarting Core.
+
+    Never ask Ollama, fetch email bodies, or write a Gmail message.
+    Search uses Gmail's own index, then checks exact metadata and arrival time.
+    """
+    from okal_core.mail.contracts import Config, MailError
+    from okal_core.mail.provider import Gmail
+    from okal_core.store import Store
+
+    try:
+        started_ms = int(datetime.fromisoformat(probe["started_at"]).timestamp() * 1000)
+        expected = (probe["ar_subject"], probe["en_subject"])
+        if not all(re.fullmatch(r"OKAL-LIVE-[A-F0-9]{12}-(AR|EN)", x) for x in expected):
+            raise AcceptanceError("invalid_test_subject_marker")
+        api = Gmail.open(Store(state), Config.model_validate(cfg))
+        try:
+            for subject in expected:
+                # Gmail's subject search is approximate, so validate EXACT
+                # subject and native internalDate from metadata responses.
+                matches = set()
+                query = f'subject:"{subject}" -in:sent -in:drafts -in:spam -in:trash'
+                for mid in api.ids(query, 10):
+                    row = api.call(api.service.users().messages().get(
+                        userId="me", id=mid, format="metadata",
+                        metadataHeaders=["Subject"],
+                    ))
+                    labels = set(row.get("labelIds", []))
+                    if labels & {"SENT", "DRAFT", "SPAM", "TRASH"}:
+                        continue
+                    headers = [
+                        h.get("value") for h in
+                        row.get("payload", {}).get("headers", [])
+                        if h.get("name", "").casefold() == "subject"
+                    ]
+                    if (len(headers) == 1 and headers[0] == subject
+                            and int(row.get("internalDate", 0)) >= started_ms):
+                        matches.add(mid)
+                if len(matches) != 1:
+                    raise AcceptanceError(
+                        "test_messages_missing_or_not_sent_during_core_outage"
+                    )
+        finally:
+            api.close()
+    except AcceptanceError:
+        raise
+    except (MailError, KeyError, ValueError, TypeError):
+        raise AcceptanceError("gmail_arrival_verification_failed") from None
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(
         description="Private Gmail live acceptance, no outgoing mail"
@@ -219,6 +270,9 @@ def main(argv=None):
             probe = load_probe(state)
             if probe["phase"] != "outage":
                 raise AcceptanceError("outage_already_finished")
+            # Never resume and invalidate this probe unless BOTH exact subjects
+            # have reached Gmail AFTER the outage began. Older tests are inert.
+            verify_arrivals(state, cfg, probe)
             systemd("start")
             probe["phase"] = "resumed"
             probe["resumed_at"] = datetime.now(timezone.utc).isoformat()
