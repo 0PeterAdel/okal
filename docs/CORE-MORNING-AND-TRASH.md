@@ -55,6 +55,34 @@ Summarization guidance for future incoming emails has also been sharpened to
 emphasize actual takeaways, clear action, exact dates/names, and natural
 Egyptian Arabic. **Old stored summaries are not retroactively changed.**
 
+## Morning Brief Quality v2 — no more test/CI spam in the greeting
+
+The owner-device screenshot and local `morning` JSON showed that the previous
+briefing repeated old `OKAL-LIVE-*` test probes and several GitHub workflow
+failure notifications as if they were personal priorities. This was a
+**selection/ranking** bug in the daily composition, not an OAuth or core server
+failure.
+
+Now the morning voice text:
+
+- Excludes synthetic `OKAL-LIVE-*` acceptance subjects from the **morning
+  greeting only**, never deletes them from Gmail.
+- Separates GitHub automated CI run notices (identified by native sender
+  and subject) from personal action messages, with a single short notice.
+  Exact CI alerts still appear in the normal Gmail triage/Inbox view.
+- Collapses repeated emails sharing the same saved Gmail thread ID.
+- Focuses on up to two confirmed upcoming local deadlines, only **one**
+  highlighted non-synthetic incoming action, and any manual-review backlog.
+- Limits the spoken text to 700 characters; technical caveats about Calendar
+  connectivity remain as structured metadata and in the UI, not a long speech.
+
+The structured response also includes counts
+`excluded_synthetic_tests`, `automation_notifications`,
+`duplicates_suppressed` and `manual_review_count` for owner diagnostics.
+This is still a **deterministic composition of previously saved AI email
+summaries**. It does not re-run Ollama on historical messages or verify a
+calendar that is not yet connected. All message texts remain untrusted data.
+
 ## Recoverable bulk Gmail Trash (not permanent delete)
 
 The read-only, automatically opened dashboard can **select up to 20 messages**
