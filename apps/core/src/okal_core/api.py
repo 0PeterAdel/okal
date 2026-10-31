@@ -38,7 +38,7 @@ def create_app(
     # Never let a future privileged /api/ endpoint inherit passwordless access.
     local_read_paths = {
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
-        "/api/v1/mail/triage", "/api/v1/mail/assistant",
+        "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
     }
 
     def public_local_read(path, method):
@@ -281,6 +281,13 @@ def create_app(
         except (MailError, ValueError):
             # Do not render potentially unsafe/malformed local rules as success.
             raise HTTPException(422, "local assistant rules or saved evidence invalid") from None
+
+    @app.get("/api/v1/tasks")
+    def local_tasks():
+        """Local approved task list; no Gmail fetch, no model or writes."""
+        from .tasks import TaskBoard
+
+        return TaskBoard(store).list("open", 100)
 
     @app.get("/api/v1/summaries")
     def summaries(
