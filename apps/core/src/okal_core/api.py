@@ -2,6 +2,7 @@
 
 import ipaddress
 from pathlib import Path
+import json
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -36,6 +37,14 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             or host not in hosts
             or (origin is not None and origin != f"http://{host}")
             or request.headers.get("sec-fetch-site") == "cross-site"
+            or (
+                request.method in {"POST", "PUT", "PATCH", "DELETE"}
+                and (
+                    origin != f"http://{host}"
+                    or request.headers.get("sec-fetch-site", "same-origin")
+                    not in {"same-origin", "none"}
+                )
+            )
         ):
             response = JSONResponse(
                 {"detail": "local same-origin access required"}, status_code=403
@@ -43,10 +52,17 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
         elif (
             request.url.path.startswith("/api/")
             and request.url.path != "/api/v1/health"
-            and (
-                len(request.headers.getlist("authorization")) != 1
-                or not request.headers.get("authorization", "").startswith("Bearer ")
-                or not store.authenticate(request.headers.get("authorization", "")[7:])
+            and not (
+                request.url.path == "/api/v1/session"
+                and request.method == "POST"
+            )
+            and not (
+                store.authenticate_browser_session(request.cookies.get("okal_session", ""))
+                or (
+                    len(request.headers.getlist("authorization")) == 1
+                    and request.headers.get("authorization", "").startswith("Bearer ")
+                    and store.authenticate(request.headers.get("authorization", "")[7:])
+                )
             )
         ):
             response = JSONResponse(
@@ -78,6 +94,41 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
                 "X-Frame-Options": "DENY",
             }
         )
+        return response
+
+    @app.post("/api/v1/session")
+    async def pair_browser(request: Request):
+        """One-time local read-key exchange; cookie grants read scope only."""
+        body = await request.body()
+        if len(body) > 256:
+            raise HTTPException(400, "invalid pairing request")
+        try:
+            payload = json.loads(body)
+            if not isinstance(payload, dict) or set(payload) != {"token"}:
+                raise ValueError()
+            key = payload["token"]
+        except (ValueError, TypeError):
+            raise HTTPException(400, "invalid pairing request") from None
+        if not isinstance(key, str):
+            raise HTTPException(400, "invalid pairing request")
+        session = store.issue_browser_session(key)
+        if session is None:
+            raise HTTPException(401, "invalid or expired local read key")
+        age = max(0, session["expires_at"] - int(store.clock()))
+        response = JSONResponse({"status": "paired", "expires_at": session["expires_at"],
+                                 "permissions": ["inbox:read"]})
+        # Loopback HTTP, host-only, HttpOnly and SameSite Strict. No JS storage.
+        response.set_cookie(
+            "okal_session", session["token"], httponly=True,
+            samesite="strict", max_age=age, path="/api",
+        )
+        return response
+
+    @app.delete("/api/v1/session")
+    def unpair_browser(request: Request):
+        store.revoke_browser_session(request.cookies.get("okal_session", ""))
+        response = JSONResponse({"status": "session_revoked"})
+        response.delete_cookie("okal_session", path="/api")
         return response
 
     @app.get("/api/v1/health")
