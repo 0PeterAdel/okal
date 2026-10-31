@@ -38,7 +38,8 @@ def create_app(store: Store, port: int = 8766, lifespan=None) -> FastAPI:
             or (origin is not None and origin != f"http://{host}")
             or request.headers.get("sec-fetch-site") == "cross-site"
             or (
-                request.method in {"POST", "PUT", "PATCH", "DELETE"}
+                request.url.path == "/api/v1/session"
+                and request.method in {"POST", "DELETE"}
                 and (
                     origin != f"http://{host}"
                     or request.headers.get("sec-fetch-site", "same-origin")
