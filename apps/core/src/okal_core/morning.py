@@ -5,6 +5,7 @@ calendar claims, or writes. Generated on local read when dashboard opens.
 """
 from datetime import datetime, timedelta, timezone
 from html import escape
+from email.utils import parseaddr
 import os
 import shutil
 import subprocess
@@ -40,6 +41,8 @@ def morning_brief(store):
         "mail_sync_stale": True,
         "today_tasks": [], "overdue_tasks": [],
         "new_action_emails": [], "new_info_emails": [],
+        "automation_notifications": 0, "excluded_synthetic_tests": 0,
+        "duplicates_suppressed": 0, "manual_review_count": 0,
         "spoken_text": "", "calendar_note": "Google Calendar مش مربوط لسه.",
         "no_external_actions": True,
     }
@@ -55,6 +58,7 @@ def morning_brief(store):
             info["today_tasks"].append(row)
         elif due.date() < today and len(info["overdue_tasks"]) < 5:
             info["overdue_tasks"].append(row)
+    info["today_tasks"].sort(key=lambda t: t["time"])
     try:
         account = config(store).account.casefold()
     except (ValueError, OSError):
@@ -75,6 +79,11 @@ def morning_brief(store):
                     info["mail_sync_stale"] = (
                         int(store.clock()) - row[0] > 900
                     )
+            if "mail_sync_quarantine" in tables:
+                info["manual_review_count"] = db.execute(
+                    "SELECT COUNT(*) FROM mail_sync_quarantine WHERE account=?",
+                    (account,),
+                ).fetchone()[0]
             if "mail_sync_insights" in tables:
                 # Last 24 hours of RECEIVED mail only. Never use record
                 # creation time as if it were delivery time.
@@ -91,8 +100,9 @@ def morning_brief(store):
                        WHERE i.account=? AND json_extract(i.metadata,'$.received_ms')>=?
                        """ + excluded +
                     """ ORDER BY json_extract(i.metadata,'$.received_ms') DESC
-                        LIMIT 60""", (account, since_ms)
+                        LIMIT 120""", (account, since_ms)
                 ).fetchall()
+                seen_messages, seen_threads = set(), set()
                 for row in rows:
                     try:
                         m = json.loads(row["metadata"])
@@ -101,53 +111,69 @@ def morning_brief(store):
                             continue
                         if "TRASH" in m.get("labels", []) or "SENT" in m.get("labels", []):
                             continue
+                        subject = _short(m.get("subject", ""), 110)
+                        if subject.upper().startswith("OKAL-LIVE-"):
+                            info["excluded_synthetic_tests"] += 1
+                            continue
+                        sender_address = parseaddr(str(m.get("sender", "")))[1].casefold()
+                        lower_subject = subject.casefold()
+                        if (sender_address == "notifications@github.com"
+                                and any(token in lower_subject for token in
+                                        ("run failed:", "run succeeded:", "workflow run"))):
+                            info["automation_notifications"] += 1
+                            continue
+                        mid = row["message_id"]
+                        thread_id = m.get("thread_id") or mid
+                        if mid in seen_messages or thread_id in seen_threads:
+                            info["duplicates_suppressed"] += 1
+                            continue
+                        seen_messages.add(mid)
+                        seen_threads.add(thread_id)
                         item = {
-                            "subject": _short(m.get("subject", ""), 110),
+                            "subject": subject,
                             "sender": _short(m.get("sender", ""), 80),
                             "summary": _short(insight.summary, 190),
                             "source_link": source_link(account, row["message_id"]),
                         }
-                        if insight.category == "action" and len(info["new_action_emails"]) < 4:
+                        if insight.category == "action" and len(info["new_action_emails"]) < 3:
                             info["new_action_emails"].append(item)
-                        elif insight.category == "information" and len(info["new_info_emails"]) < 3:
+                        elif insight.category == "information" and len(info["new_info_emails"]) < 2:
                             info["new_info_emails"].append(item)
                     except (ValueError, KeyError, TypeError):
                         continue
 
-    sentences = [greeting, "ده ملخص يومك من الحاجات المسجلة عندي."]
+    sentences = [greeting]
     if info["today_tasks"]:
-        events = "، ".join(
-            f"{i['title']} الساعة {i['time']}" for i in info["today_tasks"][:4]
+        upcoming = info["today_tasks"][:2]
+        sentences.append(
+            "النهاردة عندك " + str(len(info["today_tasks"])) +
+            " مهمة بمواعيد مؤكدة، أولهم " +
+            "، و".join(f"{t['title']} الساعة {t['time']}" for t in upcoming) + "."
         )
-        sentences.append("النهاردة عندك " + events + ".")
     else:
-        sentences.append("مافيش مهام بمواعيد مؤكدة متسجلة عندي للنهاردة.")
+        sentences.append("مفيش عندي مواعيد مؤكدة متسجلة للنهاردة.")
     if info["overdue_tasks"]:
+        sentences.append("وفيه " + str(len(info["overdue_tasks"])) +
+                         " مهمة متأخرة محتاجة متابعة.")
+    actions = info["new_action_emails"]
+    if actions:
+        first = actions[0]
         sentences.append(
-            "وفيه " + str(len(info["overdue_tasks"])) +
-            " مهمة متأخرة محتاجة تبص عليها."
-        )
-    if info["new_action_emails"]:
-        top = info["new_action_emails"][:3]
-        sentences.append(
-            "في البريد، فيه " + str(len(info["new_action_emails"])) +
-            " رسالة محتاجة متابعة، أهمهم: " +
-            "؛ ".join(i["summary"] for i in top) + "."
+            "في البريد، فيه " + str(len(actions)) +
+            " رسالة محتاجة مراجعة. أبرزها " + _short(first["subject"], 70) +
+            ": " + _short(first["summary"], 115).rstrip(".") + "."
         )
     elif info["mail_sync_stale"]:
-        sentences.append("آخر تحديث للبريد قديم، فمش هفترض إن مفيش رسائل جديدة.")
+        sentences.append("آخر تحديث للبريد قديم، فمش هأكد إن مفيش رسائل جديدة.")
     else:
-        sentences.append("مفيش رسائل جديدة محتاجة إجراء ضمن آخر 24 ساعة من اللي اتحفظ.")
-    if info["new_info_emails"]:
-        sentences.append(
-            "وللعلم: " + "؛ ".join(i["summary"]
-                                      for i in info["new_info_emails"][:2]) + "."
-        )
-    sentences.append(
-        "المواعيد دي من مهامك المحلية المؤكدة، مش من تقويم Google؛ "
-        "وملخصات البريد اقتراحات محتاجة مراجعة."
-    )
-    info["spoken_text"] = " ".join(sentences)[:1800]
+        sentences.append("مافيش طلبات جديدة محتاجة متابعة ضمن البريد المحفوظ خلال آخر يوم.")
+    if info["manual_review_count"]:
+        sentences.append("وفيه " + str(info["manual_review_count"]) +
+                         " رسالة تعذّر تحليلها وتحتاج مراجعة يدوية.")
+    if info["automation_notifications"]:
+        sentences.append("وتنبيهات GitHub الآلية سايبها في صندوق البريد "
+                         "عشان ما تشتتش يومك.")
+    info["spoken_text"] = " ".join(sentences)[:700]
     info["body"] = info["spoken_text"]
     return info
 
