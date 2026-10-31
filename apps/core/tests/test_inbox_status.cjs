@@ -120,3 +120,21 @@ test("triage groups manual-review and preserves untrusted text as textContent", 
     "https://mail.google.com/mail/#all/ab");
   assert.match(firstGroup.children[0].children[1].textContent, /Manual review/);
 });
+
+test("OAuth reauthorization and unfinished catch-up have distinct honest labels", () => {
+  const { context, get } = harness();
+  context.renderMailStatus({
+    ...configured,
+    sync_enabled: true,
+    sync: {
+      state: "failed_last_attempt", last_error: "authorization_required",
+      last_result: "history_chunk_pending", last_checked: 100,
+      last_count: 12, manual_review_count: 2,
+    },
+  });
+  const status = get("integration-status").textContent;
+  assert.match(status, /Google Authorization Required/);
+  assert.match(status, /Catch-up in progress/);
+  assert.match(status, /مراجعة يدوية/);
+  assert.doesNotMatch(status, /نجحت المزامنة الآن/);
+});
