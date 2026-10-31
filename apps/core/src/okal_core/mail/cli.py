@@ -35,6 +35,12 @@ def main(store, argv):
     c = commands.add_parser("authorize")
     c.add_argument("--client", type=Path, required=True)
     c.add_argument("--enable-send", action="store_true")
+    c.add_argument("--enable-trash", action="store_true",
+                   help="Re-authorize Gmail with gmail.modify; broader than read-only")
+    c = commands.add_parser("trash", help="Review selected Information emails; moves to recoverable Trash")
+    c.add_argument("--ids", nargs="+", required=True)
+    c.add_argument("--apply", action="store_true",
+                   help="Owner-only interactive approval, no silent writes")
     commands.add_parser("status")
     c = commands.add_parser("sync")
     c.add_argument("mode", choices=("on", "off", "now", "status"))
@@ -87,9 +93,34 @@ def main(store, argv):
                            include_items=args.view == "queue"))
             return 0
         with locked(store):
+            if args.command == "trash":
+                from .provider import Gmail
+                from .trash import preview as trash_preview, apply as trash_apply
+
+                cfg = config(store)
+                if args.apply and not cfg.trash_enabled:
+                    raise MailError("trash_permission_disabled_reauthorize")
+                api = Gmail.open(store, cfg, trashing=args.apply)
+                review = trash_preview(store, cfg, api, args.ids)
+                emit(review)
+                if not args.apply:
+                    emit({"next": "Rerun with --apply ONLY after reviewing exact subjects on your private device."})
+                    return 0
+                if not sys.stdin.isatty() or not sys.stdout.isatty():
+                    raise MailError("trash_interactive_owner_terminal_required")
+                answer = input(
+                    "Confirm ONLY recoverable Gmail Trash for these exact messages. "
+                    "Type TRASH followed by the full approval digest: "
+                )
+                if answer != "TRASH " + review["approval_digest"]:
+                    raise MailError("trash_cancelled_owner_did_not_approve")
+                emit(trash_apply(
+                    store, cfg, api, args.ids, review["approval_digest"]
+                ))
+                return 0
             if args.command == "configure":
                 cfg = Config.model_validate(read_private(args.file))
-                if cfg.send_enabled or cfg.daily_at:
+                if cfg.send_enabled or cfg.trash_enabled or cfg.daily_at:
                     raise MailError("configure_with_sending_and_schedule_off")
                 path = root(store) / "config.json"
                 if path.exists():
@@ -134,8 +165,10 @@ def main(store, argv):
             if args.command == "authorize":
                 from .provider import authorize
 
-                authorize(store, cfg, args.client, args.enable_send)
-                emit({"authorized": True, "send_enabled": args.enable_send})
+                authorize(store, cfg, args.client, args.enable_send, args.enable_trash)
+                emit({"authorized": True, "send_enabled": args.enable_send,
+                      "trash_enabled": args.enable_trash,
+                      "warning": "gmail.modify provider scope permits more operations than OKAL exposes; only recoverable Trash is implemented"})
             elif args.command in {"schedule", "pause-sending"}:
                 if args.command == "schedule":
                     cfg = Config.model_validate(
