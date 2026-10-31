@@ -17,6 +17,16 @@ SEND = "https://www.googleapis.com/auth/gmail.send"
 RAW_LIMIT = 8 * 1024 * 1024
 
 
+def google_refresh_request(**kwargs):
+    """Google-auth refresh transport that ignores ambient proxy/CA env vars."""
+    import requests
+    from google.auth.transport.requests import Request
+
+    with requests.Session() as session:
+        session.trust_env = False
+        return Request(session=session)(**{**kwargs, "timeout": 30})
+
+
 class GoogleTransport:
     """Official client's HTTP seam, without hidden retries or redirects.
 
@@ -39,7 +49,6 @@ class GoogleTransport:
     def request(self, uri, method="GET", body=None, headers=None, **kwargs):
         from urllib.parse import urlsplit
         import httplib2
-        from google.auth.transport.requests import Request
 
         url = urlsplit(uri)
         if (
@@ -50,7 +59,7 @@ class GoogleTransport:
             raise MailError("unapproved_google_destination")
         outgoing = dict(headers or {})
         self.credentials.before_request(
-            lambda **kw: Request()(**{**kw, "timeout": 30}), method, uri, outgoing
+            google_refresh_request, method, uri, outgoing
         )
         if self.persist:
             self.persist(self.credentials)
@@ -311,7 +320,6 @@ class Gmail:
 
     @classmethod
     def open(cls, store, cfg, sending=False):
-        from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
 
         info = read_private(root(store) / "token.json")
@@ -327,7 +335,7 @@ class Gmail:
             raise MailError("authorization_required")
         if not creds.valid:
             try:
-                creds.refresh(lambda **kw: Request()(**{**kw, "timeout": 30}))
+                creds.refresh(google_refresh_request)
             except Exception:
                 raise MailError("authorization_required") from None
             renewed = json.loads(creds.to_json())
