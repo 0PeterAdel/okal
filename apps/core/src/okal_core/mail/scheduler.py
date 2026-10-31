@@ -73,8 +73,12 @@ class Worker:
                 if history.due(cfg.account, now):
                     try:
                         self.sync_run(cfg)
+                    except MailError as exc:
+                        # Persist a safe error code (e.g. authorization_required)
+                        # without exposing provider bodies or refreshing in a browser.
+                        history.failure(cfg.account, str(exc))
+                        log.warning("Gmail sync failed; inspect local mail sync status")
                     except Exception:
-                        # Unattended reads retry after the persisted attempt; no sending.
                         history.failure(cfg.account, "sync_failed_check_local_doctor")
                         log.warning("Gmail sync failed; inspect local mail sync status")
             signature = f"{cfg.account.casefold()}:{cfg.timezone}:{cfg.daily_at}"
