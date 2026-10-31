@@ -11,7 +11,7 @@ import re
 import uuid
 
 from ..models import SummaryInput
-from .contracts import MailError
+from .contracts import MailError, UNREADABLE_CODES
 from .state import MailState, fingerprint
 from .workflows import source_link
 
@@ -46,6 +46,11 @@ class HistoryState:
                 account TEXT NOT NULL, message_id TEXT NOT NULL,
                 metadata TEXT NOT NULL, insight TEXT NOT NULL,
                 PRIMARY KEY(run_id,message_id)
+            )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS mail_sync_quarantine (
+                account TEXT NOT NULL, message_id TEXT NOT NULL,
+                code TEXT NOT NULL, detected_at INTEGER NOT NULL,
+                PRIMARY KEY(account,message_id)
             )""")
             db.execute("""CREATE INDEX IF NOT EXISTS mail_sync_recent
                 ON mail_sync_insights(account,run_id)""")
@@ -105,7 +110,7 @@ class HistoryState:
                 (account.casefold(), int(self.store.clock()), clean))
 
     def commit(self, account, previous, new_cursor, result, observations, body,
-               ignored_ids=(), advance=True, alert=False):
+               ignored_ids=(), advance=True, alert=False, quarantines=()):
         """CAS prevents lost updates; both checkpoint and all visible data commit together."""
         account = account.casefold()
         safe_cursor(new_cursor)
@@ -160,6 +165,13 @@ class HistoryState:
             for mid in ignored_ids:
                 db.execute("INSERT OR IGNORE INTO mail_sync_seen VALUES(?,?)",
                            (account, mid))
+            for mid, code in quarantines:
+                if code not in UNREADABLE_CODES | {"message_disappeared"}:
+                    raise MailError("unapproved_manual_review_code")
+                db.execute("INSERT OR IGNORE INTO mail_sync_quarantine VALUES(?,?,?,?)",
+                           (account, mid, code, now))
+                db.execute("INSERT OR IGNORE INTO mail_sync_seen VALUES(?,?)",
+                           (account, mid))
             checked_at = now if advance else row_checked_at
             db.execute("""INSERT INTO mail_sync_state
                 (account,cursor,checked_at,attempted_at,last_result,last_error,last_count)
@@ -179,6 +191,17 @@ class HistoryState:
 
 
 
+def recent_quarantines(store, account, limit=60):
+    """Only locally saved manual-review metadata; never fetch Gmail on GET."""
+    with store.connect() as db:
+        rows = db.execute(
+            "SELECT message_id,code,detected_at FROM mail_sync_quarantine "
+            "WHERE account=? ORDER BY detected_at DESC,message_id DESC LIMIT ?",
+            (account.casefold(), limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def recent_evidence(store, account, limit=60):
     """Pure SELECT for GET endpoints, with no migrations or write transactions."""
     with store.connect() as db:
@@ -191,7 +214,8 @@ def recent_evidence(store, account, limit=60):
              "created_at": r[2]} for r in rows]
 
 
-def briefing(account, start, end, observations, deleted=0, recovered=False, pending=False):
+def briefing(account, start, end, observations, deleted=0,
+             recovered=False, pending=False, quarantines=()):
     buckets = {"action": [], "information": [], "low_priority": []}
     for message, insight in observations:
         buckets[insight.category].append((message, insight))
@@ -200,6 +224,7 @@ def briefing(account, start, end, observations, deleted=0, recovered=False, pend
         "OKAL • Gmail Briefing | موجز البريد الذكي",
         f"Coverage / الفترة: {label(start)} → {label(end)}",
         f"New / جديد: {len(observations)}  •  Needs action / يتطلب متابعة: {len(buckets['action'])}",
+        f"Manual review / مراجعة يدوية: {len(quarantines)}",
         "AI suggestions only / اقتراحات آلية للمراجعة، بدون تنفيذ أو إرسال.",
     ]
     titles = [("action", "🔴 يحتاج متابعة | Action required"),
@@ -218,6 +243,11 @@ def briefing(account, start, end, observations, deleted=0, recovered=False, pend
             if m.attachment_count:
                 lines.append(f"  ⚠ {m.attachment_count} unread attachment(s) / مرفقات غير محللة")
             lines.append("  " + source_link(account, m.id))
+    if quarantines:
+        lines.append("")
+        lines.append("⚠ تعذر تحليل بعض الرسائل | Manual review required")
+        for mid, code in quarantines:
+            lines.append("  " + code + " • " + source_link(account, mid))
     if deleted:
         lines.append(f"⚠ {deleted} Gmail deletion or unavailable-message events; contents may be unavailable.")
     if pending:
@@ -242,6 +272,7 @@ def run(store, cfg, api, model):
     deleted = 0
     pending = False
     ignored_ids = []
+    quarantines = []
     try:
         api.check_account(account)
         if previous is None:
@@ -254,7 +285,7 @@ def run(store, cfg, api, model):
                 raise MailError("history_backfill_window_exceeded_manual_review_required")
             # Capture cursor *before* fetching so arrivals during backfill replay.
             cursor = api.history_marker()
-            messages = api.collect(start, now, cfg.max_messages)
+            messages = api.collect(start, now, cfg.max_messages, quarantine=quarantines)
             result = ("initial_legacy_checkpoint_backfill"
                       if legacy is not None else "initial_24h_backfill")
         else:
@@ -270,7 +301,13 @@ def run(store, cfg, api, model):
                 ignored_ids = []
                 observed = []
                 for mid in batch:
-                    msg = api.get_optional(mid)
+                    try:
+                        msg = api.get_optional(mid)
+                    except MailError as exc:
+                        if str(exc) not in UNREADABLE_CODES:
+                            raise
+                        quarantines.append((mid, str(exc)))
+                        continue
                     if msg is None:
                         deleted += 1
                         ignored_ids.append(mid)
@@ -299,16 +336,20 @@ def run(store, cfg, api, model):
         for mid in sorted(missing, key=lambda k: (unique[k].received_ms, k)):
             msg = unique[mid]
             if msg.truncated:
-                raise MailError("message_body_truncated_narrow_scope_or_review_manually")
+                quarantines.append(
+                    (mid, "message_body_truncated_narrow_scope_or_review_manually")
+                )
+                continue
             observations.append((msg, model.summarize(msg)))
         body = briefing(account, start, now, observations, deleted if not pending else 0,
-                        recovered, pending)
+                        recovered, pending, quarantines)
         outcome = state.commit(
             account, previous, cursor, result, observations, body,
-            ignored_ids=ignored_ids, advance=not pending,
-            alert=(not pending and (recovered or deleted > 0)),
+            ignored_ids=ignored_ids, advance=not pending, quarantines=quarantines,
+            alert=(not pending and (recovered or deleted > 0 or bool(quarantines))),
         )
-        outcome.update(deleted_or_unavailable=deleted, recovered=recovered)
+        outcome.update(deleted_or_unavailable=deleted, recovered=recovered,
+                       manual_review=len(quarantines))
         return outcome
     except Exception as exc:
         state.failure(account, str(exc) if isinstance(exc, MailError) else "unknown")
@@ -335,6 +376,11 @@ def local_status(store, account):
                     result.update(state="checkpoint_saved", last_checked=row[0],
                                   last_attempt=row[1], last_result=row[2],
                                   last_count=row[3], cursor_saved=True)
+            if "mail_sync_quarantine" in tables:
+                result["manual_review_count"] = db.execute(
+                    "SELECT COUNT(*) FROM mail_sync_quarantine WHERE account=?",
+                    (account.casefold(),),
+                ).fetchone()[0]
             if "mail_sync_failures" in tables:
                 row = db.execute(
                     "SELECT attempted_at,code FROM mail_sync_failures WHERE account=?",
