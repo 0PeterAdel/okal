@@ -21,10 +21,35 @@ bash scripts/run-okal-core.sh morning
 ```
 
 The JSON field `spoken_text` is available for a future voice/TTS overlay.
-Currently this is **rendered on opening the dashboard**, not a standalone
-desktop notification or synthesized speech. There is no daily push and no
-Google Calendar API connection; OKAL explicitly refuses to invent external
-calendar appointments.
+The briefing is **rendered whenever you open the dashboard**. An optional
+user systemd service can show the same text as a desktop notification at
+graphical login, once per Cairo calendar day. No synthetic speech is
+generated, and there is no Google Calendar API connection.
+
+The notification command works only with a running graphical desktop and
+`notify-send` installed. It never reads Gmail online or executes email
+instructions. A successful delivery date is remembered in SQLite, so
+restarting the service or logging in again that day doesn't show duplicate
+notifications:
+
+```bash
+# One local notification now, if a desktop notification daemon is active:
+bash scripts/run-okal-core.sh morning --notify
+
+# Optional: install this unit ONLY after reviewing its exact paths.
+install -Dm644 deploy/okal-morning.service \
+  ~/.config/systemd/user/okal-morning.service
+systemctl --user daemon-reload
+systemctl --user enable okal-morning.service
+# Start in the active graphical user session (optional for first test):
+systemctl --user start okal-morning.service
+```
+
+This opt-in unit is wanted by `graphical-session.target`. Whether your Omarchy
+session actually activates that target must be verified locally; if it doesn't,
+the unit will not automatically display a login notification. Keep this
+separate from the already-enabled `okal-core.service`. No `sudo` or
+global machine changes are required.
 
 Summarization guidance for future incoming emails has also been sharpened to
 emphasize actual takeaways, clear action, exact dates/names, and natural
