@@ -193,7 +193,7 @@ function renderTriage(result) {
   const counts = categories.map(([key]) =>
     result.items.filter((item) => item.category === key).length);
   el("triage-count").textContent =
-    `${result.items.length} رسالة · ${counts[1]} تحتاج إجراء · ${counts[0]} مراجعة يدوية`;
+    `${result.items.length} رسالة · ${counts[1]} تحتاج إجراء · ${counts[0]} للمراجعة اليدوية`;
   el("triage-note").textContent =
     "اقتراحات AI للعرض والمراجعة، وليست تأكيدًا لصحة الرسالة. افتح Gmail للتحقق.";
   el("metric-mail").textContent = String(result.items.length);
