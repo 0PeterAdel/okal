@@ -198,7 +198,10 @@ def notify_login_once(store):
         if db.execute("SELECT 1 FROM morning_notifications WHERE day=?",
                       (today,)).fetchone():
             return {"status": "already_delivered_today", "delivered": False}
-        briefing = morning_brief(store)
+        # Use previously generated, validated AI plan if one exists.
+        # Notification transport never triggers inference itself.
+        from .morning_ai import view
+        briefing = view(store)
         message = escape(briefing["spoken_text"][:700], quote=False)
         try:
             process = subprocess.run(
