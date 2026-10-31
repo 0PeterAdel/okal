@@ -24,6 +24,8 @@ def main():
     )
     morning.add_argument("--notify", action="store_true",
                          help="Optional once-daily local desktop notification")
+    morning.add_argument("--refresh-ai", action="store_true",
+                         help="Generate a grounded morning selection using pinned local Ollama")
     mail = commands.add_parser(
         "mail", help="optional Gmail backend; explicit local onboarding"
     )
@@ -69,9 +71,13 @@ def main():
     try:
         store = Store(args.state_dir)
         if args.command == "morning":
-            from .morning import morning_brief, notify_login_once
+            from .morning import notify_login_once
+            from .morning_ai import refresh, view
 
-            result = notify_login_once(store) if args.notify else morning_brief(store)
+            # Generation is opt-in and never runs on HTTP dashboard GET.
+            if args.refresh_ai:
+                refresh(store)
+            result = notify_login_once(store) if args.notify else view(store)
             print(json.dumps(result, ensure_ascii=True, indent=2))
             return 0
         if args.command == "mail":
