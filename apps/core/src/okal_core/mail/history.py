@@ -269,3 +269,34 @@ def run(store, cfg, api, model):
         if isinstance(exc, MailError):
             raise
         raise MailError("sync_failed_check_local_doctor") from None
+
+
+def local_status(store, account):
+    """Read-only local evidence, never initialize sync tables or touch provider."""
+    result = {"state": "never_run", "last_checked": None, "last_attempt": None,
+              "last_count": None, "last_result": None, "last_error": None,
+              "cursor_saved": False}
+    try:
+        with store.connect() as db:
+            tables = {r[0] for r in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            if "mail_sync_state" in tables:
+                row = db.execute(
+                    "SELECT checked_at,attempted_at,last_result,last_count "
+                    "FROM mail_sync_state WHERE account=?", (account.casefold(),)
+                ).fetchone()
+                if row:
+                    result.update(state="checkpoint_saved", last_checked=row[0],
+                                  last_attempt=row[1], last_result=row[2],
+                                  last_count=row[3], cursor_saved=True)
+            if "mail_sync_failures" in tables:
+                row = db.execute(
+                    "SELECT attempted_at,code FROM mail_sync_failures WHERE account=?",
+                    (account.casefold(),)
+                ).fetchone()
+                if row:
+                    result.update(last_attempt=row[0], last_error=row[1],
+                                  state="failed_last_attempt")
+    except Exception:
+        result["state"] = "unavailable"
+    return result
