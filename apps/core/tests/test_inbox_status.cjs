@@ -68,23 +68,33 @@ test("lock clears private status and inbox", () => {
   assert.equal(get("sync").textContent, "لم يتم التحديث بعد");
   assert.equal(get("inbox-panel").hidden, true);
 });
-test("refresh requests saved local summaries, capabilities and inbox actions only", async () => {
+test("local dashboard auto-opens without a key and uses only local read endpoints", async () => {
   const calls = [];
   const { context, get } = harness(async (url, options) => {
     calls.push(url);
-    assert.equal(options.headers.Authorization, "Bearer synthetic");
+    assert.equal(Object.hasOwn(options.headers, "Authorization"), false);
     return response(url.startsWith("/api/v1/summaries")
       ? { items: [], next_cursor: null, fetched_at: 100 }
       : url === "/api/v1/mail/assistant"
         ? { items: [], counts: {}, total_in_sample: 0, state: "local_suggestion_preview" }
         : { mail: configured });
   });
-  vm.runInContext('token = "synthetic"', context);
   await context.load(true);
   assert.equal(calls.length, 3);
   assert.equal(calls[2], "/api/v1/mail/assistant");
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
+  assert.equal(get("inbox-panel").hidden, false);
+  assert.equal(get("login-panel").hidden, true);
+  assert.match(get("connection").textContent, /بدون مفتاح/);
 });
+test("optional protected mode reveals read key form only after a 401", async () => {
+  const { context, get } = harness(async () => response({}, 401));
+  await context.load(true);
+  assert.equal(get("login-panel").hidden, false);
+  assert.equal(get("inbox-panel").hidden, true);
+  assert.match(get("message").textContent, /الوضع المحمي/);
+});
+
 test("failed status refresh clears former success claims", async () => {
   const { context, get } = harness(async () => response({}, 500));
   context.renderMailStatus({ ...configured, latest_success: { updated: 100, count: 2 } });
