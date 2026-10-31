@@ -37,9 +37,17 @@ bash scripts/run-okal-core.sh mail assistant --view summary
 bash scripts/run-okal-core.sh mail assistant --view queue
 ```
 
-Open `http://127.0.0.1:8766`, pair with the usual local inbox-read key, and
-look for **اقتراحات المهام والردود / INBOX ACTIONS**. Dashboard requires no
-new tokens/scopes; it only displays already-recorded information.
+Open `http://127.0.0.1:8766`. **Local Auto-Unlock** now opens the
+read-only dashboard immediately: no read key or pairing prompt. Look for
+**اقتراحات المهام والردود / INBOX ACTIONS**. The interface does not grant
+permission to send, archive, delete, or change Google Tasks/Calendar.
+
+Security trade-off: without a read key, another process running on this
+same computer can read the local dashboard API. It still rejects other
+machines, DNS-rebinding hosts, and foreign browser origins, and does not
+expose external writes. Use `OKAL_REQUIRE_READ_KEY=1` to restore the
+previous token-protected mode; details are in
+[LOCAL-AUTO-UNLOCK.md](LOCAL-AUTO-UNLOCK.md).
 
 ### Optional, editable rules
 
