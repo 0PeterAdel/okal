@@ -7,6 +7,16 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+# Only per-message content decoding failures may be quarantined as manual review.
+# Global provider/auth/model failures must block checkpoint advancement.
+UNREADABLE_CODES = frozenset({
+    "unreadable_message", "message_exceeds_size_budget",
+    "mime_complexity_budget_exceeded", "ambiguous_message_headers",
+    "body_requires_attachment_fetch_manual_review",
+    "message_body_truncated_narrow_scope_or_review_manually",
+})
+
+
 class MailError(ValueError):
     """Safe operator-facing error code (no provider response/body/secret)."""
 
