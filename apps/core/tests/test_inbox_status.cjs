@@ -12,6 +12,10 @@ function harness(fetcher) {
       textContent: "", value: "", hidden: false, children: [], handlers: {},
       classList: { add() {}, remove() {} },
       addEventListener(type, fn) { this.handlers[type] = fn; },
+      setAttribute(name, value) {
+        this.attributes = this.attributes || {};
+        this.attributes[name] = value;
+      },
       append(...items) { this.children.push(...items); },
       replaceChildren() { this.children = []; },
       get childElementCount() { return this.children.length; },
@@ -211,6 +215,92 @@ test("Information multi-select creates a preview-only command, never Gmail write
   assert.match(get("trash-help").textContent, /Terminal/);
   context.lock();
   assert.equal(get("trash-command").textContent, "");
+});
+
+test("Ctrl click, Shift range and Ctrl+Shift additive selection behave like desktop inbox", () => {
+  const { context, get } = harness();
+  const rows = ["aa","bb","cc","dd","ee"].map((id) => ({
+    id, category:"information", labels:["INBOX"], sender:"Gmail",
+    subject:"Message " + id, summary:"Some text", suggested_action:"",
+    has_unread_attachments:false,
+    link:"https://mail.google.com/mail/#all/" + id,
+  }));
+  context.renderTriage({items:rows});
+  const group = get("triage-groups").children[0];
+  const click = (index, props = {}) =>
+    group.children[index + 1].handlers.click({target:group.children[index+1], ...props});
+  click(1);
+  assert.equal(get("trash-selected").disabled,false);
+  assert.match(get("trash-count").textContent,/1 رسالة/);
+  click(3,{shiftKey:true});
+  assert.match(get("trash-count").textContent,/3 رسالة/);
+  assert.equal(group.children[2].ariaSelected,"true");
+  assert.equal(group.children[3].ariaSelected,"true");
+  assert.equal(group.children[4].ariaSelected,"true");
+  click(0,{ctrlKey:true});
+  assert.match(get("trash-count").textContent,/4 رسالة/);
+  click(2,{ctrlKey:true});
+  assert.match(get("trash-count").textContent,/3 رسالة/);
+  click(4,{shiftKey:true, ctrlKey:true});
+  assert.match(get("trash-count").textContent,/5 رسالة/);
+  click(1);
+  assert.match(get("trash-count").textContent,/1 رسالة/);
+  assert.equal(group.children[2].ariaSelected,"true");
+  assert.equal(group.children[1].ariaSelected,"false");
+});
+
+test("keyboard Ctrl+A is scoped to focused inbox, and Escape clears", () => {
+  const {context,get} = harness();
+  context.renderTriage({items:["aa","bb","cc"].map((id)=>({
+    id,category:"information",labels:["INBOX"], sender:"S",
+    subject:id,summary:"",suggested_action:"",
+    link:"https://mail.google.com/mail/#all/"+id,
+  }))});
+  let prevented=0;
+  const onKey = get("triage-groups").handlers.keydown;
+  onKey({key:"a",ctrlKey:true,preventDefault:()=>prevented++});
+  assert.equal(prevented,1);
+  assert.match(get("trash-count").textContent,/3 رسالة/);
+  onKey({key:"Escape",preventDefault:()=>prevented++});
+  assert.match(get("trash-count").textContent,/0 رسالة/);
+  assert.equal(prevented,2);
+  assert.equal(get("trash-selected").disabled,true);
+});
+
+test("filters clear hidden selections and protected messages are never selected", () => {
+  const {context,get} = harness();
+  context.renderTriage({items:[
+    {id:"aa",category:"information",labels:["INBOX"],sender:"S",subject:"FYI",summary:"",link:"#"},
+    {id:"bb",category:"information",labels:["STARRED"],sender:"S",subject:"Protected",summary:"",link:"#"},
+    {id:"cc",category:"action",labels:["INBOX"],sender:"S",subject:"Action",summary:"",link:"#"},
+  ]});
+  const infoGroup=get("triage-groups").children[1];
+  infoGroup.children[1].handlers.click({target:infoGroup.children[1]});
+  assert.match(get("trash-count").textContent,/1 رسالة/);
+  get("filter-action").handlers.click();
+  assert.match(get("trash-count").textContent,/0 رسالة/);
+  assert.equal(get("filter-action").ariaPressed,"true");
+  assert.equal(get("triage-groups").children.length,1);
+  get("filter-information").handlers.click();
+  assert.equal(get("triage-groups").children.length,1);
+  assert.equal(get("triage-groups").children[0].children[2].handlers.click,undefined);
+  assert.equal(get("trash-selected").disabled,true);
+});
+
+test("batch cap rejects unsafe 21-message selection and preserves former set", () => {
+  const {context,get} = harness();
+  context.renderTriage({items:Array.from({length:21},(_,n)=>({
+    id:(n+1).toString(16).padStart(2,"0"), category:"information", labels:["INBOX"],
+    sender:"S", subject:"message",summary:"",link:"#"
+  }))});
+  get("select-visible").handlers.click();
+  assert.match(get("trash-help").textContent,/20 رسالة/);
+  assert.match(get("trash-count").textContent,/0 رسالة/);
+  const group = get("triage-groups").children[0];
+  group.children[1].handlers.click({target:group.children[1]});
+  group.children[21].handlers.click({target:group.children[21],shiftKey:true});
+  assert.match(get("trash-count").textContent,/1 رسالة/);
+  assert.equal(get("trash-command").hidden,true);
 });
 
 test("morning rendering resets private text on hide", () => {
