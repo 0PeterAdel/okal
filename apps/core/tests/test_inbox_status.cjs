@@ -98,3 +98,25 @@ test("late refresh cannot restore private status after locking", async () => {
   assert.equal(get("mail-status").textContent, "افتح الصندوق لعرض الحالة");
   assert.equal(get("inbox-panel").hidden, true);
 });
+
+test("triage groups manual-review and preserves untrusted text as textContent", () => {
+  const { context, get } = harness();
+  context.renderTriage({
+    state: "recorded_local_insights",
+    items: [
+      { category: "manual_review", sender: "Gmail", subject: "<svg onload=alert(1)>",
+        summary: "مراجعة يدوية", suggested_action: "Open Gmail", has_unread_attachments: false,
+        link: "https://mail.google.com/mail/#all/ab" },
+      { category: "action", sender: "boss@example.com", subject: "Meeting",
+        summary: "Review the schedule", suggested_action: "", has_unread_attachments: false,
+        link: "https://mail.google.com/mail/#all/bb" },
+    ],
+  });
+  assert.match(get("triage-count").textContent, /1 للمراجعة اليدوية/);
+  assert.equal(get("triage-groups").children.length, 2);
+  const firstGroup = get("triage-groups").children[0];
+  assert.equal(firstGroup.children[1].children[1].textContent, "<svg onload=alert(1)>");
+  assert.equal(firstGroup.children[1].children.at(-1).href,
+    "https://mail.google.com/mail/#all/ab");
+  assert.match(firstGroup.children[0].children[1].textContent, /Manual review/);
+});
