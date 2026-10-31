@@ -685,7 +685,7 @@ class MailTests(unittest.TestCase):
 
         token = self.store.issue_device("test")["token"]
         client = TestClient(
-            create_app(self.store),
+            create_app(self.store, require_read_key=True),
             base_url="http://127.0.0.1:8766",
             client=("127.0.0.1", 5000),
         )
