@@ -290,3 +290,64 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 .morning-orb .icon{width:28px;height:28px}
 .icon-inline{display:inline-block;vertical-align:middle;width:16px;height:16px;
   margin-inline-end:6px}
+
+/* Mail clusters: repeat notifications collapse without hiding identity. */
+.mail-cluster { border:1px solid var(--line-strong); border-radius:12px;
+  background:var(--surface-raised); margin:10px 0; overflow:hidden; }
+.mail-cluster > summary { cursor:pointer; display:flex; align-items:center;
+  justify-content:space-between; gap:15px; min-height:52px;
+  padding:13px 16px; color:var(--ink); font-size:13px; list-style:none; }
+.mail-cluster > summary::-webkit-details-marker { display:none; }
+.mail-cluster > summary::before { content:"▸"; display:inline-block;
+  color:var(--accent); font-size:19px; transform:rotate(180deg); }
+.mail-cluster[open] > summary::before { transform:rotate(90deg); }
+.mail-cluster > summary:hover { background:var(--surface-hover); }
+.cluster-count { flex:none; color:var(--accent); font-size:11px;
+  border:1px solid var(--line-strong); padding:5px 9px; border-radius:30px; }
+.mail-cluster > .triage-message { background:var(--surface); }
+.message-open { appearance:none; text-align:start; color:var(--ink);
+  background:none; padding:0; border:0; cursor:pointer; font-size:14px;
+  font-weight:720; line-height:1.65; width:100%; overflow-wrap:anywhere; }
+.message-open:hover { color:var(--accent); text-decoration:underline; }
+.message-open:focus-visible { outline:3px solid var(--focus); border-radius:4px; }
+.triage-message.is-selectable .message-open { margin-inline-end:0; }
+
+/* In-page original MIME reader: raw HTML never enters the parent DOM. */
+.okal-dialog { background:var(--surface); color:var(--ink);
+  border:1px solid var(--line-strong); border-radius:18px;
+  padding:clamp(16px,2vw,24px); box-shadow:0 26px 75px rgba(0,0,0,.5);
+  max-height:min(90dvh,1050px); width:min(94vw,1100px); overflow:auto; }
+.okal-dialog::backdrop { background:rgba(2,8,15,.84); backdrop-filter:blur(5px); }
+.dialog-header { display:flex; justify-content:space-between; gap:15px;
+  align-items:start; padding-bottom:12px; border-bottom:1px solid var(--line); }
+.dialog-header h2 { margin:0; font-size:20px; overflow-wrap:anywhere; }
+.viewer-meta { padding:12px 0; }
+.viewer-meta p { margin:5px 0; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.viewer-meta strong { color:var(--ink); }
+.viewer-tools { display:flex; align-items:center; justify-content:space-between;
+  gap:18px; flex-wrap:wrap; padding:12px 0; }
+.viewer-tools label { display:flex; align-items:center; gap:9px; font-size:12px;
+  line-height:1.5; cursor:pointer; }
+.viewer-tools input { width:18px; height:18px; accent-color:var(--accent); }
+.viewer-tools a { font-size:12px; }
+#viewer-frame { display:block; border:1px solid var(--line);
+  border-radius:11px; background:#fff; width:100%; min-height:440px; height:55dvh; }
+.viewer-attachments { display:grid; gap:5px; padding:10px 0; }
+.trash-dialog { width:min(94vw,680px); }
+.preview-list { max-height:235px; overflow:auto; margin:18px 0;
+  border:1px solid var(--line); border-radius:10px; }
+.preview-list p { margin:0; border-bottom:1px solid var(--line);
+  padding:9px 13px; font-size:12px; }
+.preview-list p:last-child { border:0; }
+.trash-dialog form { display:grid; gap:11px; }
+.trash-dialog form label { font-size:13px; font-weight:700; }
+.trash-dialog input { min-height:44px; padding:12px 14px; color:var(--ink);
+  background:var(--bg); border:1px solid var(--line-strong);
+  border-radius:10px; width:100%; }
+#trash-confirm { min-height:48px; }
+#trash-result { font-size:12px; color:var(--danger); margin:0; }
+@media(max-width:700px){
+  .mail-cluster > summary { flex-wrap:wrap; }
+  .okal-dialog { padding:14px; }
+  #viewer-frame { min-height:350px; height:52dvh; }
+}
