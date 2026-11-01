@@ -41,7 +41,8 @@ class ViewerImageTests(TestCase):
         api.close.return_value=None
         with patch("okal_core.mail.viewer.config",return_value=MagicMock(
             account="owner@example.com"
-        )),patch("okal_core.mail.viewer.allowed_source",
+        )),patch("okal_core.mail.viewer.image_preference",
+             return_value=False),patch("okal_core.mail.viewer.allowed_source",
              return_value={"id":"aa","subject":"Visual newsletter"}),patch(
             "okal_core.mail.viewer.saved_analysis",return_value={
                 "ai_summary":"Test","ai_suggested_action":"",
