@@ -199,11 +199,11 @@ def parse_full(row, text_attachment_fetch=None):
                     if (not isinstance(aid, str)
                             or not re.fullmatch(r"[A-Za-z0-9_-]{1,1024}", aid)):
                         raise MailError("invalid_text_body_attachment_id")
+                    if text_attachment_fetch is None:
+                        raise MailError("body_requires_attachment_fetch_manual_review")
                     if (not isinstance(body.get("size"), int)
                             or not 0 <= body["size"] <= 3 * 1024 * 1024):
                         raise MailError("message_exceeds_size_budget")
-                    if text_attachment_fetch is None:
-                        raise MailError("body_requires_attachment_fetch_manual_review")
                     # Fetch only non-file text/plain or text/html MIME body
                     # fragments, never arbitrary user-supplied attachments.
                     encoded = text_attachment_fetch(aid)
