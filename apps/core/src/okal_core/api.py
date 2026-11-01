@@ -1,4 +1,4 @@
-"""Loopback-only local Core API; Gmail Trash requires a separate owner PIN."""
+"""Loopback-only local Core API, with explicit preview-confirmed Gmail Trash."""
 
 import ipaddress
 from pathlib import Path
@@ -16,8 +16,7 @@ def _owner_trash_is_configured(store):
     """Configuration hint only — not live OAuth confirmation."""
     try:
         from .mail.private import config
-        from .mail.ui_trash_auth import pin_configured
-        return bool(config(store).trash_enabled and pin_configured(store))
+        return bool(config(store).trash_enabled)
     except (OSError, ValueError):
         return False
 
@@ -43,6 +42,8 @@ def create_app(
     if type(require_read_key) is not bool:
         raise ValueError("require_read_key must be boolean")
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    from .mail.approval import PendingTrashConfirmations
+    approvals = PendingTrashConfirmations(store.clock)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     # Never let a future privileged /api/ endpoint inherit passwordless access.
@@ -61,7 +62,7 @@ def create_app(
 
     def authorized_ui_trash(request):
         # This route is write-sensitive even when the rest of the dashboard
-        # auto-opens: enforce browser same-origin + JSON + owner PIN in handler.
+        # auto-opens: enforce browser same-origin + JSON + fresh preview ticket.
         return (
             request.url.path in {
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview"
@@ -72,6 +73,11 @@ def create_app(
                 in {"same-origin", "none"}
             and request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
                 == "application/json"
+            # Protected mode still requires an authenticated browser session.
+            and (not require_read_key
+                 or store.authenticate_browser_session(
+                    request.cookies.get("okal_session", "")
+                 ))
         )
 
     @app.middleware("http")
@@ -233,7 +239,7 @@ def create_app(
             "ui_trash_available": (
                 configured and _owner_trash_is_configured(store)
             ),
-            "ui_trash_requires_explicit_pin": True,
+            "ui_trash_requires_explicit_confirmation": True,
             "providers": ["gmail-configured-not-verified"] if configured else [],
             "scheduler": scheduled,
             "mail_operator_cli": configured,
@@ -335,7 +341,14 @@ def create_app(
                 cfg = config(store)
                 api = Gmail.open(store, cfg)
                 try:
-                    return preview(store, cfg, api, ids)
+                    result = preview(store, cfg, api, ids)
+                    # Preview result is read-only. The single-use ticket binds
+                    # the exact ID order and Gmail metadata digest.
+                    result["confirmation_token"] = approvals.issue(
+                        ids, result["approval_digest"]
+                    )
+                    result["confirmation_expires_seconds"] = 120
+                    return result
                 finally:
                     api.close()
         except MailError as exc:
@@ -356,8 +369,7 @@ def create_app(
         from .mail.contracts import MailError
         from .mail.private import config, locked
         from .mail.provider import Gmail
-        from .mail.trash import preview, apply
-        from .mail.ui_trash_auth import verify_pin
+        from .mail.trash import apply
 
         body = await request.body()
         if len(body) > 3000:
@@ -365,10 +377,11 @@ def create_app(
         try:
             payload = json.loads(body)
             if not isinstance(payload, dict) or set(payload) != {
-                "ids", "pin", "confirmed", "approval_digest"
+                "ids", "confirmed", "approval_digest", "confirmation_token"
             } or payload["confirmed"] is not True:
                 raise ValueError()
-            ids, pin = payload["ids"], payload["pin"]
+            ids = payload["ids"]
+            confirmation_token = payload["confirmation_token"]
             approved_digest = payload["approval_digest"]
             if not isinstance(approved_digest, str) or not re.fullmatch(
                 r"[a-f0-9]{64}", approved_digest
@@ -376,28 +389,37 @@ def create_app(
                 raise ValueError()
             if not isinstance(ids, list) or not 1 <= len(ids) <= 20:
                 raise ValueError()
-            if not isinstance(pin, str):
+            if (not isinstance(confirmation_token, str)
+                    or not 40 <= len(confirmation_token) <= 90):
                 raise ValueError()
         except (ValueError, TypeError):
             raise HTTPException(400, "invalid_trash_request") from None
 
         try:
-            # The PIN is checked BEFORE any Gmail API access.
             with locked(store):
-                verify_pin(store, pin)
                 cfg = config(store)
                 if not cfg.trash_enabled:
                     raise MailError("trash_permission_disabled_reauthorize")
                 api = Gmail.open(store, cfg, trashing=True)
                 try:
+                    # No password. User must have clicked the button on a
+                    # valid, same-origin preview. Consume BEFORE any write
+                    # attempt; an uncertain result cannot be replayed.
+                    if not approvals.consume(
+                        ids, approved_digest, confirmation_token
+                    ):
+                        raise MailError("trash_confirmation_expired_or_invalid")
                     return apply(store, cfg, api, ids, approved_digest)
                 finally:
                     api.close()
         except MailError as exc:
             code = str(exc)
-            status = 429 if code.startswith("ui_trash_pin") else 409
-            if code.startswith("trash_permission_disabled"):
-                status = 403
+            status = (
+                403 if code.startswith("trash_permission_disabled")
+                else 401 if code == "authorization_required"
+                else 423 if code == "mail_operation_already_running"
+                else 409
+            )
             raise HTTPException(status, code) from None
 
     @app.get("/api/v1/mail/assistant")
