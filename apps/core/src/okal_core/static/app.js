@@ -3,6 +3,7 @@
 const el = (id) => document.getElementById(id);
 let token = "";
 let keyProtected = false;
+let trashPermissionConfigured = null;
 let cursor = null;
 let controller = null;
 let generation = 0;
@@ -78,6 +79,7 @@ function chooseInformation(mid, modifiers = {}, checkboxToggle = false) {
 
 
 function resetMailStatus() {
+  trashPermissionConfigured = null;
   selectedInfo.clear();
   selectionAnchor = null;
   selectableInfoIds = [];
@@ -533,6 +535,8 @@ async function load(reset) {
     const [result, caps] = await Promise.all([response.json(), capsResponse.json()]);
     if (active !== generation) return;
     keyProtected = caps.read_key_required === true;
+    trashPermissionConfigured =
+      typeof caps.ui_trash_available === "boolean" ? caps.ui_trash_available : null;
     renderMailStatus(caps.mail);
     try {
       const morningResponse = await fetch("/api/v1/morning", options);
@@ -901,10 +905,15 @@ async function showTrashPreview(ids) {
       el("trash-preview-list").append(
         text("p", message.subject + " — " + message.sender)
       );
-    el("trash-result").textContent = "";
+    const needsGooglePermission = trashPermissionConfigured === false;
+    el("trash-confirm").disabled = needsGooglePermission;
+    el("trash-result").textContent = needsGooglePermission
+      ? "صلاحية الحذف في Gmail غير مفعّلة. وافق على gmail.modify مرة واحدة باستخدام mail authorize --enable-trash، ثم حدّث OKAL."
+      : "";
     el("trash-dialog").showModal();
-    el("trash-help").textContent =
-      "راجع كل العناوين، واضغط تأكيد للنقل الفعلي إلى Trash. بدون PIN.";
+    el("trash-help").textContent = needsGooglePermission
+      ? "المعاينة متاحة، لكن النقل محتاج موافقة Google على صلاحية gmail.modify."
+      : "راجع كل العناوين، واضغط تأكيد للنقل الفعلي إلى Trash. بدون PIN.";
   } catch (error) {
     approvedTrash = null;
     const message = String(error?.message || "");
@@ -927,6 +936,11 @@ el("trash-dialog").addEventListener("close", () => {
 el("trash-confirm-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!approvedTrash) return;
+  if (trashPermissionConfigured === false) {
+    el("trash-result").textContent =
+      "لازم تفعل Gmail modify من إعداد OAuth قبل النقل. لا توجد أي رسالة حُذفت.";
+    return;
+  }
   // No PIN/password: this button is the explicit, user-reviewed confirmation.
   el("trash-confirm").disabled = true;
   el("trash-result").textContent = "جارٍ النقل إلى Trash...";
@@ -947,7 +961,11 @@ el("trash-confirm-form").addEventListener("submit", async (event) => {
     const result = await response.json();
     if (result.status !== "confirmed_trash")
       throw new Error("provider result was not confirmed");
+    const movedIds = approvedTrash.ids;
     el("trash-dialog").close();
+    if (el("mail-viewer").open && currentViewerMessage &&
+        movedIds.includes(currentViewerMessage.id))
+      el("mail-viewer").close();
     el("trash-help").textContent =
       "تم نقل " + result.moved + " رسالة إلى Gmail Trash القابل للاسترجاع.";
     clearInformationSelection();
@@ -962,7 +980,7 @@ el("trash-confirm-form").addEventListener("submit", async (event) => {
         : "لم يتم تأكيد نقل كل الرسائل. راجع Gmail Trash قبل المحاولة مجددًا. " +
           String(error.message).slice(0,120);
   } finally {
-    el("trash-confirm").disabled = false;
+    el("trash-confirm").disabled = trashPermissionConfigured === false;
   }
 });
 
