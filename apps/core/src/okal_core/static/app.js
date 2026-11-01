@@ -360,7 +360,7 @@ function renderAssistant(result) {
   if (!result || !Array.isArray(result.items) || !result.counts)
     throw new Error("invalid assistant preview");
   lastAssistantResult = result;
-  const items = result.items.filter(item => !viewedThisSession.has(item.message_id));
+  const items = result.items.filter(item => !viewedThisSession.has(item.source_id));
   const counts = {};
   for (const item of items) counts[item.bucket] = (counts[item.bucket]||0)+1;
   result = {...result,items,counts,total_in_sample:items.length};
