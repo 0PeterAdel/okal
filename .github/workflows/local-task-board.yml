@@ -13,8 +13,10 @@ on:
       - feat/core-local-planner-reminders-v1
       - feat/mail-long-content-resilient-analysis
       - fix/mail-viewer-images-responsive-reader
+      - fix/mail-render-original-images-owner-voice
   pull_request:
     branches:
+      - fix/mail-viewer-images-responsive-reader
       - feat/mail-long-content-resilient-analysis
       - feat/core-local-planner-reminders-v1
       - feat/core-mail-agent-actions-v1
