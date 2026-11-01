@@ -479,3 +479,20 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .mail-viewer.reader-focus .viewer-tools {gap:7px;}
   .viewer-header-buttons button {min-height:44px;}
 }
+
+/* Keep the consent action visible at the TOP of the Gmail reader, not below
+   a very long newsletter. The privacy-sensitive state is per message. */
+.viewer-header-buttons #viewer-load-images {
+  min-height:42px;max-width:220px;white-space:normal;line-height:1.35;
+  border-radius:9px;
+}
+.viewer-header-buttons #viewer-load-images:disabled {opacity:.6;}
+.viewer-header-buttons #viewer-load-images[aria-pressed="true"] {
+  background:var(--surface-raised);border:1px solid var(--line-strong);
+  color:var(--ink);
+}
+@media(max-width:700px) {
+  .mail-viewer .dialog-header {flex-wrap:wrap;gap:10px;}
+  .mail-viewer .viewer-header-buttons {width:100%;justify-content:flex-end;}
+  .mail-viewer .viewer-header-buttons button {flex:1;min-width:120px;}
+}
