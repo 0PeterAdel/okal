@@ -199,6 +199,7 @@
             <textarea id="viewer-reply-body" rows="7" maxlength="8000" placeholder="مسودة قابلة للتعديل، لن يتم إرسالها تلقائيًا" spellcheck="true"></textarea>
             <div class="reply-tools">
               <button id="viewer-reply-save" class="btn-secondary" type="button" disabled>حفظ التعديل محليًا</button>
+              <button id="viewer-reply-send" class="btn-danger-soft" type="button" disabled>مراجعة وإرسال الرد</button>
               <button id="viewer-reply-copy" class="btn-secondary" type="button" disabled>نسخ الرد</button>
               <span id="viewer-reply-state" role="status" class="muted"></span>
             </div>
@@ -215,6 +216,19 @@
           <p id="viewer-note" class="muted">HTML داخل صندوق معزول؛ JavaScript والروابط التلقائية ممنوعة.</p>
           <iframe id="viewer-frame" sandbox="" referrerpolicy="no-referrer" title="محتوى البريد الأصلي المعزول"></iframe>
           <div id="viewer-attachments" class="viewer-attachments"></div>
+        </dialog>
+
+        <dialog id="mail-send-dialog" class="okal-dialog trash-dialog" aria-labelledby="mail-send-title">
+          <div class="dialog-header">
+            <div><p class="overline">EXPLICIT GMAIL SEND</p><h2 id="mail-send-title">مراجعة الرسالة قبل إرسالها</h2></div>
+            <button id="mail-send-cancel" class="btn-secondary" type="button">إلغاء</button>
+          </div>
+          <p class="muted">الإرسال هيخرج إلى المستلم الحقيقي بعد التأكيد فقط. راجع كل التواريخ والحقائق والمستلم. لا إعادة إرسال تلقائية عند حدوث خطأ.</p>
+          <p><strong>To:</strong> <span id="mail-send-to"></span></p>
+          <p><strong>Subject:</strong> <span id="mail-send-subject"></span></p>
+          <pre id="mail-send-body" class="mail-send-body"></pre>
+          <p id="mail-send-result" role="status" aria-live="polite"></p>
+          <button id="mail-send-confirm" class="btn-danger-soft" type="button">أؤكد إرسال هذه الرسالة إلى المستلم</button>
         </dialog>
 
         <dialog id="mail-action-dialog" class="okal-dialog trash-dialog" aria-labelledby="mail-action-title">
