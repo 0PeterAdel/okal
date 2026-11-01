@@ -815,6 +815,22 @@ const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
 // Keep the sender's own <html>, <head>, <body> attributes and newsletter
 // media-query CSS. Stripping the body/head tags caused fixed-width LinkedIn
 // and Alison templates to fall back to raw links, text and broken tables.
+function enableConsentedLazyImages(html) {
+  // Some marketing templates defer images in data-src/data-original while
+  // relying on sender scripts. Those scripts are intentionally disabled.
+  // Reveal only direct image URLs AFTER the owner allows remote images.
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const lazy = /\sdata-(?:src|original|lazy-src)\s*=\s*(["'])([^"']{1,2048})\1/i.exec(tag);
+    if (!lazy || !/^(?:https?:\/\/|\/\/)[^\s<>"']+$/i.test(lazy[2]))
+      return tag;
+    const safe = escapeHtml(lazy[2]);
+    if (/\ssrc\s*=/i.test(tag))
+      return tag.replace(/\ssrc\s*=\s*(?:(["'])(.*?)\1|[^\s>]+)/i,
+        ' src="' + safe + '"');
+    return tag.replace(/^<img\b/i, '<img src="' + safe + '"');
+  });
+}
+
 function nativeMailBody(message) {
   const source = message.html || ("<pre>" + escapeHtml(message.text ||
     "محتوى الرسالة غير متوفر بصيغة مقروءة") + "</pre>");
@@ -842,7 +858,8 @@ function viewerDocument(message, remote) {
     'pre{white-space:pre-wrap;overflow-wrap:anywhere}' +
     '@media(max-width:600px){body{margin:0!important;padding:8px!important}}' +
     '</style>';
-  const original = nativeMailBody(message);
+  const original = remote ? enableConsentedLazyImages(nativeMailBody(message))
+    : nativeMailBody(message);
   // Full email document: insert CSP BEFORE any sender-owned tags/resources,
   // preserving sender's head styles, body bgcolor and table layout.
   if (/<html\b/i.test(original)) {
