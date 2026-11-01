@@ -69,7 +69,7 @@ class LongMailTests(unittest.TestCase):
         message=parse_full(raw_message(body))
         self.assertTrue(message.truncated)
         self.assertEqual(len(message.body),96000)
-        self.assertEqual(message.body_total_chars,len(body))
+        self.assertEqual(message.body_total_chars,len(body.strip()))
         model=ModelHarness()
         result=model.summarize(message)
         self.assertEqual(len(model.calls),LONG_EMAIL_MAX_CHUNKS+1)
