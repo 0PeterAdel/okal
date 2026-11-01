@@ -11,6 +11,7 @@ on:
       - feat/inbox-confirm-delete-message-details
   pull_request:
     branches:
+      - feat/inbox-selection-clusters-inline-reader
       - feat/core-local-task-planning
       - feat/core-ai-morning-editor
       - feat/core-pro-dashboard-multiselect
