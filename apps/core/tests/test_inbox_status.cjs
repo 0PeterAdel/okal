@@ -210,7 +210,8 @@ test("all-category selection is separate from Gmail Delete approval", () => {
   assert.match(get("trash-count").textContent,/3 من 3/);
   assert.equal(get("trash-selected").disabled,false);
   const protectedRow=get("triage-groups").children[3].children[1];
-  assert.equal(protectedRow.handlers.click,undefined);
+  assert.equal(typeof protectedRow.handlers.click,"function");
+  assert.equal(protectedRow.children.some(n=>n.className==="trash-selector"),false);
   assert.equal(get("trash-command").textContent,"");
 });
 
@@ -424,7 +425,7 @@ test("Delete previews native subjects then requires one explicit confirmation cl
       subject:"Info",summary:"",link:"#inbox-panel"},
   ]});
   get("triage-groups").children[0].children[1].handlers.click({
-    target:{closest(){return null;}}
+    target:{closest(){return null;}},ctrlKey:true
   });
   get("triage-groups").children[1].children[1].handlers.click({
     target:{closest(){return null;}},ctrlKey:true
