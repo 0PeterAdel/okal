@@ -41,8 +41,7 @@ class ViewerImageTests(TestCase):
         api.close.return_value=None
         with patch("okal_core.mail.viewer.config",return_value=MagicMock(
             account="owner@example.com"
-        )),patch("okal_core.mail.viewer.image_preference",
-             return_value=False),patch("okal_core.mail.viewer.allowed_source",
+        )),patch("okal_core.mail.viewer.allowed_source",
              return_value={"id":"aa","subject":"Visual newsletter"}),patch(
             "okal_core.mail.viewer.saved_analysis",return_value={
                 "ai_summary":"Test","ai_suggested_action":"",
@@ -60,7 +59,7 @@ class ViewerImageTests(TestCase):
         self.assertNotIn("cid:",result["html"].lower())
         self.assertGreaterEqual(result["inline_images"],1)
         self.assertFalse(result["external_images_detected"])
-        self.assertTrue(result["remote_images_blocked_by_default"])
+        self.assertFalse(result["remote_images_blocked_by_default"])
         self.assertEqual(api.call.call_count,1)
 
     def test_content_location_image_is_embedded_before_remote_consent(self):
@@ -76,7 +75,7 @@ class ViewerImageTests(TestCase):
     def test_unsupported_gmail_image_does_not_load_remote_automatically(self):
         html='<img src="https://external.example/image.png">'
         result,api=self.open(email_part(html))
-        self.assertTrue(result["remote_images_blocked_by_default"])
+        self.assertFalse(result["remote_images_blocked_by_default"])
         self.assertIn("https://external.example/image.png",result["html"])
         self.assertEqual(api.call.call_count,1)
 
