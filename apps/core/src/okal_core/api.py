@@ -180,7 +180,7 @@ def create_app(
                 {"limit", "cursor"}
                 if request.url.path == "/api/v1/summaries"
                 else {"state", "code", "scope", "authuser", "prompt",
-                      "error", "error_description"}
+                      "error", "error_description", "iss"}
                 if is_google_oauth_callback(request)
                 else set()
             )
@@ -805,8 +805,13 @@ def create_app(
         state = params.get("state")
         code = params.get("code")
         if (len(params.getlist("state")) != 1
-                or len(params.getlist("code")) > 1):
+                or len(params.getlist("code")) > 1
+                or len(params.getlist("iss")) > 1):
             raise HTTPException(400, "invalid_calendar_oauth_callback")
+        # Google includes the authorization-server issuer (RFC 9207).
+        # Validate, rather than ignore, this field before exchanging a code.
+        if "iss" in params and params.get("iss") != "https://accounts.google.com":
+            raise HTTPException(400, "invalid_calendar_oauth_issuer")
         try:
             calendar_oauth.finish(store, state, code, params.get("error"))
         except CalendarGoogleError as exc:

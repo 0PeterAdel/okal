@@ -182,7 +182,8 @@ class BrowserOAuthTests(unittest.TestCase):
                 self.assertEqual(start.status_code, 200, start.text)
                 done = client.get(
                     "/api/v1/calendar/oauth/callback",
-                    params={"state": STATE, "code": AUTH_CODE},
+                    params={"state": STATE, "code": AUTH_CODE,
+                            "iss": "https://accounts.google.com"},
                     headers={"Sec-Fetch-Site": "cross-site"},
                     follow_redirects=False,
                 )
@@ -198,6 +199,54 @@ class BrowserOAuthTests(unittest.TestCase):
                 self.assertEqual(client.get(
                     "/api/v1/calendar/status", params={"code": AUTH_CODE}
                 ).status_code, 400)
+
+    def test_callback_rejects_wrong_duplicate_or_unknown_issuer_fields(self):
+        self.gmail()
+        fake = FakeFlow()
+        with patch(
+            "google_auth_oauthlib.flow.InstalledAppFlow.from_client_config",
+            return_value=fake,
+        ), patch("okal_core.calendar_google.sync_authorized_account") as sync:
+            with TestClient(
+                create_app(self.store), base_url="http://127.0.0.1:8766",
+                client=("127.0.0.1", 1234),
+            ) as client:
+                started = client.post(
+                    "/api/v1/calendar/oauth/start", json={},
+                    headers={"Origin": "http://127.0.0.1:8766"},
+                )
+                self.assertEqual(started.status_code, 200, started.text)
+                callback = "/api/v1/calendar/oauth/callback"
+                bad_issuer = client.get(
+                    callback,
+                    params={"state": STATE, "code": AUTH_CODE,
+                            "iss": "https://attacker.example"},
+                    headers={"Sec-Fetch-Site": "cross-site"},
+                )
+                self.assertEqual(bad_issuer.status_code, 400)
+                self.assertEqual(bad_issuer.json()["detail"],
+                                 "invalid_calendar_oauth_issuer")
+                duplicate = client.get(
+                    callback,
+                    params=[("state", STATE), ("code", AUTH_CODE),
+                            ("iss", "https://accounts.google.com"),
+                            ("iss", "https://accounts.google.com")],
+                    headers={"Sec-Fetch-Site": "cross-site"},
+                )
+                self.assertEqual(duplicate.status_code, 400)
+                unknown = client.get(
+                    callback,
+                    params={"state": STATE, "code": AUTH_CODE,
+                            "iss": "https://accounts.google.com",
+                            "unexpected": "value"},
+                    headers={"Sec-Fetch-Site": "cross-site"},
+                )
+                self.assertEqual(unknown.status_code, 400)
+                self.assertEqual(unknown.json()["detail"],
+                                 "unsupported query parameter")
+                self.assertEqual(fake.exchanged, 0)
+                sync.assert_not_called()
+                self.assertFalse(credential_file(self.store, "default").exists())
 
     def test_protected_mode_requires_authenticated_start(self):
         self.gmail()
