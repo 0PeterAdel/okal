@@ -15,7 +15,7 @@ from .store import InvalidCursor, Store
 STATIC = Path(__file__).parent / "static"
 CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-    "img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    "img-src 'self' data: https:; frame-src 'self' about:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 )
 
 
@@ -53,7 +53,9 @@ def create_app(
         # This route is write-sensitive even when the rest of the dashboard
         # auto-opens: enforce browser same-origin + JSON + owner PIN in handler.
         return (
-            request.url.path == "/api/v1/mail/trash"
+            request.url.path in {
+                "/api/v1/mail/trash", "/api/v1/mail/trash/preview"
+            }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
             and request.headers.get("sec-fetch-site", "same-origin")
@@ -296,6 +298,36 @@ def create_app(
                 code
             ) from None
 
+    @app.post("/api/v1/mail/trash/preview")
+    async def ui_trash_preview(request: Request):
+        """Read exact Gmail subjects before user authorizes any Trash writes."""
+        from .mail.contracts import MailError
+        from .mail.private import config, locked
+        from .mail.provider import Gmail
+        from .mail.trash import preview
+        payload_bytes = await request.body()
+        if len(payload_bytes) > 2500:
+            raise HTTPException(413, "trash_preview_too_large")
+        try:
+            payload = json.loads(payload_bytes)
+            if not isinstance(payload, dict) or set(payload) != {"ids"}:
+                raise ValueError()
+            ids = payload["ids"]
+            if not isinstance(ids, list):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(400, "invalid_trash_preview") from None
+        try:
+            with locked(store):
+                cfg = config(store)
+                api = Gmail.open(store, cfg)
+                try:
+                    return preview(store, cfg, api, ids)
+                finally:
+                    api.close()
+        except MailError as exc:
+            raise HTTPException(409, str(exc)) from None
+
     @app.post("/api/v1/mail/trash")
     async def ui_move_to_trash(request: Request):
         """Owner-confirmed recoverable Gmail Trash only. No permanent deletion."""
@@ -311,10 +343,15 @@ def create_app(
         try:
             payload = json.loads(body)
             if not isinstance(payload, dict) or set(payload) != {
-                "ids", "pin", "confirmed"
+                "ids", "pin", "confirmed", "approval_digest"
             } or payload["confirmed"] is not True:
                 raise ValueError()
             ids, pin = payload["ids"], payload["pin"]
+            approved_digest = payload["approval_digest"]
+            if not isinstance(approved_digest, str) or not re.fullmatch(
+                r"[a-f0-9]{64}", approved_digest
+            ):
+                raise ValueError()
             if not isinstance(ids, list) or not 1 <= len(ids) <= 20:
                 raise ValueError()
             if not isinstance(pin, str):
@@ -331,8 +368,7 @@ def create_app(
                     raise MailError("trash_permission_disabled_reauthorize")
                 api = Gmail.open(store, cfg, trashing=True)
                 try:
-                    digest = preview(store, cfg, api, ids)["approval_digest"]
-                    return apply(store, cfg, api, ids, digest)
+                    return apply(store, cfg, api, ids, approved_digest)
                 finally:
                     api.close()
         except MailError as exc:
