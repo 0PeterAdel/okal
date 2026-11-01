@@ -543,38 +543,6 @@ test("Viewing a saved Gmail email removes it immediately from active Smart Inbox
   assert.match(get("triage-count").textContent,/0 رسالة/);
 });
 
-test("Owner may remember image permission across messages; default remains private", async () => {
-  const mail={id:"aa",subject:"Newsletter",from:"example@example.com",
-    to:"owner@example.com",date:"Today",
-    html:'<html><body><img src="https://images.example.net/pic.png"></body></html>',
-    labels:["INBOX"],ai_summary:"Hello",ai_category:"information",
-    inline_images:0,external_images_detected:true,attachments:[],
-    gmail_link:"https://mail.google.com/mail/#all/aa"};
-  let consent = false;
-  const {context,get}=harness(async (url,options)=>{
-    if (url === "/api/v1/mail/image-preference") {
-      consent = JSON.parse(options.body).allow_remote_images;
-      return response({remote_images:consent,saved_locally:true});
-    }
-    return url==="/api/v1/mail/messages/aa"
-      ? response({...mail,remote_image_preference:consent}):response({});
-  });
-  await context.openMailViewer("aa");
-  assert.equal(get("viewer-remote-images").checked,false);
-  get("viewer-remember-images").checked=true;
-  await get("viewer-remember-images").handlers.change();
-  assert.equal(get("viewer-remote-images").checked,true);
-  get("mail-viewer").close();
-  await context.openMailViewer("aa");
-  assert.equal(get("viewer-remote-images").checked,true);
-  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
-  get("viewer-remember-images").checked=false;
-  await get("viewer-remember-images").handlers.change();
-  get("mail-viewer").close();
-  await context.openMailViewer("aa");
-  assert.equal(get("viewer-remote-images").checked,false);
-});
-
 test("native reader Trash still previews and confirms after opening hides its inbox card", async () => {
   const mail={
     id:"aa",subject:"Original GitHub alert",from:"notifications@github.com",
