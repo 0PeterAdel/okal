@@ -351,3 +351,25 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .okal-dialog { padding:14px; }
   #viewer-frame { min-height:350px; height:52dvh; }
 }
+
+/* Inbox message detail: source content, AI interpretation and explicit actions. */
+.mail-viewer { width:min(92vw,920px); max-height:86dvh; }
+.viewer-ai { display:grid; gap:8px; padding:15px 18px; margin:16px 0 12px;
+  border:1px solid var(--line-strong); background:var(--surface-raised);
+  border-radius:14px; }
+.viewer-ai .overline { margin:0; }
+.viewer-ai #viewer-ai-summary { font-size:14px; line-height:1.95; margin:0;
+  white-space:pre-wrap; }
+.viewer-ai #viewer-ai-action { font-size:12px; margin:0; color:var(--accent); }
+.viewer-category { justify-self:start; padding:4px 10px; font-size:11px;
+  border:1px solid var(--line-strong); border-radius:20px; color:var(--accent); }
+.viewer-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  border-bottom:1px solid var(--line); padding:0 0 14px; }
+.viewer-actions button { min-height:40px; }
+.viewer-actions #viewer-action-note { flex-basis:100%; font-size:11px; }
+.triage-message.is-selectable { cursor:pointer; }
+.triage-message.is-selectable:hover { border-color:var(--line-strong); }
+@media(max-width:600px){
+  .mail-viewer { width:96vw; max-height:92dvh; }
+  .viewer-actions button { flex:1; min-width:130px; }
+}
