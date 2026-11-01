@@ -27,7 +27,12 @@ function harness(fetcher) {
     if (!nodes.has(id)) nodes.set(id, node());
     return nodes.get(id);
   };
+  const localPreferences = new Map();
   const context = vm.createContext({
+    localStorage: {
+      getItem(key){return localPreferences.has(key)?localPreferences.get(key):null;},
+      setItem(key,value){localPreferences.set(key,String(value));}
+    },
     document: { getElementById: get, createElement: node, addEventListener() {} },
     window: { addEventListener() {} },
     URLSearchParams, AbortController, setTimeout,
@@ -521,6 +526,55 @@ test("Lazy marketing images stay inert until owner explicitly presses Load Image
   get("viewer-load-images").handlers.click();
   assert.equal(get("viewer-remote-images").checked,false);
   assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+});
+
+test("Viewing a saved Gmail email removes it immediately from active Smart Inbox", async () => {
+  const mail={id:"aa",subject:"Workflow Alert",from:"sender@example.com",
+    to:"owner@example.com",date:"Today",html:"<p>Original email</p>",
+    labels:["INBOX","UNREAD"],ai_summary:"Review",ai_category:"action",
+    ai_suggested_action:"",attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"};
+  const {context,get}=harness(async (url)=>{
+    if (url==="/api/v1/mail/messages/aa") return response(mail);
+    return response({});
+  });
+  context.renderTriage({state:"recorded_local_insights",items:[
+    {id:"aa",subject:"Workflow Alert",sender:"sender@example.com",
+     received_ms:1800000000000,category:"action",summary:"Review",
+     labels:["INBOX","UNREAD"],link:"https://mail.google.com/mail/#all/aa"}
+  ]});
+  assert.match(get("triage-count").textContent,/1 رسالة/);
+  await context.openMailViewer("aa");
+  assert.match(get("triage-count").textContent,/0 رسالة/);
+  assert.equal(get("viewer-title").textContent,"Workflow Alert");
+  // Gmail is untouched; local viewed acknowledgment only.
+  get("mail-viewer").close();
+  assert.match(get("triage-count").textContent,/0 رسالة/);
+});
+
+test("Owner may remember image permission across messages; default remains private", async () => {
+  const mail={id:"aa",subject:"Newsletter",from:"example@example.com",
+    to:"owner@example.com",date:"Today",
+    html:'<html><body><img src="https://images.example.net/pic.png"></body></html>',
+    labels:["INBOX"],ai_summary:"Hello",ai_category:"information",
+    inline_images:0,external_images_detected:true,attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"};
+  const {context,get}=harness(async url=>
+    url==="/api/v1/mail/messages/aa" ? response(mail):response({}));
+  await context.openMailViewer("aa");
+  assert.equal(get("viewer-remote-images").checked,false);
+  get("viewer-remember-images").checked=true;
+  get("viewer-remember-images").handlers.change();
+  assert.equal(get("viewer-remote-images").checked,true);
+  get("mail-viewer").close();
+  await context.openMailViewer("aa");
+  assert.equal(get("viewer-remote-images").checked,true);
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
+  get("viewer-remember-images").checked=false;
+  get("viewer-remember-images").handlers.change();
+  get("mail-viewer").close();
+  await context.openMailViewer("aa");
+  assert.equal(get("viewer-remote-images").checked,false);
 });
 
 test("Mail Agent previews Gmail action and writes only after explicit confirmation", async () => {
