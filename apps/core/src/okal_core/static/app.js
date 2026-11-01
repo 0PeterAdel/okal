@@ -1716,7 +1716,16 @@ async function connectGoogleCalendar() {
   }
 }
 el("calendar-connect").addEventListener("click", connectGoogleCalendar);
-window.addEventListener("DOMContentLoaded", () => loadCalendarConnection());
+window.addEventListener("DOMContentLoaded", () => {
+  if (window.location.hash === "#calendar-connected") {
+    // The URL fragment is only a presentation hint, NEVER proof of sync.
+    el("calendar-connect-feedback").textContent =
+      "تم قبول تفويض Google Calendar. جاري التحقق من المزامنة الأولى...";
+    el("integrations").scrollIntoView({block:"start"});
+    window.history.replaceState(null, "", "/#integrations");
+  }
+  loadCalendarConnection();
+});
 if (typeof window.setInterval === "function")
   window.setInterval(() => {
     if (!document.hidden) loadCalendarConnection();

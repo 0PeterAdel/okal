@@ -8,7 +8,7 @@ import os
 import re
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from .store import InvalidCursor, Store
 
@@ -112,6 +112,18 @@ def create_app(
             and request.headers.get("sec-fetch-dest") in (None, "document")
         )
 
+    def is_dashboard_document_navigation(request):
+        # A browser may keep Sec-Fetch-Site: cross-site across OAuth 303
+        # redirects. Opening only the inert HTML shell is safe; API calls,
+        # POSTs, subresources and framing retain the existing strict policy.
+        return (
+            request.method == "GET"
+            and request.url.path == "/"
+            and request.headers.get("origin") in (None, "null")
+            and request.headers.get("sec-fetch-mode") == "navigate"
+            and request.headers.get("sec-fetch-dest") == "document"
+        )
+
     @app.middleware("http")
     async def boundary(request: Request, call_next):
         # Do not trust forwarded headers; the supported launcher disables them.
@@ -128,9 +140,11 @@ def create_app(
             not local
             or host not in hosts
             or (origin is not None and origin != f"http://{host}"
-                and not is_google_oauth_callback(request))
+                and not is_google_oauth_callback(request)
+                and not is_dashboard_document_navigation(request))
             or (request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
-                and not is_google_oauth_callback(request))
+                and not is_google_oauth_callback(request)
+                and not is_dashboard_document_navigation(request))
             or (
                 request.url.path == "/api/v1/session"
                 and request.method in {"POST", "DELETE"}
@@ -197,9 +211,15 @@ def create_app(
             )
             for k in request.query_params
         ):
-            response = JSONResponse(
-                {"detail": "unsupported query parameter"}, status_code=400
-            )
+            if is_google_oauth_callback(request):
+                response = FileResponse(
+                    STATIC / "calendar-oauth-error.html",
+                    media_type="text/html", status_code=400,
+                )
+            else:
+                response = JSONResponse(
+                    {"detail": "unsupported query parameter"}, status_code=400
+                )
         else:
             response = await call_next(request)
         response.headers.update(
@@ -817,19 +837,29 @@ def create_app(
         code = params.get("code")
         if (len(params.getlist("state")) != 1
                 or len(params.getlist("code")) > 1
-                or len(params.getlist("iss")) > 1):
-            raise HTTPException(400, "invalid_calendar_oauth_callback")
-        # Google includes the authorization-server issuer (RFC 9207).
-        # Validate, rather than ignore, this field before exchanging a code.
-        if "iss" in params and params.get("iss") != "https://accounts.google.com":
-            raise HTTPException(400, "invalid_calendar_oauth_issuer")
+                or len(params.getlist("iss")) > 1
+                or ("iss" in params and
+                    params.get("iss") != "https://accounts.google.com")):
+            return FileResponse(
+                STATIC / "calendar-oauth-error.html",
+                media_type="text/html", status_code=400,
+            )
         try:
             calendar_oauth.finish(store, state, code, params.get("error"))
-        except CalendarGoogleError as exc:
-            raise HTTPException(400, str(exc)) from None
+        except CalendarGoogleError:
+            # No codes, state, credentials, exceptions or provider text in HTML.
+            return FileResponse(
+                STATIC / "calendar-oauth-error.html",
+                media_type="text/html", status_code=400,
+            )
         from .calendar_google import sync_authorized_account
         background_tasks.add_task(sync_authorized_account, store, "default")
-        return RedirectResponse(url="/#integrations", status_code=303)
+        # Do not 303 directly to dashboard: Firefox may carry cross-site
+        # Fetch Metadata through the redirect chain and reject the HTML.
+        # Send an inert local document then navigate within the same origin.
+        return FileResponse(
+            STATIC / "calendar-oauth-complete.html", media_type="text/html"
+        )
 
     @app.get("/api/v1/calendar/status")
     def local_calendar_status():
@@ -910,6 +940,12 @@ def create_app(
     @app.get("/app.js")
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
+
+    @app.get("/calendar-oauth-return.js")
+    def calendar_oauth_return_script():
+        return FileResponse(
+            STATIC / "calendar-oauth-return.js", media_type="text/javascript"
+        )
 
     @app.get("/style.css")
     def styles():
