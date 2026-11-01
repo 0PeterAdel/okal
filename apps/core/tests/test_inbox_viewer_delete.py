@@ -12,7 +12,6 @@ from okal_core.api import create_app
 from okal_core.mail.contracts import Config, Insight, MailError
 from okal_core.mail.history import HistoryState
 from okal_core.mail.private import root, write_private
-from okal_core.mail.ui_trash_auth import configure_pin, verify_pin
 from okal_core.mail.viewer import read_native, allowed_source
 from okal_core.store import Store
 
@@ -86,39 +85,45 @@ class InboxViewerDeleteTests(unittest.TestCase):
             with self.assertRaisesRegex(MailError,"source_changed"):
                 read_native(self.store,"aa")
 
-    def test_ui_pin_is_hashed_and_five_invalid_attempts_lock_it(self):
-        configure_pin(self.store, "long-private-PIN-12345")
-        private = (root(self.store)/"ui-trash-pin.json").read_text()
-        self.assertNotIn("long-private-PIN-12345",private)
-        for _ in range(5):
-            with self.assertRaisesRegex(MailError,"pin_invalid"):
-                verify_pin(self.store,"wrong")
-        with self.assertRaisesRegex(MailError,"temporarily_locked"):
-            verify_pin(self.store,"long-private-PIN-12345")
-
-    def test_unconfigured_browser_post_denied_even_on_loopback(self):
-        with TestClient(create_app(self.store,require_read_key=False),
+    def test_cross_site_and_missing_confirmation_block_delete(self):
+        with TestClient(create_app(self.store, require_read_key=False),
                         base_url="http://127.0.0.1:8766",
                         client=("127.0.0.1",12501)) as client:
-            r = client.post("/api/v1/mail/trash",
-                headers={"Origin":"http://evil.example","Content-Type":"application/json"},
-                json={"ids":["aa"],"pin":"foo","confirmed":True,
-                      "approval_digest":"a"*64})
-            self.assertEqual(r.status_code,403)
-            r = client.post("/api/v1/mail/trash",
+            denied = client.post("/api/v1/mail/trash",
+                headers={"Origin":"http://evil.example"},
+                json={"ids":["aa"],"confirmed":True,
+                      "approval_digest":"a"*64,
+                      "confirmation_token":"x"*43})
+            self.assertEqual(denied.status_code,403)
+            missing = client.post("/api/v1/mail/trash",
                 headers={"Origin":"http://127.0.0.1:8766",
                          "Sec-Fetch-Site":"same-origin"},
-                json={"ids":["aa"],"pin":"invalid","confirmed":True,
+                json={"ids":["aa"],"confirmed":True,
                       "approval_digest":"a"*64})
-            self.assertEqual(r.status_code,429)
+            self.assertEqual(missing.status_code,400)
 
-    def test_ui_preview_and_delete_are_separate_and_verified(self):
-        configure_pin(self.store,"super-long-PIN-for-delete")
-        native = {"id":"aa","labelIds":["INBOX"],
-                  "payload":{"headers":[{"name":"Subject",
-                                        "value":"Original <body>"}]}}
-        self.gmail.call.return_value = native
-        self.gmail.move_to_trash.return_value = {"id":"aa","labelIds":["TRASH"]}
+    def test_delete_requires_gmail_modify_even_without_password(self):
+        cfg = self.cfg.model_copy(update={"trash_enabled":False})
+        write_private(root(self.store)/"config.json",cfg.model_dump())
+        headers={"Origin":"http://127.0.0.1:8766",
+                 "Sec-Fetch-Site":"same-origin"}
+        with TestClient(create_app(self.store, require_read_key=False),
+                        base_url="http://127.0.0.1:8766",
+                        client=("127.0.0.1",12501)) as client:
+            out = client.post("/api/v1/mail/trash", headers=headers,
+                json={"ids":["aa"],"confirmed":True,"approval_digest":"a"*64,
+                      "confirmation_token":"x"*43})
+            self.assertEqual(out.status_code,403)
+            self.assertEqual(
+                out.json()["detail"],"trash_permission_disabled_reauthorize"
+            )
+
+    def test_native_preview_confirm_button_delete_and_replay_rejected(self):
+        native={"id":"aa","labelIds":["INBOX"],
+                "payload":{"headers":[{"name":"Subject",
+                                       "value":"Original <body>"}]}}
+        self.gmail.call.return_value=native
+        self.gmail.move_to_trash.return_value={"id":"aa","labelIds":["TRASH"]}
         headers={"Origin":"http://127.0.0.1:8766",
                  "Sec-Fetch-Site":"same-origin"}
         with patch("okal_core.mail.provider.Gmail.open",return_value=self.gmail):
@@ -128,20 +133,46 @@ class InboxViewerDeleteTests(unittest.TestCase):
                 preview = client.post("/api/v1/mail/trash/preview",
                     headers=headers,json={"ids":["aa"]})
                 self.assertEqual(preview.status_code,200,preview.text)
-                digest = preview.json()["approval_digest"]
-                self.assertEqual(preview.json()["items"][0]["subject"],"Original <body>")
+                payload=preview.json()
+                digest=payload["approval_digest"]
+                ticket=payload["confirmation_token"]
+                self.assertEqual(payload["items"][0]["subject"],"Original <body>")
+                self.assertEqual(payload["confirmation_expires_seconds"],120)
                 self.gmail.move_to_trash.assert_not_called()
                 wrong = client.post("/api/v1/mail/trash",headers=headers,
-                    json={"ids":["aa"],"pin":"super-long-PIN-for-delete",
-                          "confirmed":True,"approval_digest":"f"*64})
+                    json={"ids":["aa"],"confirmed":True,
+                          "approval_digest":"f"*64,"confirmation_token":ticket})
                 self.assertEqual(wrong.status_code,409)
                 self.gmail.move_to_trash.assert_not_called()
+                # Invalid approval consumes its one-time token: re-preview.
+                fresh=client.post("/api/v1/mail/trash/preview",
+                    headers=headers,json={"ids":["aa"]}).json()
                 result=client.post("/api/v1/mail/trash",headers=headers,
-                    json={"ids":["aa"],"pin":"super-long-PIN-for-delete",
-                          "confirmed":True,"approval_digest":digest})
+                    json={"ids":["aa"],"confirmed":True,
+                          "approval_digest":fresh["approval_digest"],
+                          "confirmation_token":fresh["confirmation_token"]})
                 self.assertEqual(result.status_code,200,result.text)
                 self.assertEqual(result.json()["status"],"confirmed_trash")
                 self.gmail.move_to_trash.assert_called_once_with("aa")
+                replay=client.post("/api/v1/mail/trash",headers=headers,
+                    json={"ids":["aa"],"confirmed":True,
+                          "approval_digest":fresh["approval_digest"],
+                          "confirmation_token":fresh["confirmation_token"]})
+                self.assertEqual(replay.status_code,409)
+                self.assertEqual(self.gmail.move_to_trash.call_count,1)
+
+    def test_protected_mode_rejects_unpaired_delete_even_with_preview_token(self):
+        headers={"Origin":"http://127.0.0.1:8766",
+                 "Sec-Fetch-Site":"same-origin"}
+        with TestClient(create_app(self.store,require_read_key=True),
+                        base_url="http://127.0.0.1:8766",
+                        client=("127.0.0.1",12501)) as client:
+            r=client.post("/api/v1/mail/trash",headers=headers,
+                json={"ids":["aa"],"confirmed":True,
+                      "approval_digest":"a"*64,"confirmation_token":"x"*43})
+            self.assertEqual(r.status_code,401)
+
+
 
 
 if __name__ == "__main__":
