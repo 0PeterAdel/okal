@@ -37,7 +37,10 @@ def main(store, argv):
     c.add_argument("--enable-send", action="store_true")
     c.add_argument("--enable-trash", action="store_true",
                    help="Re-authorize Gmail with gmail.modify; broader than read-only")
-    c = commands.add_parser("trash", help="Review selected Information emails; moves to recoverable Trash")
+    p_pin = commands.add_parser("ui-delete-pin",
+        help="Configure local approval PIN for explicit Delete button")
+    p_pin.add_argument("action", choices=("set", "status"))
+    c = commands.add_parser("trash", help="Review chosen emails; moves to recoverable Trash")
     c.add_argument("--ids", nargs="+", required=True)
     c.add_argument("--apply", action="store_true",
                    help="Owner-only interactive approval, no silent writes")
@@ -83,6 +86,20 @@ def main(store, argv):
     model = None
     api = None
     try:
+        if args.command == "ui-delete-pin":
+            from .ui_trash_auth import configure_pin, pin_configured
+            if args.action == "status":
+                emit({"configured": pin_configured(store)})
+                return 0
+            import getpass
+            if not sys.stdin.isatty() or not sys.stdout.isatty():
+                raise MailError("ui_trash_pin_interactive_terminal_required")
+            first = getpass.getpass("Create OKAL delete approval PIN (12+ characters): ")
+            second = getpass.getpass("Confirm OKAL delete approval PIN: ")
+            if first != second:
+                raise MailError("ui_trash_pin_confirmation_mismatch")
+            emit(configure_pin(store, first))
+            return 0
         if args.command == "assistant":
             # Pure local read while the background sync holds operation.lock.
             # Do not make an owner dashboard request contend with Gmail/Ollama.
