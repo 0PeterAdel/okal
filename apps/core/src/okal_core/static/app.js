@@ -328,6 +328,18 @@ function renderTriage(result) {
         } else if (!eligible(item)) {
           article.append(text("p", "محمي من النقل التلقائي إلى Trash",
             "triage-warning"));
+          // Protected mail is still readable: only Trash selection is blocked.
+          article.tabIndex = 0;
+          article.addEventListener("click", (event) => {
+            if (!event?.target?.closest?.("a, button, label, input"))
+              openMailViewer(item);
+          });
+          article.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && event.target === article) {
+              event.preventDefault();
+              openMailViewer(item);
+            }
+          });
         }
         target.append(article);
       }
