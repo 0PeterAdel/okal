@@ -734,19 +734,79 @@ el("mail-viewer").addEventListener("close", () => {
 });
 el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
 
+// Human-readable, safe diagnostics only. Never expose provider payloads,
+// private subjects, tokens or arbitrary exception strings in the UI.
+const trashPreviewCodes = Object.freeze({
+  "mail_operation_already_running":
+    "المزامنة التلقائية شغالة دلوقتي؛ OKAL هيحاول القراءة تاني، ولو استمر التعارض جرب بعد اكتمال المزامنة.",
+  "authorization_required":
+    "جلسة Gmail OAuth محتاجة تفويض جديد من نفس الحساب.",
+  "scope_or_send_permission_mismatch":
+    "صلاحيات Gmail المحفوظة مش متطابقة مع إعدادات OKAL. راجع تفويض OAuth الحالي.",
+  "wrong_google_account":
+    "حساب Gmail المتصل مختلف عن الحساب المضبوط في OKAL.",
+  "provider_read_failed":
+    "Gmail رجّع خطأ أثناء قراءة العناوين. اتأكد من الاتصال وإتاحة Gmail API، وجرب المعاينة تاني.",
+  "trash_protected_or_outdated_saved_labels":
+    "فيه رسالة عليها علامة حماية (Starred / Important / Sent / Draft / Trash)، أو بياناتها قديمة. شيلها من التحديد.",
+  "trash_native_metadata_changed_or_protected":
+    "واحدة من الرسائل اتغير عنوانها أو علاماتها داخل Gmail، أو أصبحت محمية. حدّث القائمة وراجع اختيارك.",
+  "trash_source_unavailable":
+    "واحدة من الرسائل مش موجودة على Gmail بالـ ID المحفوظ. حدّث القائمة.",
+  "trash_source_not_in_saved_inbox":
+    "رسالة من المحدد مش مثبتة في بيانات OKAL المحلية. حدّث القائمة.",
+  "trash_previously_attempted_or_confirmed_review_gmail":
+    "سبق محاولة نقل واحدة من الرسائل إلى Trash. راجع Gmail Trash يدويًا قبل أي إعادة محاولة.",
+  "trash_unknown_classification":
+    "واحدة من الرسائل تصنيفها غير مؤكد. راجعها منفردة.",
+  "trash_requires_1_to_20_unique_message_ids":
+    "اختار من رسالة واحدة إلى 20 رسالة مختلفة.",
+  "trash_untrusted_saved_evidence_invalid":
+    "بيانات المصدر المحلي لرسالة غير متطابقة؛ المعاينة اتوقفت لحمايتك.",
+  "unsafe_lock_file":
+    "ملف قفل عمليات البريد صلاحياته غير آمنة؛ راجعه محليًا.",
+});
+function trashPreviewProblem(status, detail) {
+  const code = typeof detail === "string" &&
+    /^[a-z][a-z0-9_]{1,100}$/.test(detail) ? detail : "";
+  const explanation = trashPreviewCodes[code];
+  if (explanation) return explanation + " (code: " + code + ")";
+  if (status === 403) return "المتصفح مش مسموح له ينفذ الطلب من العنوان الحالي. افتح OKAL من http://127.0.0.1:8766 مباشرة.";
+  if (status === 401) return "وضع الحماية مفعل أو جلسة القراءة انتهت. افتح OKAL مجددًا.";
+  if (status === 429 || status === 423)
+    return "خدمة Gmail مشغولة حاليًا. أعد المعاينة بعد انتهاء العملية الجارية.";
+  if (status >= 500) return "حصل خطأ داخلي في OKAL Core أثناء المعاينة. افحص سجل okal-core.service.";
+  return "تعذر تجهيز معاينة Gmail (HTTP " + status + "). افحص سجل OKAL لمعرفة السبب.";
+}
+
+async function postTrashPreview(ids) {
+  // Safe bounded retries only for non-mutating preview when history sync
+  // temporarily owns operation.lock. Never retry any DELETE/Trash write.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await fetch("/api/v1/mail/trash/preview", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ids}),
+    });
+    if (response.ok) return response.json();
+    const body = await response.json().catch(() => ({}));
+    const code = typeof body?.detail === "string" ? body.detail : "";
+    if (code === "mail_operation_already_running" && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      continue;
+    }
+    throw new Error(trashPreviewProblem(response.status, code));
+  }
+  throw new Error(trashPreviewProblem(423, "mail_operation_already_running"));
+}
+
 el("trash-selected").addEventListener("click", async () => {
   const ids = selectableInfoIds.filter((mid) => selectedInfo.has(mid));
   if (!ids.length || ids.length > 20) return;
   el("trash-selected").disabled = true;
   el("trash-help").textContent = "جارٍ التأكد من العناوين والصلاحيات مباشرة من Gmail...";
   try {
-    const response = await fetch("/api/v1/mail/trash/preview", {
-      method:"POST", credentials:"same-origin", cache:"no-store",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ids}),
-    });
-    if (!response.ok) throw new Error("preview " + response.status);
-    const data = await response.json();
+    const data = await postTrashPreview(ids);
     if (data.count !== ids.length || !/^[a-f0-9]{64}$/.test(data.approval_digest))
       throw new Error("unsafe preview");
     approvedTrash = {ids, digest:data.approval_digest};
@@ -760,11 +820,13 @@ el("trash-selected").addEventListener("click", async () => {
     el("trash-dialog").showModal();
     el("trash-help").textContent = "راجع العناوين من Gmail داخل نافذة التأكيد. " +
       "Delete PIN مطلوب للنقل الفعلي إلى Trash.";
-  } catch (_) {
+  } catch (error) {
     approvedTrash = null;
     el("trash-help").textContent =
-      "تعذر تجهيز معاينة Gmail. قد يحتاج الاتصال أو صلاحيات OAuth للمراجعة. " +
-      "تقدر تستخدم أمر mail trash من Terminal.";
+      error?.message && error.message.startsWith("تعذر") ||
+      error?.message && error.message.includes("(code:")
+        ? error.message
+        : trashPreviewProblem(500, "");
   } finally {
     el("trash-selected").disabled = selectedInfo.size === 0;
   }
