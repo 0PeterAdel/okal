@@ -467,6 +467,7 @@ function lock() {
   if (el("mail-viewer").open) el("mail-viewer").close();
   if (el("trash-dialog").open) el("trash-dialog").close();
   if (el("mail-action-dialog").open) el("mail-action-dialog").close();
+  if (el("mail-send-dialog").open) el("mail-send-dialog").close();
   setBusy(false);
 }
 
@@ -672,6 +673,8 @@ let viewerGeneration = 0;
 let approvedTrash = null;
 let pendingMailAction = null;
 let currentReplyDraft = null;
+let savedReplyBody = "";
+let pendingMailSend = null;
 const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
   (ch) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 
@@ -711,6 +714,8 @@ async function openMailViewer(item) {
                       "viewer-create-task","viewer-reply-generate"])
     el(name).disabled = true;
   currentReplyDraft = null;
+  savedReplyBody = "";
+  el("viewer-reply-send").disabled = true;
   el("viewer-reply-body").value = "";
   el("viewer-reply-to").textContent = "";
   el("viewer-reply-state").textContent = "";
@@ -807,6 +812,8 @@ el("mail-viewer").addEventListener("close", () => {
                       "viewer-reply-save","viewer-reply-copy"])
     el(name).disabled = true;
   currentReplyDraft = null;
+  savedReplyBody = "";
+  el("viewer-reply-send").disabled = true;
   el("viewer-reply-body").value = "";
   el("viewer-reply-to").textContent = "";
   el("viewer-reply-state").textContent = "";
@@ -866,6 +873,11 @@ async function fetchMailAgent(url, payload) {
       throw new Error("العملية دي لها محاولة سابقة. راجع Gmail يدويًا قبل أي إعادة محاولة.");
     if (code === "mail_action_confirmation_expired")
       throw new Error("انتهت صلاحية التأكيد. افتح المعاينة مجددًا.");
+    if (code === "send_needs_reconciliation_do_not_resend" ||
+        code === "send_still_uncertain_manual_native_review_required")
+      throw new Error("نتيجة إرسال Gmail غير مؤكدة؛ لا ترسل نسخة ثانية قبل مراجعة Sent.");
+    if (code === "mail_send_confirmation_expired")
+      throw new Error("انتهت صلاحية الموافقة على الإرسال؛ راجع المسودة من جديد.");
     if (code === "action_write_uncertain_check_gmail_no_auto_retry")
       throw new Error("تعديل Gmail غير مؤكد. راجع البريد يدويًا قبل أي إجراء جديد.");
     throw new Error("تعذر تنفيذ العملية (" + (code || "HTTP " + response.status) + ")");
@@ -978,6 +990,8 @@ el("viewer-reply-generate").addEventListener("click", async () => {
       language:el("viewer-reply-language").value || "ar"
     });
     currentReplyDraft = draft.draft_id;
+    savedReplyBody = draft.body;
+    el("viewer-reply-send").disabled = false;
     el("viewer-reply-to").textContent =
       "To: " + draft.recipient + " · Subject: " + draft.subject;
     el("viewer-reply-body").value = draft.body;
@@ -998,6 +1012,8 @@ el("viewer-reply-save").addEventListener("click", async () => {
       draft_id:currentReplyDraft,body:el("viewer-reply-body").value
     });
     currentReplyDraft = result.draft_id;
+    savedReplyBody = el("viewer-reply-body").value;
+    el("viewer-reply-send").disabled = false;
     el("viewer-reply-state").textContent =
       "تم حفظ مسودة جديدة محليًا؛ لا إرسال تلقائي.";
   } catch (error) {
@@ -1006,6 +1022,72 @@ el("viewer-reply-save").addEventListener("click", async () => {
     el("viewer-reply-save").disabled = false;
   }
 });
+el("viewer-reply-send").addEventListener("click", async () => {
+  if (!currentReplyDraft) return;
+  if (el("viewer-reply-body").value !== savedReplyBody) {
+    el("viewer-reply-state").textContent =
+      "النص اتعدل. احفظ التعديل محليًا أولًا قبل مراجعة الإرسال.";
+    return;
+  }
+  el("viewer-reply-state").textContent = "جارٍ تجهيز معاينة الإرسال...";
+  try {
+    const draft = await fetchMailAgent(
+      "/api/v1/mail/reply-drafts/preview-send",
+      {draft_id:currentReplyDraft}
+    );
+    if (draft.draft_id !== currentReplyDraft ||
+        draft.body !== savedReplyBody ||
+        !/^[a-f0-9]{64}$/.test(draft.approval_digest) ||
+        typeof draft.confirmation_token !== "string")
+      throw new Error("مسودة الإرسال مختلفة عن النص المراجع.");
+    pendingMailSend = {draft_id:draft.draft_id,
+      digest:draft.approval_digest,ticket:draft.confirmation_token};
+    el("mail-send-to").textContent = draft.recipient;
+    el("mail-send-subject").textContent = draft.subject;
+    el("mail-send-body").textContent = draft.body;
+    el("mail-send-result").textContent = "";
+    el("mail-send-dialog").showModal();
+    el("viewer-reply-state").textContent =
+      "راجع المستلم والنص بعناية قبل تأكيد الإرسال.";
+  } catch (error) {
+    el("viewer-reply-state").textContent = String(error.message).slice(0,240);
+  }
+});
+el("mail-send-cancel").addEventListener("click", () =>
+  el("mail-send-dialog").close());
+el("mail-send-dialog").addEventListener("close", () => {
+  pendingMailSend = null;
+});
+el("mail-send-confirm").addEventListener("click", async () => {
+  if (!pendingMailSend) return;
+  const approval = pendingMailSend;
+  pendingMailSend = null;
+  el("mail-send-confirm").disabled = true;
+  el("mail-send-result").textContent = "جارٍ الإرسال والتحقق من Gmail...";
+  try {
+    const result = await fetchMailAgent(
+      "/api/v1/mail/reply-drafts/confirm-send",{
+        draft_id:approval.draft_id,
+        approval_digest:approval.digest,
+        confirmation_token:approval.ticket,confirmed:true
+      });
+    if (result.status !== "sent_verified")
+      throw new Error("نتيجة الإرسال غير مؤكدة. راجع Gmail Sent.");
+    el("mail-send-result").textContent = "تم الإرسال والتحقق من Gmail.";
+    el("viewer-reply-state").textContent =
+      "تم إرسال الرد فعليًا بعد موافقتك والتحقق من Gmail.";
+    el("viewer-reply-send").disabled = true;
+    el("viewer-reply-save").disabled = true;
+    currentReplyDraft = null;
+  } catch (error) {
+    el("mail-send-result").textContent =
+      "لا تكرر الإرسال تلقائيًا. راجع Gmail Sent ثم سجل المسودة. " +
+      String(error.message).slice(0,160);
+  } finally {
+    el("mail-send-confirm").disabled = true;
+  }
+});
+
 el("viewer-reply-copy").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(el("viewer-reply-body").value);
