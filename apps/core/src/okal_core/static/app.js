@@ -263,7 +263,7 @@ function renderTriage(result) {
         title.type = "button";
         title.addEventListener("click", (event) => {
           event?.stopPropagation?.();
-          openMailViewer(item.id);
+          openMailViewer(item);
         });
         article.append(title, text("p", item.summary, "triage-summary"));
         if (item.suggested_action)
@@ -306,13 +306,22 @@ function renderTriage(result) {
           article.setAttribute("aria-label", `رسالة: ${String(item.subject).slice(0,120)}`);
           article.addEventListener("click", (event) => {
             if (event?.target?.closest?.("a, label, input, button, summary")) return;
-            chooseInformation(item.id, event);
+            // Regular click reads the full message. Ctrl/Shift select rows.
+            if (event?.ctrlKey || event?.metaKey || event?.shiftKey)
+              chooseInformation(item.id, event);
+            else openMailViewer(item);
           });
           article.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
             if (event?.target?.closest?.("a, label, input, button")) return;
-            event.preventDefault();
-            chooseInformation(item.id, event);
+            if (event.key === "Enter") {
+              event.preventDefault();
+              if (event.ctrlKey || event.metaKey || event.shiftKey)
+                chooseInformation(item.id, event);
+              else openMailViewer(item);
+            } else if (event.key === " ") {
+              event.preventDefault();
+              chooseInformation(item.id, {...event, ctrlKey:true});
+            }
           });
           selectableInfoIds.push(item.id);
           informationRows.set(item.id, {article,checkbox:check});
@@ -641,6 +650,7 @@ try {
 // Render untrusted original HTML ONLY inside a sandboxed, script-disabled
 // iframe with a restrictive per-message CSP.
 let currentViewerMessage = null;
+let viewerItem = null;
 let viewerGeneration = 0;
 let approvedTrash = null;
 const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
@@ -669,8 +679,16 @@ function refreshViewerDocument() {
   );
 }
 
-async function openMailViewer(id) {
+async function openMailViewer(item) {
+  const id = typeof item === "string" ? item : item?.id;
   if (!/^[a-fA-F0-9]{1,64}$/.test(String(id || ""))) return;
+  viewerItem = typeof item === "object" ? item : null;
+  el("viewer-ai-summary").textContent = "جارٍ جلب التلخيص المحفوظ...";
+  el("viewer-ai-action").textContent = "";
+  el("viewer-category").textContent = "";
+  el("viewer-action-note").textContent = "";
+  for (const name of ["viewer-copy-summary","viewer-select","viewer-delete"])
+    el(name).disabled = true;
   el("viewer-title").textContent = "جارٍ تحميل الرسالة الأصلية...";
   el("viewer-from").textContent = "";
   el("viewer-to").textContent = "";
@@ -692,6 +710,21 @@ async function openMailViewer(id) {
     if (requestGeneration !== viewerGeneration || !el("mail-viewer").open) return;
     if (data.id !== id) throw new Error("source mismatch");
     currentViewerMessage = data;
+    el("viewer-ai-summary").textContent =
+      data.ai_summary || "مافيش ملخص AI محفوظ لهذه الرسالة؛ راجع النص الأصلي.";
+    el("viewer-ai-action").textContent = data.ai_suggested_action
+      ? "الإجراء المقترح · " + data.ai_suggested_action
+      : "مافيش إجراء مطلوب بشكل مؤكد.";
+    const labels = {action:"يحتاج إجراء",information:"للاطلاع",
+      low_priority:"أولوية منخفضة",manual_review:"مراجعة يدوية"};
+    el("viewer-category").textContent = labels[data.ai_category] || "غير مصنّف";
+    el("viewer-copy-summary").disabled = !data.ai_summary;
+    const selectable = informationRows.has(id);
+    el("viewer-select").disabled = !selectable;
+    el("viewer-delete").disabled = !selectable;
+    if (!selectable)
+      el("viewer-action-note").textContent =
+        "الرسالة محمية أو غير مؤهلة للنقل الجماعي إلى Trash.";
     el("viewer-title").textContent = data.subject || "بدون عنوان";
     el("viewer-from").textContent = data.from || "غير معروف";
     el("viewer-to").textContent = data.to || "غير معروف";
@@ -718,6 +751,9 @@ async function openMailViewer(id) {
     refreshViewerDocument();
   } catch (_) {
     if (requestGeneration !== viewerGeneration || !el("mail-viewer").open) return;
+    el("viewer-ai-summary").textContent =
+      viewerItem?.summary || "ملخص محفوظ غير متاح.";
+    el("viewer-ai-action").textContent = viewerItem?.suggested_action || "";
     el("viewer-title").textContent = "تعذر فتح الرسالة";
     el("viewer-note").textContent =
       "لم نقدر نقرأ محتوى الرسالة من Gmail حاليًا؛ تحقق من الاتصال وصلاحية Google.";
@@ -727,12 +763,42 @@ el("viewer-close").addEventListener("click", () => el("mail-viewer").close());
 el("mail-viewer").addEventListener("close", () => {
   viewerGeneration += 1;
   currentViewerMessage = null;
+  viewerItem = null;
+  for (const name of ["viewer-ai-summary","viewer-ai-action","viewer-category",
+                      "viewer-action-note"]) el(name).textContent = "";
+  for (const name of ["viewer-copy-summary","viewer-select","viewer-delete"])
+    el(name).disabled = true;
   for (const id of ["viewer-from","viewer-to","viewer-date","viewer-note"])
     el(id).textContent = "";
   el("viewer-attachments").replaceChildren();
   el("viewer-frame").srcdoc = "";
 });
 el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
+el("viewer-copy-summary").addEventListener("click", async () => {
+  const summary = currentViewerMessage?.ai_summary;
+  if (!summary) return;
+  try {
+    await navigator.clipboard.writeText(summary);
+    el("viewer-action-note").textContent = "تم نسخ التلخيص.";
+  } catch (_) {
+    el("viewer-action-note").textContent =
+      "نسخ الملخص غير متاح؛ تقدر تحدد النص وتنسخه يدويًا.";
+  }
+});
+el("viewer-select").addEventListener("click", () => {
+  const id = currentViewerMessage?.id;
+  if (!id || !informationRows.has(id)) return;
+  const next = new Set(selectedInfo);
+  next.add(id);
+  if (commitSelection(next))
+    el("viewer-action-note").textContent = "تمت إضافة الرسالة للتحديد.";
+});
+el("viewer-delete").addEventListener("click", async () => {
+  const id = currentViewerMessage?.id;
+  if (!id || !informationRows.has(id)) return;
+  await showTrashPreview([id]);
+});
+
 
 // Human-readable, safe diagnostics only. Never expose provider payloads,
 // private subjects, tokens or arbitrary exception strings in the UI.
@@ -759,6 +825,10 @@ const trashPreviewCodes = Object.freeze({
     "سبق محاولة نقل واحدة من الرسائل إلى Trash. راجع Gmail Trash يدويًا قبل أي إعادة محاولة.",
   "trash_unknown_classification":
     "واحدة من الرسائل تصنيفها غير مؤكد. راجعها منفردة.",
+  "trash_permission_disabled_reauthorize":
+    "يجب تفعيل صلاحية نقل Gmail إلى Trash مرة واحدة عبر OAuth باستخدام --enable-trash؛ إلغاء PIN لا يلغي صلاحية Google. (code: trash_permission_disabled_reauthorize)",
+  "trash_confirmation_expired_or_invalid":
+    "انتهت صلاحية التأكيد أو اتغيرت الرسائل. افتح معاينة Delete جديدة وراجع القائمة من الأول. (code: trash_confirmation_expired_or_invalid)",
   "trash_requires_1_to_20_unique_message_ids":
     "اختار من رسالة واحدة إلى 20 رسالة مختلفة.",
   "trash_untrusted_saved_evidence_invalid":
@@ -800,47 +870,52 @@ async function postTrashPreview(ids) {
   throw new Error(trashPreviewProblem(423, "mail_operation_already_running"));
 }
 
-el("trash-selected").addEventListener("click", async () => {
-  const ids = selectableInfoIds.filter((mid) => selectedInfo.has(mid));
+async function showTrashPreview(ids) {
   if (!ids.length || ids.length > 20) return;
   el("trash-selected").disabled = true;
-  el("trash-help").textContent = "جارٍ التأكد من العناوين والصلاحيات مباشرة من Gmail...";
+  el("trash-help").textContent = "جارٍ التأكد من العناوين مباشرة من Gmail...";
   try {
     const data = await postTrashPreview(ids);
-    if (data.count !== ids.length || !/^[a-f0-9]{64}$/.test(data.approval_digest))
+    if (data.count !== ids.length ||
+        !/^[a-f0-9]{64}$/.test(data.approval_digest) ||
+        typeof data.confirmation_token !== "string" ||
+        !/^[a-zA-Z0-9_-]{40,90}$/.test(data.confirmation_token))
       throw new Error("unsafe preview");
-    approvedTrash = {ids, digest:data.approval_digest};
+    approvedTrash = {
+      ids, digest:data.approval_digest, ticket:data.confirmation_token
+    };
     el("trash-preview-list").replaceChildren();
-    for (const message of data.items) {
-      el("trash-preview-list").append(text("p",
-        message.subject + " — " + message.sender));
-    }
-    el("trash-pin").value = "";
+    for (const message of data.items)
+      el("trash-preview-list").append(
+        text("p", message.subject + " — " + message.sender)
+      );
     el("trash-result").textContent = "";
     el("trash-dialog").showModal();
-    el("trash-help").textContent = "راجع العناوين من Gmail داخل نافذة التأكيد. " +
-      "Delete PIN مطلوب للنقل الفعلي إلى Trash.";
+    el("trash-help").textContent =
+      "راجع كل العناوين، واضغط تأكيد للنقل الفعلي إلى Trash. بدون PIN.";
   } catch (error) {
     approvedTrash = null;
+    const message = String(error?.message || "");
     el("trash-help").textContent =
-      error?.message && error.message.startsWith("تعذر") ||
-      error?.message && error.message.includes("(code:")
-        ? error.message
-        : trashPreviewProblem(500, "");
+      message.startsWith("تعذر") || message.includes("(code:")
+        ? message : trashPreviewProblem(500, "");
   } finally {
     el("trash-selected").disabled = selectedInfo.size === 0;
   }
+}
+el("trash-selected").addEventListener("click", async () => {
+  await showTrashPreview(selectableInfoIds.filter(
+    (mid) => selectedInfo.has(mid)
+  ));
 });
 el("trash-cancel").addEventListener("click", () => el("trash-dialog").close());
 el("trash-dialog").addEventListener("close", () => {
-  el("trash-pin").value = "";
   approvedTrash = null;
 });
 el("trash-confirm-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!approvedTrash) return;
-  const pin = el("trash-pin").value;
-  el("trash-pin").value = "";
+  // No PIN/password: this button is the explicit, user-reviewed confirmation.
   el("trash-confirm").disabled = true;
   el("trash-result").textContent = "جارٍ النقل إلى Trash...";
   try {
@@ -849,12 +924,13 @@ el("trash-confirm-form").addEventListener("submit", async (event) => {
       headers: {"Content-Type":"application/json"},
       body:JSON.stringify({
         ids: approvedTrash.ids, approval_digest:approvedTrash.digest,
-        confirmed:true,pin,
+        confirmation_token:approvedTrash.ticket, confirmed:true,
       }),
     });
     if (!response.ok) {
       const safe = await response.json();
-      throw new Error(safe?.detail || "provider operation failed");
+      const code = typeof safe?.detail === "string" ? safe.detail : "";
+      throw new Error(trashPreviewProblem(response.status, code));
     }
     const result = await response.json();
     if (result.status !== "confirmed_trash")
@@ -865,10 +941,14 @@ el("trash-confirm-form").addEventListener("submit", async (event) => {
     clearInformationSelection();
     load(true);
   } catch (error) {
-    // No silent retry. A Gmail network failure may mean a partial batch.
+    // Never retry a Gmail write: outcome could be partial/uncertain.
     el("trash-result").textContent =
-      "لم يتم تأكيد نقل كل الرسائل. راجع Gmail Trash قبل أي إعادة محاولة. " +
-      String(error.message).slice(0,90);
+      String(error.message).startsWith("يجب تفعيل") ||
+      String(error.message).includes("(code:") ||
+      String(error.message).startsWith("المتصفح")
+        ? String(error.message)
+        : "لم يتم تأكيد نقل كل الرسائل. راجع Gmail Trash قبل المحاولة مجددًا. " +
+          String(error.message).slice(0,120);
   } finally {
     el("trash-confirm").disabled = false;
   }
