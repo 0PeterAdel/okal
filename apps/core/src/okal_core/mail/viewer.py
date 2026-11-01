@@ -134,14 +134,14 @@ def read_native(store, mid):
                 plain = _text(body["data"], MAX_TEXT)
             elif kind in SAFE_IMAGE:
                 content_id = _header(part.get("headers", []), "Content-ID").strip("<>")
-                if not content_id:
-                    attachments.append({
-                        "name": str(part.get("filename", ""))[:180],
-                        "mime_type": kind, "inline": False,
-                    })
-                    continue
                 estimated = int(body.get("size") or 0)
                 if estimated > MAX_IMAGE or used + estimated > MAX_EMBEDDED_TOTAL:
+                    if not content_id:
+                        attachments.append({
+                            "name": str(part.get("filename") or "Large image")[:180],
+                            "mime_type": kind, "inline": False,
+                            "too_large_for_preview": True,
+                        })
                     continue
                 if body.get("data"):
                     raw = _decode_b64(body["data"], MAX_IMAGE)
@@ -158,10 +158,15 @@ def read_native(store, mid):
                 if used + len(raw) > MAX_EMBEDDED_TOTAL:
                     continue
                 used += len(raw)
-                images[content_id.casefold()] = (
-                    "data:" + kind + ";base64," +
-                    base64.b64encode(raw).decode("ascii")
-                )
+                data_url = ("data:" + kind + ";base64," +
+                            base64.b64encode(raw).decode("ascii"))
+                if content_id:
+                    images[content_id.casefold()] = data_url
+                else:
+                    attachments.append({
+                        "name": str(part.get("filename") or "Attached image")[:180],
+                        "mime_type": kind, "inline": False, "data_url": data_url,
+                    })
             elif part.get("filename"):
                 attachments.append({
                     "name": str(part.get("filename", ""))[:180],
