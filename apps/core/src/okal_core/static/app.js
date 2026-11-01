@@ -833,7 +833,7 @@ function newsletterImageUrl(value) {
   if (!value || value.length > 4096) return null;
   const decoded = value.replace(/&amp;/gi, "&")
     .replace(/&#(?:0*38|x0*26);/gi, "&");
-  return /^(?:https?:\\/\\/|\\/\\/)[^\\s<>"'\\x00-\\x1f]+$/i.test(decoded)
+  return /^(?:https?:\/\/|\/\/)[^\s<>"'\x00-\x1f]+$/i.test(decoded)
     ? decoded : null;
 }
 function newsletterAttr(tag, namePattern) {
@@ -847,7 +847,7 @@ function setNewsletterAttr(tag, name, value) {
     "\\s*=\\s*(?:([\"'])(.*?)\\1|[^\\s>]+)", "i");
   if (pattern.test(tag))
     return tag.replace(pattern, " " + name + '="' + safe + '"');
-  return tag.replace(/^<(img|source)\\b/i,
+  return tag.replace(/^<(img|source)\b/i,
     (head) => head + ' ' + name + '="' + safe + '"');
 }
 function newsletterSrcset(value) {
@@ -856,7 +856,7 @@ function newsletterSrcset(value) {
   if (!candidates.length || candidates.length > 8) return null;
   const cleaned = [];
   for (const candidate of candidates) {
-    const match = /^([^\\s]+)(?:\\s+([1-9][0-9]{0,4}(?:w|x)))?$/i.exec(candidate.trim());
+    const match = /^([^\s]+)(?:\s+([1-9][0-9]{0,4}(?:w|x)))?$/i.exec(candidate.trim());
     if (!match) return null;
     const url = newsletterImageUrl(match[1]);
     if (!url) return null;
@@ -865,9 +865,9 @@ function newsletterSrcset(value) {
   return cleaned.join(", ");
 }
 function enableConsentedLazyImages(html) {
-  return html.replace(/<(?:img|source)\\b[^>]*>/gi, (original) => {
+  return html.replace(/<(?:img|source)\b[^>]*>/gi, (original) => {
     let tag = original;
-    if (/^<img\\b/i.test(tag)) {
+    if (/^<img\b/i.test(tag)) {
       const lazy = newsletterAttr(tag, "data-(?:src|original|lazy-src)");
       const src = newsletterImageUrl(lazy);
       if (src) tag = setNewsletterAttr(tag, "src", src);
