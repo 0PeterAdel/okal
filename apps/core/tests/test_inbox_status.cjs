@@ -555,6 +555,62 @@ test("AI Reply Send never runs without exact native preview and separate owner c
   assert.equal(get("viewer-reply-send").disabled,true);
 });
 
+test("Unified Planner renders due tasks, reminder state and Cairo agenda", () => {
+  const {context,get}=harness();
+  context.renderPlanner({counts:{today:1,overdue:2,upcoming:3,unscheduled:4}});
+  assert.match(get("planner-today").textContent,/1/);
+  assert.match(get("planner-overdue").textContent,/2/);
+  assert.match(get("planner-upcoming").textContent,/3/);
+  context.renderTasks({total_in_sample:1,overdue_in_sample:1,items:[{
+    id:"a".repeat(32),title:"راجع المشروع",notes:"مراجعة",
+    status:"open",due_at:1793500000,source_link:null,
+    reminder:{lead_minutes:15,status:"scheduled"}
+  }]});
+  assert.equal(get("tasks-list").children.length,1);
+  const card=get("tasks-list").children[0];
+  assert.equal(card.children[0].textContent,"راجع المشروع");
+  assert.match(card.children.find(x=>x.className==="task-reminder-state").textContent,/15/);
+  assert.equal(card.children.at(-1).children.length,3);
+});
+
+test("Planner create sends only explicit due and reminder to SQLite API", async () => {
+  let captured=null;
+  const {context,get}=harness(async (url,options)=>{
+    if(url==="/api/v1/tasks/create"){
+      captured=JSON.parse(options.body);
+      return response({task_id:"b".repeat(32),status:"open"});
+    }
+    if(url.startsWith("/api/v1/summaries"))
+      return response({items:[],next_cursor:null,fetched_at:1793500000});
+    if(url==="/api/v1/capabilities")
+      return response({read_key_required:false,mail:configured});
+    return response({items:[],counts:{},total_in_sample:0,
+      status_filter:"open",overdue_in_sample:0,
+      greeting:"Hello",spoken_text:"Morning"});
+  });
+  get("task-new-title").value="تجربة";
+  get("task-new-notes").value="مهمة محلية";
+  get("task-new-due").value="2026-11-03T13:30";
+  get("task-new-reminder").value="15";
+  await get("task-create-form").handlers.submit({preventDefault(){}});
+  assert.equal(captured.title,"تجربة");
+  assert.equal(captured.notes,"مهمة محلية");
+  assert.equal(captured.reminder_minutes,15);
+  assert.match(captured.due,/^2026-11-03T/);
+  assert.equal(get("task-new-title").value,"");
+});
+
+test("Planner refuses reminder without an owner-entered due", async () => {
+  let writes=0;
+  const {get}=harness(async ()=>{writes++;return response({});});
+  get("task-new-title").value="Future";
+  get("task-new-due").value="";
+  get("task-new-reminder").value="60";
+  await get("task-create-form").handlers.submit({preventDefault(){}});
+  assert.equal(writes,0);
+  assert.match(get("task-create-feedback").textContent,/اختار موعد/);
+});
+
 test("morning rendering resets private text on hide", () => {
   const { context, get } = harness();
   context.renderMorning({
