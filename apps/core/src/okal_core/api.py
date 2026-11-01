@@ -69,7 +69,9 @@ def create_app(
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
                 "/api/v1/mail/tasks/from-message",
                 "/api/v1/mail/reply-drafts/generate",
-                "/api/v1/mail/reply-drafts/revise"
+                "/api/v1/mail/reply-drafts/revise",
+                "/api/v1/mail/reply-drafts/preview-send",
+                "/api/v1/mail/reply-drafts/confirm-send"
             }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
@@ -540,7 +542,7 @@ def create_app(
         payload = await action_payload(request, {"message_id","language"})
         mid, language = payload["message_id"], payload["language"]
         if (not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid)
-                or language not in {"ar","en"}):
+                or not isinstance(language,str) or language not in {"ar","en"}):
             raise HTTPException(400,"invalid_reply_request")
         try:
             with locked(store):
@@ -598,6 +600,77 @@ def create_app(
             return {"status":"revised_draft_saved_local_only","draft_id":updated,
                     "sent":False}
         except (MailError,ValueError) as exc:
+            raise action_failure(exc) from None
+
+    @app.post("/api/v1/mail/reply-drafts/preview-send")
+    async def preview_owner_send(request: Request):
+        """Read exact local draft; preview is NOT a Gmail send."""
+        from .mail.private import config
+        from .mail.contracts import MailError, Draft
+        from .mail.state import MailState
+
+        payload = await action_payload(request, {"draft_id"})
+        key = payload["draft_id"]
+        if not isinstance(key, str) or not re.fullmatch(r"[a-f0-9]{32}",key):
+            raise HTTPException(400, "invalid_send_draft_id")
+        try:
+            cfg = config(store)
+            if not cfg.trash_enabled:
+                raise MailError("gmail_modify_scope_required")
+            state = MailState(store)
+            old = state.draft(key)
+            if old["account"] != cfg.account.casefold():
+                raise MailError("wrong_draft_account")
+            exact = state.preview(key)
+            draft = Draft.model_validate(exact["draft"])
+            # All recipient and body fields are validated from trusted
+            # owner-owned drafts, never from a supplied browser send body.
+            nonce = approvals.issue(["send",key], exact["approval_digest"])
+            return {
+                "draft_id":key, "recipient":draft.recipient,
+                "subject":draft.subject,"body":draft.body,
+                "approval_digest":exact["approval_digest"],
+                "confirmation_token":nonce,"expires_seconds":120,
+                "external_writes":False, "owner_review_required":True,
+                "warning":"This will SEND an email. Verify recipient, claims and commitments. No attachments/reply-all.",
+            }
+        except (MailError,ValueError) as exc:
+            raise action_failure(exc) from None
+
+    @app.post("/api/v1/mail/reply-drafts/confirm-send")
+    async def confirm_owner_send(request: Request):
+        """Two-step owner-approved Gmail send; never retry an uncertain result."""
+        from .mail.private import config, locked
+        from .mail.contracts import MailError
+        from .mail.provider import Gmail
+        from .mail.workflows import send_reviewed
+
+        payload = await action_payload(request,
+            {"draft_id","approval_digest","confirmation_token","confirmed"})
+        key, digest, ticket = (payload["draft_id"],
+                              payload["approval_digest"],
+                              payload["confirmation_token"])
+        if (payload["confirmed"] is not True
+            or not isinstance(key,str) or not re.fullmatch(r"[a-f0-9]{32}",key)
+            or not isinstance(digest,str) or not re.fullmatch(r"[a-f0-9]{64}",digest)
+            or not isinstance(ticket,str) or not 40 <= len(ticket) <= 90):
+            raise HTTPException(400, "invalid_send_confirmation")
+        try:
+            with locked(store):
+                cfg = config(store)
+                if not cfg.trash_enabled:
+                    raise MailError("gmail_modify_scope_required")
+                # The Google gmail.modify scope includes Gmail send, but do
+                # not turn on autonomous/CLI send in persistent config.
+                api = Gmail.open(store,cfg,trashing=True)
+                try:
+                    if not approvals.consume(["send",key],digest,ticket):
+                        raise MailError("mail_send_confirmation_expired")
+                    verified_cfg = cfg.model_copy(update={"send_enabled":True})
+                    return send_reviewed(store,verified_cfg,api,key,digest)
+                finally:
+                    api.close()
+        except MailError as exc:
             raise action_failure(exc) from None
 
     @app.get("/api/v1/mail/assistant")
