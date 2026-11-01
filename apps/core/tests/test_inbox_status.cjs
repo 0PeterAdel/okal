@@ -344,6 +344,45 @@ test("on-demand original MIME viewer stays sandboxed and remote images opt-in", 
   assert.equal(get("viewer-frame").srcdoc,"");
 });
 
+test("preview surfaces actual safe Gmail lock reason instead of generic OAuth warning", async () => {
+  let attempts = 0;
+  const {context,get} = harness(async (url) => {
+    assert.equal(url, "/api/v1/mail/trash/preview");
+    attempts++;
+    return response({detail:"mail_operation_already_running"},423);
+  });
+  context.renderTriage({items:[{
+    id:"aa", category:"information", labels:["INBOX"], sender:"Updates",
+    subject:"Notice", summary:"",link:"#inbox-panel",
+  }]});
+  const row = get("triage-groups").children[0].children[1];
+  row.handlers.click({target:{closest(){return null;}}});
+  await get("trash-selected").handlers.click();
+  assert.equal(attempts,3);
+  assert.match(get("trash-help").textContent,/المزامنة التلقائية/);
+  assert.match(get("trash-help").textContent,/mail_operation_already_running/);
+  assert.equal(get("trash-dialog").open,undefined);
+});
+
+test("preview surfaces provider and protection errors without exposing arbitrary server data", async () => {
+  let current = "trash_native_metadata_changed_or_protected";
+  const {context,get} = harness(async () =>
+    response({detail:current},409));
+  context.renderTriage({items:[{
+    id:"aa",category:"action",labels:["INBOX"],sender:"Updates",
+    subject:"Review",summary:"",link:"#inbox-panel",
+  }]});
+  get("triage-groups").children[0].children[1].handlers.click({
+    target:{closest(){return null;}}
+  });
+  await get("trash-selected").handlers.click();
+  assert.match(get("trash-help").textContent,/اتغير عنوانها أو علاماتها/);
+  current = "PRIVATE_REFRESH_TOKEN_HIDDEN_123";
+  await get("trash-selected").handlers.click();
+  assert.doesNotMatch(get("trash-help").textContent,/PRIVATE_REFRESH_TOKEN/);
+  assert.match(get("trash-help").textContent,/HTTP 409/);
+});
+
 test("Delete previews exact native subjects then requires local PIN and consent", async () => {
   const digest="a".repeat(64);
   let previewed=false,deleted=false;
