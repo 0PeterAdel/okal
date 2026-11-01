@@ -17,6 +17,7 @@ from .mail.contracts import Insight
 from .mail.private import config
 from .mail.workflows import source_link
 from .mail.owner_voice import owner_voice
+from .mail.inbox_visibility import excluded_sql
 
 CAIRO = ZoneInfo("Africa/Cairo")
 
@@ -119,6 +120,7 @@ def morning_brief(store):
                         SELECT 1 FROM mail_action_events a
                         WHERE a.account=i.account AND a.message_id=i.message_id
                           AND a.action='archive' AND a.status='confirmed')"""
+                excluded += excluded_sql("i", tables)
                 rows = db.execute(
                     """SELECT i.message_id,i.metadata,i.insight
                        FROM mail_sync_insights i
