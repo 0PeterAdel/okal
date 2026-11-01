@@ -441,6 +441,73 @@ test("Delete previews native subjects then requires one explicit confirmation cl
   assert.equal(get("trash-dialog").open,false);
 });
 
+test("Mail Agent previews Gmail action and writes only after explicit confirmation", async () => {
+  const events=[];
+  const original={id:"aa",subject:"Native subject",from:"sender@example.com",
+    to:"owner@example.com",date:"Today",html:"<b>Safe content</b>",
+    labels:["INBOX","UNREAD"],ai_summary:"Review this",ai_category:"action",
+    ai_suggested_action:"Reply",attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"};
+  const {context,get}=harness(async (url, options)=>{
+    events.push(url);
+    if(url==="/api/v1/mail/messages/aa") return response(original);
+    if(url==="/api/v1/mail/actions/preview")
+      return response({action:"mark_read", count:1,
+        approval_digest:"a".repeat(64),confirmation_token:"A".repeat(43),
+        items:[{id:"aa",subject:"Native subject",labels:["INBOX","UNREAD"]}]});
+    if(url==="/api/v1/mail/actions/commit"){
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.action,"mark_read");
+      assert.equal(payload.confirmed,true);
+      return response({status:"confirmed",action:"mark_read",count:1});
+    }
+    return response({});
+  });
+  await context.openMailViewer("aa");
+  assert.equal(get("viewer-mark-read").disabled,false);
+  assert.equal(get("viewer-archive").disabled,false);
+  await get("viewer-mark-read").handlers.click();
+  assert.equal(get("mail-action-dialog").open,true);
+  assert.equal(events.filter(x=>x==="/api/v1/mail/actions/commit").length,0);
+  await get("mail-action-confirm").handlers.click();
+  assert.equal(events.filter(x=>x==="/api/v1/mail/actions/commit").length,1);
+  assert.equal(get("viewer-mark-read").disabled,true);
+  assert.equal(get("viewer-mark-unread").disabled,false);
+});
+
+test("Mail Agent task from email stays local and reply draft remains editable", async () => {
+  const events=[];
+  const native={id:"aa",subject:"Project update",
+    from:"Sender <sender@example.com>",to:"owner@example.com",
+    date:"Today",html:"<p>Hello</p>",labels:["INBOX"],
+    ai_summary:"Task needed",ai_category:"action",ai_suggested_action:"Review",
+    attachments:[],gmail_link:"https://mail.google.com/mail/#all/aa"};
+  const {context,get}=harness(async (url,options)=>{
+    events.push(url);
+    if(url==="/api/v1/mail/messages/aa") return response(native);
+    if(url==="/api/v1/mail/tasks/from-message")
+      return response({status:"open",task_id:"b".repeat(32)});
+    if(url==="/api/v1/mail/reply-drafts/generate")
+      return response({draft_id:"a".repeat(32),recipient:"sender@example.com",
+        subject:"Project update",body:"Thanks. I'll review.",sent:false});
+    if(url==="/api/v1/mail/reply-drafts/revise")
+      return response({draft_id:"c".repeat(32),status:"revised_draft_saved_local_only",
+        sent:false});
+    return response({});
+  });
+  await context.openMailViewer("aa");
+  await get("viewer-create-task").handlers.click();
+  assert.match(get("viewer-action-note").textContent,/Task محلي/);
+  get("viewer-reply-language").value="en";
+  await get("viewer-reply-generate").handlers.click();
+  assert.equal(get("viewer-reply-body").value,"Thanks. I'll review.");
+  assert.equal(get("viewer-reply-save").disabled,false);
+  get("viewer-reply-body").value="Thank you for your email.";
+  await get("viewer-reply-save").handlers.click();
+  assert.match(get("viewer-reply-state").textContent,/حفظ مسودة جديدة/);
+  assert.equal(events.some(x=>x.includes("/send")),false);
+});
+
 test("morning rendering resets private text on hide", () => {
   const { context, get } = harness();
   context.renderMorning({
