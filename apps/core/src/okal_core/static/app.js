@@ -873,6 +873,22 @@ function setViewerFocus(value) {
     ? "الرجوع للتفاصيل" : "توسيع القراءة";
   el("viewer-focus-toggle").setAttribute("aria-pressed", String(viewerFocus));
 }
+function syncViewerImageButton() {
+  const external = currentViewerMessage?.external_images_detected === true;
+  const enabled = el("viewer-remote-images").checked;
+  const button = el("viewer-load-images");
+  button.disabled = !external;
+  button.textContent = !external ? "لا توجد صور خارجية" :
+    enabled ? "إخفاء الصور الخارجية" : "عرض صور الرسالة";
+  button.setAttribute("aria-pressed",String(enabled));
+}
+el("viewer-load-images").addEventListener("click", () => {
+  if (!currentViewerMessage || !currentViewerMessage.external_images_detected) return;
+  // User activation deliberately changes the same per-message consent box.
+  el("viewer-remote-images").checked = !el("viewer-remote-images").checked;
+  refreshViewerDocument();
+});
+
 function imageDisplayStatus(message, remote, pending=false) {
   const internal = Number(message.inline_images) || 0;
   const skipped = Number(message.skipped_inline_images) || 0;
@@ -889,6 +905,7 @@ function imageDisplayStatus(message, remote, pending=false) {
 }
 function refreshViewerDocument() {
   if (!currentViewerMessage) return;
+  syncViewerImageButton();
   const remote = el("viewer-remote-images").checked;
   el("viewer-image-status").textContent =
     imageDisplayStatus(currentViewerMessage, remote, true);
@@ -933,6 +950,9 @@ async function openMailViewer(item) {
   el("viewer-attachments").replaceChildren();
   el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
   el("viewer-remote-images").checked = false;
+  el("viewer-load-images").disabled = true;
+  el("viewer-load-images").textContent = "عرض صور الرسالة";
+  el("viewer-load-images").setAttribute("aria-pressed","false");
   el("viewer-image-status").textContent =
     "صور Gmail الداخلية تظهر تلقائيًا؛ الصور الخارجية محجوبة لحماية الخصوصية.";
   setViewerFocus(false);
@@ -1030,6 +1050,9 @@ el("mail-viewer").addEventListener("close", () => {
   el("viewer-frame").srcdoc = "";
   el("viewer-image-status").textContent = "";
   el("viewer-remote-images").checked = false;
+  el("viewer-load-images").disabled = true;
+  el("viewer-load-images").textContent = "عرض صور الرسالة";
+  el("viewer-load-images").setAttribute("aria-pressed","false");
   setViewerFocus(false);
 });
 el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
