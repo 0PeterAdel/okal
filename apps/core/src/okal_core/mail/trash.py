@@ -51,6 +51,21 @@ def _read_record(store, account, mid):
     if prior:
         raise MailError("trash_previously_attempted_or_confirmed_review_gmail")
     if row is None:
+        # User may explicitly review a quarantined message in the native
+        # viewer; its *native* subject is shown in approval preview.
+        with store.connect() as db:
+            tables = {x[0] for x in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+            quarantined = (
+                db.execute("SELECT 1 FROM mail_sync_quarantine "
+                           "WHERE account=? AND message_id=? LIMIT 1",
+                           (account, mid)).fetchone()
+                if "mail_sync_quarantine" in tables else None
+            )
+        if quarantined:
+            return {"id": mid, "subject": None, "sender": "Gmail",
+                    "labels": []}
         raise MailError("trash_source_not_in_saved_inbox")
     try:
         metadata = json.loads(row["metadata"])
@@ -93,9 +108,10 @@ def _native(api, mid, saved):
         )) if len(subjects) == 1 and isinstance(subjects[0], str) else None
     )
     if (row.get("id") != mid or labels & EXCLUDED or len(subjects) != 1
-            or decoded != saved["subject"]):
+            or not decoded or
+            (saved.get("subject") is not None and decoded != saved["subject"])):
         raise MailError("trash_native_metadata_changed_or_protected")
-    return labels
+    return {"labels": labels, "subject": decoded}
 
 
 def preview(store, cfg, api, selected_ids):
@@ -104,8 +120,8 @@ def preview(store, cfg, api, selected_ids):
     items = []
     for mid in mids:
         saved = _read_record(store, account, mid)
-        _native(api, mid, saved)
-        items.append({"id": mid, "subject": saved["subject"][:160],
+        native = _native(api, mid, saved)
+        items.append({"id": mid, "subject": native["subject"][:160],
                       "sender": str(saved.get("sender", ""))[:120]})
     digest = sha256(json.dumps(
         [account, [(item["id"], item["subject"]) for item in items]],
