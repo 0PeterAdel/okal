@@ -72,3 +72,4 @@ agent-work/
 owner-profile.json
 job.private.json
 .venv-okal-agents/
+.venv-okal-core/
