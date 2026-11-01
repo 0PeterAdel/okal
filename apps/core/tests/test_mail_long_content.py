@@ -14,7 +14,7 @@ from okal_core.mail.history import HistoryState, run, recent_quarantines, recent
 from okal_core.mail.inference import (
     LocalModel, _bounded_email_sections, LONG_EMAIL_MAX_CHUNKS
 )
-from okal_core.mail.provider import parse_full
+from okal_core.mail.provider import parse_full, Gmail
 from okal_core.store import Store
 
 
@@ -79,6 +79,28 @@ class LongMailTests(unittest.TestCase):
         self.assertLess(model.calls[-1][1]["examined_chars"],len(body))
         self.assertFalse(model.calls[-1][2])
         self.assertTrue(all(x[2] for x in model.calls[:-1]))
+
+    def test_inline_text_attachment_is_read_only_and_does_not_fetch_files(self):
+        body="Long native plain email text. "*600
+        row=raw_message(body)
+        encoded=row["payload"]["body"]["data"]
+        row["payload"]["body"]={"attachmentId":"body123","size":len(body)}
+        # Gmail often returns long message content in MIME attachmentId.
+        service=MagicMock()
+        get=service.users.return_value.messages.return_value.get
+        get.return_value.execute.return_value=row
+        attachments=service.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.return_value.execute.return_value={"data":encoded}
+        api=Gmail(service)
+        fetched=api.get_optional("ab")
+        self.assertIsNotNone(fetched)
+        self.assertEqual(fetched.body_total_chars,len(body.strip()))
+        self.assertFalse(fetched.truncated)
+        self.assertEqual(attachments.return_value.get.call_count,1)
+        self.assertEqual(attachments.return_value.get.call_args.kwargs["messageId"],"ab")
+        # Standalone pure parser never fetches attachment bytes implicitly.
+        with self.assertRaisesRegex(MailError,"body_requires_attachment_fetch_manual_review"):
+            parse_full(row)
 
     def test_small_message_uses_single_pass_and_preserves_source_identity(self):
         message=parse_full(raw_message("Please review the attached draft."))
