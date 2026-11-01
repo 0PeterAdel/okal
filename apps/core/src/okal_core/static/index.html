@@ -178,8 +178,31 @@
             <button id="viewer-copy-summary" class="btn-secondary" type="button" disabled>نسخ الملخص</button>
             <button id="viewer-select" class="btn-secondary" type="button" disabled>إضافة للتحديد</button>
             <button id="viewer-delete" class="btn-danger-soft" type="button" disabled>نقل إلى Trash</button>
+            <button id="viewer-mark-read" class="btn-secondary" type="button" disabled>Mark Read</button>
+            <button id="viewer-mark-unread" class="btn-secondary" type="button" disabled>Mark Unread</button>
+            <button id="viewer-archive" class="btn-secondary" type="button" disabled>Archive</button>
+            <button id="viewer-create-task" class="btn-secondary" type="button" disabled>إنشاء Task</button>
             <span id="viewer-action-note" class="muted" role="status"></span>
           </div>
+          <details id="viewer-reply-panel" class="viewer-reply-panel">
+            <summary>AI Reply Draft · إنشاء رد محلي للمراجعة</summary>
+            <p class="muted">بيستخدم Ollama المحلي فقط. الرد مش هيتبعت تلقائيًا، ولازم تراجع الحقائق والمستلم قبل نسخه أو إرساله لاحقًا.</p>
+            <div class="reply-tools">
+              <label for="viewer-reply-language">لغة الرد</label>
+              <select id="viewer-reply-language">
+                <option value="ar">العربية</option>
+                <option value="en">English</option>
+              </select>
+              <button id="viewer-reply-generate" class="btn-secondary" type="button" disabled>توليد مسودة</button>
+            </div>
+            <p id="viewer-reply-to" class="muted"></p>
+            <textarea id="viewer-reply-body" rows="7" maxlength="8000" placeholder="مسودة قابلة للتعديل، لن يتم إرسالها تلقائيًا" spellcheck="true"></textarea>
+            <div class="reply-tools">
+              <button id="viewer-reply-save" class="btn-secondary" type="button" disabled>حفظ التعديل محليًا</button>
+              <button id="viewer-reply-copy" class="btn-secondary" type="button" disabled>نسخ الرد</button>
+              <span id="viewer-reply-state" role="status" class="muted"></span>
+            </div>
+          </details>
           <div class="viewer-meta">
             <p><strong>من:</strong> <span id="viewer-from"></span></p>
             <p><strong>إلى:</strong> <span id="viewer-to"></span></p>
@@ -192,6 +215,17 @@
           <p id="viewer-note" class="muted">HTML داخل صندوق معزول؛ JavaScript والروابط التلقائية ممنوعة.</p>
           <iframe id="viewer-frame" sandbox="" referrerpolicy="no-referrer" title="محتوى البريد الأصلي المعزول"></iframe>
           <div id="viewer-attachments" class="viewer-attachments"></div>
+        </dialog>
+
+        <dialog id="mail-action-dialog" class="okal-dialog trash-dialog" aria-labelledby="mail-action-title">
+          <div class="dialog-header">
+            <div><p class="overline">GMAIL ACTION PREVIEW</p><h2 id="mail-action-title">مراجعة الإجراء</h2></div>
+            <button id="mail-action-cancel" class="btn-secondary" type="button">إلغاء</button>
+          </div>
+          <p class="muted">سيتم تعديل Gmail فقط بعد الضغط على زر التأكيد. لا يقوم OKAL بإعادة محاولة التعديل تلقائيًا.</p>
+          <div id="mail-action-preview-list" class="preview-list"></div>
+          <p id="mail-action-result" role="status" aria-live="polite"></p>
+          <button id="mail-action-confirm" class="btn-danger-soft" type="button">تأكيد الإجراء في Gmail</button>
         </dialog>
 
         <dialog id="trash-dialog" class="okal-dialog trash-dialog" aria-labelledby="delete-title">
