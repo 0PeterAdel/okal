@@ -225,7 +225,6 @@
           <div class="dialog-header">
             <div><p class="overline">ORIGINAL GMAIL MESSAGE</p><h2 id="viewer-title">قراءة الرسالة داخل OKAL</h2></div>
             <div class="viewer-header-buttons">
-              <button id="viewer-load-images" class="btn-primary" type="button" disabled aria-pressed="false">عرض صور الرسالة</button>
               <button id="viewer-focus-toggle" class="btn-secondary" type="button" aria-pressed="false">توسيع القراءة</button>
               <button id="viewer-close" class="btn-secondary" type="button">إغلاق</button>
             </div>
@@ -286,12 +285,10 @@
             <p><strong>بتاريخ:</strong> <span id="viewer-date"></span></p>
           </div>
           <div class="viewer-tools">
-            <label><input id="viewer-remote-images" type="checkbox" /> تحميل صور الرسالة الخارجية (قد تُبلّغ المرسل بفتح البريد)</label>
-            <label><input id="viewer-remember-images" type="checkbox" /> تذكّر سماحي بتحميل الصور الخارجية للرسائل القادمة في هذا المتصفح (قد يسمح بتتبّع الفتح)</label>
-            <span id="viewer-image-status" role="status" aria-live="polite" class="viewer-image-status">صور Gmail الداخلية تظهر تلقائيًا؛ الصور الخارجية محجوبة لحماية الخصوصية.</span>
+            <span id="viewer-image-status" role="status" aria-live="polite" class="viewer-image-status">الصور الخارجية مفعّلة تلقائيًا لكل رسالة عند فتحها، وقد تؤدي لتتبّع قراءة البريد.</span>
             <a id="viewer-gmail" href="#inbox-panel" target="_blank" rel="noopener noreferrer">فتح في Gmail</a>
           </div>
-          <p id="viewer-note" class="muted">HTML داخل صندوق معزول؛ JavaScript والروابط التلقائية ممنوعة.</p>
+          <p id="viewer-note" class="muted">HTML داخل صندوق معزول؛ الصور الخارجية تُحمّل تلقائيًا بينما JavaScript والروابط التلقائية ممنوعة.</p>
           <iframe id="viewer-frame" sandbox="" referrerpolicy="no-referrer" title="محتوى البريد الأصلي المعزول" loading="eager"></iframe>
           <div id="viewer-attachments" class="viewer-attachments"></div>
         </dialog>
