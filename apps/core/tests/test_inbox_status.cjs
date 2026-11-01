@@ -447,8 +447,8 @@ test("Native newsletter respects image privacy and single-scroll focus reader", 
   const mail={
     id:"aa",subject:"Newsletter",from:"courses@example.com",to:"owner@example.com",
     date:"Today",labels:["INBOX"],
-    html:'<!doctype html><html><head><style>td{color:red}</style></head>'+
-      '<body><table><tr><td><img src="https://images.example/logo.png"></td></tr></table></body></html>',
+    html:'<!doctype html><html lang="en"><head><style>td{color:red}</style></head>'+
+      '<body bgcolor="#f7f7f7"><table><tr><td><img src="https://images.example/logo.png"></td></tr></table></body></html>',
     inline_images:2,skipped_inline_images:1,external_images_detected:true,
     ai_summary:"Review",ai_suggested_action:"",ai_category:"information",
     gmail_link:"https://mail.google.com/mail/#all/aa",attachments:[]
@@ -466,22 +466,56 @@ test("Native newsletter respects image privacy and single-scroll focus reader", 
   assert.match(get("viewer-frame").srcdoc,/script-src &#39;none&#39;/);
   assert.equal((get("viewer-frame").srcdoc.match(/<html\b/g)||[]).length,1);
   assert.match(get("viewer-frame").srcdoc,/<style>td{color:red}<\/style>/);
+  assert.match(get("viewer-frame").srcdoc,/<body bgcolor="#f7f7f7">/);
+  assert.match(get("viewer-frame").srcdoc,/<html lang="en">/);
+  assert.equal(get("viewer-load-images").disabled,false);
+  assert.equal(get("viewer-load-images").attributes["aria-pressed"],"false");
   assert.match(get("viewer-image-status").textContent,/محجوبة/);
   // No explicit remote consent => the browser CSP forbids external pixels.
   get("viewer-focus-toggle").handlers.click();
   assert.equal(get("viewer-focus-toggle").attributes["aria-pressed"],"true");
   assert.match(get("viewer-focus-toggle").textContent,/الرجوع/);
-  get("viewer-remote-images").checked=true;
-  get("viewer-remote-images").handlers.change();
-  assert.match(get("viewer-frame").srcdoc,/img-src data: https:/);
+  get("viewer-load-images").handlers.click();
+  assert.equal(get("viewer-remote-images").checked,true);
+  assert.equal(get("viewer-load-images").attributes["aria-pressed"],"true");
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
   assert.match(get("viewer-image-status").textContent,/تم السماح/);
   get("viewer-frame").handlers.load();
   assert.doesNotMatch(get("viewer-image-status").textContent,/جارٍ تحميل/);
   get("mail-viewer").close();
   assert.equal(get("viewer-remote-images").checked,false);
+  assert.equal(get("viewer-load-images").attributes["aria-pressed"],"false");
   assert.equal(get("viewer-focus-toggle").attributes["aria-pressed"],"false");
   await context.openMailViewer("aa");
   assert.equal(reads,2);
+  assert.equal(get("viewer-remote-images").checked,false);
+  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+});
+
+test("Lazy marketing images stay inert until owner explicitly presses Load Images", async () => {
+  const mail={
+    id:"aa",subject:"LinkedIn summary",from:"notification@example.com",
+    to:"owner@example.com",date:"Today",labels:["INBOX"],
+    html:'<html><head><style>.hero{width:600px}</style></head>'+
+      '<body bgcolor="#ffffff"><img data-src="https://cdn.example/logo.png" '+
+      'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">'+
+      '<meta http-equiv="refresh" content="0;url=https://evil.example/"></body></html>',
+    inline_images:0,skipped_inline_images:0,external_images_detected:true,
+    ai_summary:"Update",ai_suggested_action:"",ai_category:"information",
+    gmail_link:"https://mail.google.com/mail/#all/aa",attachments:[]
+  };
+  const {context,get}=harness(async () => response(mail));
+  await context.openMailViewer("aa");
+  const before=get("viewer-frame").srcdoc;
+  assert.match(before,/data-src="https:\/\/cdn.example\/logo.png"/);
+  assert.doesNotMatch(before,/src="https:\/\/cdn.example\/logo.png"/);
+  assert.doesNotMatch(before,/http-equiv="refresh"/);
+  assert.match(before,/img-src data:;/);
+  get("viewer-load-images").handlers.click();
+  const after=get("viewer-frame").srcdoc;
+  assert.match(after,/src="https:\/\/cdn.example\/logo.png"/);
+  assert.match(after,/img-src data: https: http:/);
+  get("viewer-load-images").handlers.click();
   assert.equal(get("viewer-remote-images").checked,false);
   assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
 });
