@@ -159,6 +159,15 @@ class GmailBrowserOAuthTests(unittest.TestCase):
                 finally:
                     temp.cleanup()
 
+    def test_modify_scope_cannot_satisfy_send_permission(self):
+        self.setup(send=True, scopes=[MODIFY])
+        old = read_private(root(self.store) / "token.json")
+        web, fake, _ = self.flow(scopes=[MODIFY])
+        with self.assertRaisesRegex(MailError, "gmail_scope_config_mismatch"):
+            web.start(self.store, "localhost:8766")
+        self.assertEqual(read_private(root(self.store) / "token.json"), old)
+        self.assertEqual(fake.exchanges, 0)
+
     def test_account_mismatch_keeps_old_token_and_settings(self):
         self.setup(scopes=[READ, SEND], send=True)
         before = read_private(root(self.store) / "token.json")

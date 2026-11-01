@@ -73,7 +73,8 @@ def _current_scopes(store, cfg):
         if set(scopes) not in ({READ}, {READ, SEND}, {MODIFY}):
             raise MailError("gmail_scope_config_mismatch")
     granted = set(scopes)
-    if cfg.send_enabled and SEND not in granted and MODIFY not in granted:
+    # gmail.modify does NOT grant gmail.send. Never confuse these modes.
+    if cfg.send_enabled and SEND not in granted:
         raise MailError("gmail_scope_config_mismatch")
     if cfg.trash_enabled and MODIFY not in granted:
         raise MailError("gmail_scope_config_mismatch")
