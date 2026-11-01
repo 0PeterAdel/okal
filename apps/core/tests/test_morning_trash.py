@@ -227,10 +227,10 @@ class MorningAndTrashTests(unittest.TestCase):
         with self.assertRaisesRegex(MailError, "previously_attempted"):
             preview(self.store, self.cfg, self.api, ["aa"])
 
-    def test_non_information_and_protected_labels_can_never_be_trashed(self):
+    def test_action_mail_can_be_owner_reviewed_but_protected_labels_still_blocked(self):
         self.insert("aa", category="action")
-        with self.assertRaisesRegex(MailError, "only_information"):
-            preview(self.store, self.cfg, self.api, ["aa"])
+        review = preview(self.store, self.cfg, self.api, ["aa"])
+        self.assertEqual(review["status"], "approval_required")
         self.insert("bb", labels=["INBOX", "STARRED"])
         with self.assertRaisesRegex(MailError, "protected"):
             preview(self.store, self.cfg, self.api, ["bb"])
