@@ -152,8 +152,12 @@ def parse_message(row: dict) -> Message:
         raise MailError("unreadable_message") from None
 
 
-def parse_full(row):
-    """Full Gmail payload: attachment IDs are NEVER fetched or passed to the model."""
+def parse_full(row, text_attachment_fetch=None):
+    """Parse native Gmail MIME. Only attachment-backed inline BODY text can be fetched.
+
+    File attachments are NEVER read or passed to the model. Text attachment
+    parts need a separate read-only Gmail request on some long messages.
+    """
     try:
         payload = row["payload"]
         headers = {}
@@ -189,9 +193,20 @@ def parse_full(row):
                 return
             body = part.get("body", {})
             if mime in {"text/plain", "text/html"}:
-                if body.get("attachmentId"):
-                    raise MailError("body_requires_attachment_fetch_manual_review")
                 encoded = body.get("data", "")
+                if body.get("attachmentId") and not encoded:
+                    aid = body["attachmentId"]
+                    if (not isinstance(aid, str)
+                            or not re.fullmatch(r"[A-Za-z0-9_-]{1,1024}", aid)):
+                        raise MailError("invalid_text_body_attachment_id")
+                    if (not isinstance(body.get("size"), int)
+                            or not 0 <= body["size"] <= 3 * 1024 * 1024):
+                        raise MailError("message_exceeds_size_budget")
+                    if text_attachment_fetch is None:
+                        raise MailError("body_requires_attachment_fetch_manual_review")
+                    # Fetch only non-file text/plain or text/html MIME body
+                    # fragments, never arbitrary user-supplied attachments.
+                    encoded = text_attachment_fetch(aid)
                 encoded_bytes += len(encoded)
                 # Large HTML newsletters often contain formatting/quoted
                 # thread history. Decode within a hard 4 MiB MIME budget and
@@ -534,6 +549,19 @@ class Gmail:
             raise MailError("invalid_gmail_message_metadata")
         return "trashed" if "TRASH" in row["labelIds"] else "present"
 
+    def _inline_text_fetcher(self, mid):
+        def fetch(aid):
+            part = self.call(
+                self.service.users().messages().attachments().get(
+                    userId="me", messageId=mid, id=aid,
+                ), missing="body_requires_attachment_fetch_manual_review"
+            )
+            raw = part.get("data")
+            if not isinstance(raw,str) or len(raw) > 4 * 1024 * 1024:
+                raise MailError("message_exceeds_size_budget")
+            return raw
+        return fetch
+
     def get_optional(self, mid):
         if not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
             raise MailError("invalid_message_id")
@@ -547,7 +575,7 @@ class Gmail:
             if str(exc) == "message_disappeared":
                 return None
             raise
-        msg = parse_full(row)
+        msg = parse_full(row, self._inline_text_fetcher(mid))
         if msg.id != mid:
             raise MailError("provider_id_mismatch")
         return msg
@@ -587,7 +615,7 @@ class Gmail:
         row = self.call(
             self.service.users().messages().get(userId="me", id=mid, format="full")
         )
-        message = parse_full(row)
+        message = parse_full(row, self._inline_text_fetcher(mid))
         if message.id != mid:
             raise MailError("provider_id_mismatch")
         return message
