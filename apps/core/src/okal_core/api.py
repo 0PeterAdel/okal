@@ -50,7 +50,7 @@ def create_app(
     local_read_paths = {
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
-        "/api/v1/morning",
+        "/api/v1/morning", "/api/v1/planner",
     }
 
     def public_local_read(path, method):
@@ -68,6 +68,8 @@ def create_app(
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
                 "/api/v1/mail/tasks/from-message",
+                "/api/v1/tasks/create", "/api/v1/tasks/edit",
+                "/api/v1/tasks/transition",
                 "/api/v1/mail/reply-drafts/generate",
                 "/api/v1/mail/reply-drafts/revise",
                 "/api/v1/mail/reply-drafts/preview-send",
@@ -517,14 +519,28 @@ def create_app(
         from .mail.contracts import MailError
         from .tasks import TaskBoard
 
-        payload = await action_payload(request, {"message_id"})
+        body = await request.body()
+        if len(body)>3000:
+            raise HTTPException(413,"task_request_too_large")
+        try:
+            payload=json.loads(body)
+            if (not isinstance(payload,dict) or
+                    "message_id" not in payload or
+                    not set(payload)<={
+                        "message_id","title","due","reminder_minutes"}):
+                raise ValueError()
+        except (ValueError,TypeError):
+            raise HTTPException(400,"invalid_task_request") from None
         mid = payload["message_id"]
         if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
             raise HTTPException(400, "invalid_message_id")
         try:
+            from .task_planner import TaskPlanner
             cfg = config(store)
-            return TaskBoard(store).from_mail(
-                cfg.account, mid, approve=True
+            return TaskPlanner(store).from_mail(
+                cfg.account,mid,title=payload.get("title"),
+                due=payload.get("due"),
+                reminder_minutes=payload.get("reminder_minutes")
             )
         except (ValueError, MailError) as exc:
             raise action_failure(exc) from None
@@ -700,10 +716,54 @@ def create_app(
 
     @app.get("/api/v1/tasks")
     def local_tasks():
-        """Local approved task list; no Gmail fetch, no model or writes."""
-        from .tasks import TaskBoard
+        """Read-only task board, with locally scheduled reminder status."""
+        from .task_planner import TaskPlanner
+        return TaskPlanner(store).list("open",100)
 
-        return TaskBoard(store).list("open", 100)
+    @app.get("/api/v1/planner")
+    def local_agenda():
+        """Local Cairo-tz agenda. Never claims Google Calendar coverage."""
+        from .task_planner import TaskPlanner
+        return TaskPlanner(store).agenda(7)
+
+    @app.post("/api/v1/tasks/create")
+    async def local_task_create(request: Request):
+        from .task_planner import TaskPlanner
+        payload = await action_payload(
+            request, {"title","notes","due","reminder_minutes"}
+        )
+        try:
+            return TaskPlanner(store).create(
+                payload["title"],payload["notes"],payload["due"],
+                payload["reminder_minutes"]
+            )
+        except (ValueError,TypeError) as exc:
+            raise HTTPException(422,str(exc)) from None
+
+    @app.post("/api/v1/tasks/edit")
+    async def local_task_edit(request: Request):
+        from .task_planner import TaskPlanner
+        payload = await action_payload(
+            request, {"task_id","title","notes","due","reminder_minutes"}
+        )
+        try:
+            return TaskPlanner(store).edit(
+                payload["task_id"],payload["title"],payload["notes"],
+                payload["due"],payload["reminder_minutes"]
+            )
+        except (ValueError,TypeError) as exc:
+            raise HTTPException(422,str(exc)) from None
+
+    @app.post("/api/v1/tasks/transition")
+    async def local_task_transition(request: Request):
+        from .task_planner import TaskPlanner
+        payload = await action_payload(request,{"task_id","status"})
+        try:
+            return TaskPlanner(store).transition(
+                payload["task_id"],payload["status"]
+            )
+        except (ValueError,TypeError) as exc:
+            raise HTTPException(422,str(exc)) from None
 
     @app.get("/api/v1/summaries")
     def summaries(
