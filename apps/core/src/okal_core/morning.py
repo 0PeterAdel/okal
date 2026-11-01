@@ -16,6 +16,7 @@ from .tasks import TaskBoard
 from .mail.contracts import Insight
 from .mail.private import config
 from .mail.workflows import source_link
+from .mail.owner_voice import owner_voice
 
 CAIRO = ZoneInfo("Africa/Cairo")
 
@@ -60,9 +61,12 @@ def morning_brief(store):
             info["overdue_tasks"].append(row)
     info["today_tasks"].sort(key=lambda t: t["time"])
     try:
-        account = config(store).account.casefold()
+        cfg = config(store)
+        account = cfg.account.casefold()
+        owner_name = cfg.owner_name
     except (ValueError, OSError):
         account = None
+        owner_name = ""
 
     if account:
         with store.connect() as db:
@@ -153,7 +157,7 @@ def morning_brief(store):
                         item = {
                             "subject": subject,
                             "sender": _short(m.get("sender", ""), 80),
-                            "summary": _short(insight.summary, 190),
+                            "summary": _short(owner_voice(insight.summary,owner_name),190),
                             "source_link": source_link(account, row["message_id"]),
                         }
                         if insight.category == "action" and len(info["new_action_emails"]) < 3:
