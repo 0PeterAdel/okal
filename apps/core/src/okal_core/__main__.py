@@ -152,16 +152,21 @@ def main():
             @asynccontextmanager
             async def lifecycle(app):
                 worker = None
-                if (store.directory / "mail" / "config.json").exists():
-                    from .mail.scheduler import Worker
-
-                    worker = Worker(store)
-                    worker.start()
+                # Local reminder scheduler runs independently of Gmail/Ollama,
+                # using only explicitly approved SQLite tasks.
+                from .task_planner import ReminderWorker
+                reminders = ReminderWorker(store)
+                reminders.start()
                 try:
+                    if (store.directory / "mail" / "config.json").exists():
+                        from .mail.scheduler import Worker
+                        worker = Worker(store)
+                        worker.start()
                     yield
                 finally:
                     if worker:
                         worker.stop()
+                    reminders.stop()
 
             uvicorn.run(
                 create_app(store, args.port, lifespan=lifecycle),
