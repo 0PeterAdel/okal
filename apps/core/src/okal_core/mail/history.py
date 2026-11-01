@@ -14,6 +14,7 @@ from ..models import SummaryInput
 from .contracts import MailError, UNREADABLE_CODES
 from .state import MailState, fingerprint
 from .workflows import source_link
+from .inbox_visibility import initialize as init_read, upsert_unread, excluded_sql
 
 MAX_WINDOW = 31 * 86400
 SKIPPED_LABELS = {"SENT", "DRAFT", "SPAM", "TRASH"}
@@ -68,6 +69,7 @@ class HistoryState:
             )""")
             db.execute("""CREATE INDEX IF NOT EXISTS mail_visibility_due
                 ON mail_sync_visibility(account,checked_at)""")
+            init_read(db)
             db.execute("""CREATE TABLE IF NOT EXISTS mail_sync_long_retries(
                 account TEXT NOT NULL,message_id TEXT NOT NULL,
                 last_attempt INTEGER NOT NULL, attempts INTEGER NOT NULL,
@@ -185,7 +187,8 @@ class HistoryState:
 
     def commit(self, account, previous, new_cursor, result, observations, body,
                ignored_ids=(), advance=True, alert=False, quarantines=(),
-               visibility=None, recovered_ids=(), recovery_failures=()):
+               visibility=None, recovered_ids=(), recovery_failures=(),
+               unread_updates=None):
         """CAS prevents lost updates; both checkpoint and all visible data commit together."""
         account = account.casefold()
         safe_cursor(new_cursor)
@@ -252,6 +255,10 @@ class HistoryState:
                     ON CONFLICT(account,message_id) DO UPDATE
                     SET status=excluded.status, checked_at=excluded.checked_at""",
                     (account, mid, status, now))
+            # Reconcile read/unread events in the same atomic history CAS.
+            # Absence of an update never implies unread status changed.
+            for mid, unread in (unread_updates or {}).items():
+                upsert_unread(db,account,mid,unread,now)
             for mid in recovered_ids:
                 if not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
                     raise MailError("invalid_recovered_message_id")
@@ -307,6 +314,7 @@ def recent_quarantines(store, account, limit=60):
             SELECT 1 FROM mail_trash_events e
             WHERE e.account=q.account AND e.message_id=q.message_id
               AND e.status='confirmed_trash')""" if has_trash_ledger else "")
+        excluded += excluded_sql("q", tables)
         if "mail_sync_visibility" in tables:
             excluded += """ AND NOT EXISTS (
                 SELECT 1 FROM mail_sync_visibility v
@@ -337,6 +345,7 @@ def recent_evidence(store, account, limit=60):
             SELECT 1 FROM mail_trash_events e
             WHERE e.account=i.account AND e.message_id=i.message_id
             AND e.status='confirmed_trash')""" if has_trash_ledger else "")
+        excluded += excluded_sql("i", tables)
         if "mail_sync_visibility" in tables:
             excluded += """ AND NOT EXISTS (
                 SELECT 1 FROM mail_sync_visibility v
@@ -417,6 +426,7 @@ def run(store, cfg, api, model):
     ignored_ids = []
     quarantines = []
     visibility = {}
+    unread_updates = {}
     recovered_ids = []
     recovery_failures = []
     recovery_messages = []
@@ -445,6 +455,7 @@ def run(store, cfg, api, model):
                 )
                 cursor, ids, deleted = delta
                 visibility.update(getattr(delta, "visibility", {}))
+                unread_updates.update(getattr(delta, "read_updates", {}))
                 already = state.seen(account, ids)
                 pending_ids = [mid for mid in ids if mid not in already]
                 batch = pending_ids[:cfg.max_messages]
@@ -485,11 +496,14 @@ def run(store, cfg, api, model):
         native_visibility = getattr(api, "message_visibility", None)
         if callable(native_visibility):
             candidates = state.visibility_candidates(account, now, limit=50)
+            # Only real providers exposing this method reconcile UNREAD
+            # (test provider stubs may not implement it).
+            native_unread = getattr(type(api), "message_unread", None)
             for mid in candidates:
-                # Avoid overwriting a newer history change with a redundant
-                # reconciliation probe based on the previous checkpoint.
                 if mid not in visibility:
                     visibility[mid] = native_visibility(mid)
+                if callable(native_unread) and mid not in unread_updates:
+                    unread_updates[mid] = api.message_unread(mid)
         # Previously quarantined long messages were recorded in mail_sync_seen;
         # without this explicit recovery, normal history sync never retries them.
         # Read at most two old items per tick, within the existing model budget.
@@ -513,11 +527,22 @@ def run(store, cfg, api, model):
                     # Native Gmail has removed the email from current inbox.
                     visibility[mid]="trashed" if "TRASH" in msg.labels else "present"
                     recovered_ids.append(mid)
+                elif "UNREAD" not in msg.labels:
+                    recovered_ids.append(mid)
+                    unread_updates[mid] = False
                 else:
                     recovery_messages.append(msg)
         # Normal seen-set remains deduplicated. Explicit recovered IDs bypass
         # it once, then the quarantine is cleared atomically with new evidence.
-        unique = {m.id: m for m in messages if not set(m.labels) & SKIPPED_LABELS}
+        for msg in [*messages,*recovery_messages]:
+            unread_updates.setdefault(msg.id,"UNREAD" in msg.labels)
+        # Do not spend local Ollama cycles on mail that is already read.
+        # Keep cursor/dedup tracking for idempotent future processing.
+        read_ids = [m.id for m in messages
+                    if "UNREAD" not in m.labels and not set(m.labels) & SKIPPED_LABELS]
+        ignored_ids.extend(read_ids)
+        unique = {m.id: m for m in messages
+                  if "UNREAD" in m.labels and not set(m.labels) & SKIPPED_LABELS}
         missing = set(unique) - state.seen(account, list(unique))
         if len(missing) > cfg.max_messages:
             raise MailError("message_budget_exceeded_narrow_interval")
@@ -537,7 +562,7 @@ def run(store, cfg, api, model):
             ignored_ids=ignored_ids, advance=not pending, quarantines=quarantines,
             alert=(not pending and (recovered or deleted > 0 or bool(quarantines))),
             visibility=visibility,recovered_ids=recovered_ids,
-            recovery_failures=recovery_failures,
+            recovery_failures=recovery_failures,unread_updates=unread_updates,
         )
         outcome.update(deleted_or_unavailable=deleted, recovered=recovered,
                        manual_review=len(quarantines))
