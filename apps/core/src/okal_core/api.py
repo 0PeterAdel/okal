@@ -1,4 +1,4 @@
-"""Loopback-only read API. Mail operator actions are CLI-only, never token tools."""
+"""Loopback-only local Core API; Gmail Trash requires a separate owner PIN."""
 
 import ipaddress
 from pathlib import Path
@@ -11,6 +11,16 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from .store import InvalidCursor, Store
+
+def _owner_trash_is_configured(store):
+    """Configuration hint only — not live OAuth confirmation."""
+    try:
+        from .mail.private import config
+        from .mail.ui_trash_auth import pin_configured
+        return bool(config(store).trash_enabled and pin_configured(store))
+    except (OSError, ValueError):
+        return False
+
 
 STATIC = Path(__file__).parent / "static"
 CSP = (
@@ -220,7 +230,10 @@ def create_app(
             "local_auto_unlock": not require_read_key,
             "permissions": ["inbox:read"],
             "external_writes": False,
-            "ui_trash_available": False,
+            "ui_trash_available": (
+                configured and _owner_trash_is_configured(store)
+            ),
+            "ui_trash_requires_explicit_pin": True,
             "providers": ["gmail-configured-not-verified"] if configured else [],
             "scheduler": scheduled,
             "mail_operator_cli": configured,
