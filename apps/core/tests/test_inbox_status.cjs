@@ -344,7 +344,7 @@ test("on-demand original MIME viewer stays sandboxed and remote images opt-in", 
   assert.match(get("viewer-attachments").children[0].textContent,/report.pdf/);
   get("viewer-remote-images").checked=true;
   get("viewer-remote-images").handlers.change();
-  assert.match(get("viewer-frame").srcdoc,/img-src data: https:;/);
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:;/);
   get("viewer-close").handlers.click();
   assert.equal(get("mail-viewer").open,false);
   assert.equal(get("viewer-frame").srcdoc,"");
@@ -508,12 +508,12 @@ test("Lazy marketing images stay inert until owner explicitly presses Load Image
   await context.openMailViewer("aa");
   const before=get("viewer-frame").srcdoc;
   assert.match(before,/data-src="https:\/\/cdn.example\/logo.png"/);
-  assert.doesNotMatch(before,/src="https:\/\/cdn.example\/logo.png"/);
+  assert.doesNotMatch(before,/\ssrc="https:\/\/cdn.example\/logo.png"/);
   assert.doesNotMatch(before,/http-equiv="refresh"/);
   assert.match(before,/img-src data:;/);
   get("viewer-load-images").handlers.click();
   const after=get("viewer-frame").srcdoc;
-  assert.match(after,/src="https:\/\/cdn.example\/logo.png"/);
+  assert.match(after,/\ssrc="https:\/\/cdn.example\/logo.png"/);
   assert.match(after,/img-src data: https: http:/);
   get("viewer-load-images").handlers.click();
   assert.equal(get("viewer-remote-images").checked,false);
