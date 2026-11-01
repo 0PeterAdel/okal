@@ -9,11 +9,14 @@ Omarchy Core service.
 
 Open http://127.0.0.1:8766 from Firefox on the owner's workstation.
 
-- **Click** a row in Action, Information, Low Priority or Manual Review to
-  select one message, provided it has a saved or quarantined native Gmail ID.
+- **Click** a message row or subject to open a compact full-message dialog.
+  The dialog shows the original native Gmail text/HTML, the separately saved
+  AI summary, category, suggested action and working Copy/Select/Delete
+  controls. Large/unsupported attachments still fall back to Gmail.
+- **Click the checkbox** to select an email for batch operations.
 - **Ctrl/Cmd+Click** toggles one selection; **Shift+Click** selects a range.
   **Ctrl/Cmd+Shift+Click** adds a range. Native checkboxes and keyboard
-  Enter/Space work as well.
+  Enter opens the message; Space toggles selection when focus is on a row.
 - Select all chooses the first 20 eligible messages. Gmail labels STARRED,
   IMPORTANT, SENT, DRAFT, SPAM, TRASH are protected by default, irrespective
   of the model's classification, and cannot be selected for Trash.
@@ -35,21 +38,16 @@ Open http://127.0.0.1:8766 from Firefox on the owner's workstation.
 
 ## Enable the real Delete button
 
-The local dashboard is intentionally passwordless for reading, but that
-**must not authorize mailbox modification**. Delete is a separate, opt-in
-capability, gated with a strong owner PIN and Gmail's modify scope.
+The local dashboard is passwordless on localhost. Delete is also
+**passwordless**, but it is **not automatic**: an explicit native Gmail preview
+displays the exact selected subjects/senders, followed by a confirmation
+button. The server issues a 120-second single-use approval ticket bound to
+the exact IDs and preview digest. The ticket expires when the Core restarts,
+and any confirmed/uncertain write consumes it. Cross-origin browser requests
+are rejected and this server must stay bound to 127.0.0.1.
 
-One time on the owner terminal:
-
-```bash
-cd /home/okal/Projects/okal
-bash scripts/run-okal-core.sh mail ui-delete-pin set
-```
-
-Choose a distinct 12–128 character Delete PIN, enter twice (input hidden).
-This is **not** the former read-key. PIN is salted, PBKDF2-hashed in the
-owner-private mail directory with a local failed-attempt lockout. Do not
-publish or share the PIN or browser request bodies.
+There is **no Delete PIN** to configure or enter. Any old PIN file retained
+from an earlier build is not read by the new Delete API.
 
 If Gmail still uses read-only OAuth, explicitly authorize an approved
 existing private Desktop OAuth client file with the broader
@@ -63,7 +61,7 @@ bash scripts/run-okal-core.sh mail authorize \
 
 Google does not offer a Trash-only OAuth scope: this scope can modify other
 Gmail labels, but OKAL's reviewed browser endpoint is limited to **recoverable
-Trash**, and requires the PIN. This operation may replace the current
+Trash**, and requires the confirmation button. This operation may replace the current
 read-only authorization; keep a private backup of configuration and tokens.
 To return to Gmail read-only permission, reauthorize without
 `--enable-trash` using the same client path.
@@ -72,7 +70,8 @@ Then select messages across categories and click **Delete · إلى Trash**:
 
 1. OKAL obtains a **read-only preview** of native Gmail sender/subject for
    each selected ID, recomputes an approval digest and shows the exact list.
-2. Enter the owner Delete PIN in the approval dialog.
+2. Click **Confirm moving to Trash** after reviewing the list. The preview
+   ticket is one-time and expires after two minutes. No password/PIN.
 3. Only then will OKAL revalidate the selected Gmail IDs, category/source
    provenance and protected labels against native Gmail, and submit a single
    recoverable Trash call for each message, with no silent retry of an
@@ -83,8 +82,8 @@ Then select messages across categories and click **Delete · إلى Trash**:
    Trash manually before attempting any other deletion.
 
 The on-screen count and selection do not grant delete permission by
-themselves. If the owner PIN or `gmail.modify` is not configured, the
-request must fail closed without deleting. A local malware process with the
+themselves. If `gmail.modify` is not configured, the delete request must
+fail closed with `trash_permission_disabled_reauthorize` without deleting. A local malware process with the
 owner's OS privileges is outside this trust boundary; don't open this service
 to the network, reverse proxies or port forwarding.
 
