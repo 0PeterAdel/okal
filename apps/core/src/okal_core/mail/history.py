@@ -136,11 +136,14 @@ class HistoryState:
                     ) GROUP BY message_id
                 ) src LEFT JOIN mail_sync_visibility v
                   ON v.account=? AND v.message_id=src.message_id
-                WHERE v.checked_at IS NULL OR v.checked_at<?
-                ORDER BY CASE WHEN v.checked_at IS NULL THEN 0 ELSE 1 END,
+                LEFT JOIN mail_gmail_unread u
+                  ON u.account=? AND u.message_id=src.message_id
+                WHERE u.checked_at IS NULL OR v.checked_at IS NULL OR v.checked_at<?
+                ORDER BY CASE WHEN u.checked_at IS NULL THEN 0 ELSE 1 END,
+                         CASE WHEN v.checked_at IS NULL THEN 0 ELSE 1 END,
                          v.checked_at ASC, src.recency DESC LIMIT ?
             """, (account.casefold(), account.casefold(), account.casefold(),
-                  now - 86400, limit)).fetchall()
+                  account.casefold(), now - 86400, limit)).fetchall()
         return [r[0] for r in rows]
 
     def long_reanalysis_candidates(self, account, now, limit=2):
@@ -535,7 +538,9 @@ def run(store, cfg, api, model):
         # Normal seen-set remains deduplicated. Explicit recovered IDs bypass
         # it once, then the quarantine is cleared atomically with new evidence.
         for msg in [*messages,*recovery_messages]:
-            unread_updates.setdefault(msg.id,"UNREAD" in msg.labels)
+            # Native Gmail full message is newer than history events;
+            # it wins when both are available in this sync tick.
+            unread_updates[msg.id] = "UNREAD" in msg.labels
         # Do not spend local Ollama cycles on mail that is already read.
         # Keep cursor/dedup tracking for idempotent future processing.
         read_ids = [m.id for m in messages
