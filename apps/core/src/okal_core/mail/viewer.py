@@ -288,7 +288,9 @@ def read_native(store, mid):
             "inline_images": len(images) + len(location_images),
             "skipped_inline_images": skipped_images,
             "external_images_detected": bool(re.search(
-                r"(?i)(?:src|background)\s*=\s*['\"]?https?://|url\(\s*['\"]?https?://",
+                r"(?i)\b(?:src|srcset|data-src|background|data-background)"
+                r"\s*=\s*['\"]?(?:https?://|//)|"
+                r"url\(\s*['\"]?(?:https?://|//)",
                 html
             )),
             "attachments": attachments[:30],
