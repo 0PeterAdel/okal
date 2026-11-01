@@ -14,8 +14,10 @@ on:
       - feat/mail-long-content-resilient-analysis
       - fix/mail-viewer-images-responsive-reader
       - fix/mail-render-original-images-owner-voice
+      - fix/mail-read-state-and-image-preferences
   pull_request:
     branches:
+      - fix/mail-render-original-images-owner-voice
       - fix/mail-viewer-images-responsive-reader
       - feat/mail-long-content-resilient-analysis
       - feat/core-local-planner-reminders-v1
