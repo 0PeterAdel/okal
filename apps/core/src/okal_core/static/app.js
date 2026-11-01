@@ -993,13 +993,8 @@ async function openMailViewer(item) {
   el("viewer-frame").srcdoc = "";
   el("viewer-attachments").replaceChildren();
   el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
-  el("viewer-remote-images").checked = false;
-  el("viewer-remember-images").checked = false;
-  el("viewer-load-images").disabled = true;
-  el("viewer-load-images").textContent = "عرض صور الرسالة";
-  el("viewer-load-images").setAttribute("aria-pressed","false");
   el("viewer-image-status").textContent =
-    "صور Gmail الداخلية تظهر تلقائيًا؛ الصور الخارجية محجوبة لحماية الخصوصية.";
+    "صور الرسالة الخارجية تُحمّل تلقائيًا؛ قد يتعرّف المرسل على فتح البريد.";
   setViewerFocus(false);
   currentViewerMessage = null;
   const requestGeneration = ++viewerGeneration;
@@ -1023,10 +1018,15 @@ async function openMailViewer(item) {
       low_priority:"أولوية منخفضة",manual_review:"مراجعة يدوية"};
     el("viewer-category").textContent = labels[data.ai_category] || "غير مصنّف";
     el("viewer-copy-summary").disabled = !data.ai_summary;
+    // Viewing marks messages locally Seen and removes their Smart Inbox rows.
+    // Native reader Trash eligibility must NOT depend on informationRows.
     const selectable = informationRows.has(id);
     el("viewer-select").disabled = !selectable;
-    el("viewer-delete").disabled = !selectable;
     const nativeLabels = Array.isArray(data.labels) ? data.labels : [];
+    const protectedLabels = ["TRASH","DRAFT","SENT","SPAM","STARRED","IMPORTANT"];
+    const canTrash = nativeLabels.includes("INBOX") &&
+      !nativeLabels.some(label => protectedLabels.includes(label));
+    el("viewer-delete").disabled = !canTrash || trashPermissionConfigured === false;
     const writable = trashPermissionConfigured !== false &&
       !nativeLabels.some(label => ["TRASH","DRAFT","SENT","SPAM"].includes(label));
     el("viewer-mark-read").disabled = !writable || !nativeLabels.includes("UNREAD");
@@ -1034,16 +1034,16 @@ async function openMailViewer(item) {
     el("viewer-archive").disabled = !writable || !nativeLabels.includes("INBOX");
     el("viewer-create-task").disabled = data.ai_category === "manual_review";
     el("viewer-reply-generate").disabled = data.ai_category === "manual_review";
-    if (!selectable)
+    if (!canTrash)
       el("viewer-action-note").textContent =
-        "الرسالة محمية أو غير مؤهلة للنقل الجماعي إلى Trash.";
+        "الرسالة محمية أو خارج Inbox ولا يمكن نقلها إلى Trash من OKAL.";
     el("viewer-title").textContent = data.subject || "بدون عنوان";
     el("viewer-from").textContent = data.from || "غير معروف";
     el("viewer-to").textContent = data.to || "غير معروف";
     el("viewer-date").textContent = data.date || "غير معروف";
     el("viewer-gmail").href = data.gmail_link;
-    el("viewer-note").textContent = "محتوى Gmail الأصلي في إطار معزول. " +
-      "الصور الداخلية المحمّلة متاحة، والخارجية تحتاج موافقتك بسبب احتمالية التتبع.";
+    el("viewer-note").textContent = "محتوى Gmail الأصلي داخل إطار معزول بلا سكربتات. " +
+      "الصور الخارجية مفعّلة تلقائيًا وفق اختيارك، وقد تُبلغ المرسل بفتح البريد.";
     for (const attachment of data.attachments || []) {
       el("viewer-attachments").append(text("p",
         "مرفق: " + attachment.name + " (" + attachment.mime_type + ")" +
@@ -1060,13 +1060,7 @@ async function openMailViewer(item) {
         el("viewer-attachments").append(image);
       }
     }
-    // Owner's explicit preference comes only from private Core SQLite.
-    // External image hosts can still refuse access.
-    el("viewer-remember-images").checked =
-      data.remote_image_preference === true;
-    el("viewer-remote-images").checked =
-      data.remote_image_preference === true &&
-      data.external_images_detected === true;
+    // Images are enabled on every message, independent of old SQLite prefs.
     refreshViewerDocument();
     // Mark local Viewed only after original Gmail was read successfully.
     // This is a local-only operation; Gmail labels remain unchanged.
@@ -1122,13 +1116,9 @@ el("mail-viewer").addEventListener("close", () => {
   el("viewer-attachments").replaceChildren();
   el("viewer-frame").srcdoc = "";
   el("viewer-image-status").textContent = "";
-  el("viewer-remote-images").checked = false;
-  el("viewer-load-images").disabled = true;
-  el("viewer-load-images").textContent = "عرض صور الرسالة";
-  el("viewer-load-images").setAttribute("aria-pressed","false");
+
   setViewerFocus(false);
 });
-el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
 el("viewer-copy-summary").addEventListener("click", async () => {
   const summary = currentViewerMessage?.ai_summary;
   if (!summary) return;
@@ -1150,7 +1140,10 @@ el("viewer-select").addEventListener("click", () => {
 });
 el("viewer-delete").addEventListener("click", async () => {
   const id = currentViewerMessage?.id;
-  if (!id || !informationRows.has(id)) return;
+  if (!/^[a-fA-F0-9]{1,64}$/.test(String(id || "")) ||
+      el("viewer-delete").disabled) return;
+  // Same native Gmail preview + single-use confirmation as bulk Trash.
+  // Works after opening this message removes its Smart Inbox card.
   await showTrashPreview([id]);
 });
 
