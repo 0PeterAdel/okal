@@ -139,7 +139,8 @@ test("triage groups manual-review and preserves untrusted text as textContent", 
   assert.equal(get("triage-groups").children.length, 2);
   const firstGroup = get("triage-groups").children[0];
   assert.equal(firstGroup.children[1].children[1].textContent, "<svg onload=alert(1)>");
-  assert.equal(firstGroup.children[1].children.at(-1).href,
+  assert.equal(firstGroup.children[1].children.find((node) =>
+    node.href === "https://mail.google.com/mail/#all/ab").href,
     "https://mail.google.com/mail/#all/ab");
   assert.match(firstGroup.children[0].children[1].textContent, /Manual review/);
 });
@@ -185,33 +186,27 @@ test("approved local tasks render dates and untrusted titles as text", () => {
   context.lock();
   assert.equal(get("tasks-list").children.length, 0);
 });
-test("Information multi-select creates a preview-only command, never Gmail writes", async () => {
-  const { context, get } = harness();
-  context.renderTriage({
-    items: [
-      { id: "aa", labels: ["INBOX"], category: "information",
-        sender: "Fake <fake@example.com>", subject: "Note",
-        summary: "FYI", suggested_action: "", has_unread_attachments: false,
-        link: "https://mail.google.com/mail/#all/aa" },
-      { id: "bb", labels: ["STARRED"], category: "information",
-        sender: "Boss", subject: "Important", summary: "Read",
-        suggested_action: "", has_unread_attachments: false,
-        link: "https://mail.google.com/mail/#all/bb" },
-    ],
-  });
-  const article = get("triage-groups").children[0].children[1];
-  const label = article.children.at(-1);
-  const checkbox = label.children[0];
-  checkbox.checked = true;
-  checkbox.handlers.change();
-  assert.equal(get("trash-selected").disabled, false);
-  await get("trash-selected").handlers.click();
-  assert.match(get("trash-command").textContent, /mail trash --ids aa/);
-  assert.doesNotMatch(get("trash-command").textContent, /--apply/);
-  assert.equal(get("trash-command").hidden, false);
-  assert.match(get("trash-help").textContent, /Terminal/);
-  context.lock();
-  assert.equal(get("trash-command").textContent, "");
+test("all-category selection is separate from Gmail Delete approval", () => {
+  const {context,get} = harness();
+  context.renderTriage({items:[
+    {id:"aa",labels:[],category:"manual_review",sender:"Gmail",subject:"Needs review",
+      summary:"",suggested_action:"",link:"#inbox-panel"},
+    {id:"bb",labels:["INBOX"],category:"action",sender:"Manager",subject:"Reply",
+      summary:"",suggested_action:"",link:"#inbox-panel"},
+    {id:"cc",labels:["INBOX"],category:"information",sender:"Updates",subject:"FYI",
+      summary:"",suggested_action:"",link:"#inbox-panel"},
+    {id:"dd",labels:["STARRED"],category:"low_priority",sender:"Friend",subject:"Saved",
+      summary:"",suggested_action:"",link:"#inbox-panel"},
+  ]});
+  for (let groupIndex=0;groupIndex<3;groupIndex++) {
+    const row=get("triage-groups").children[groupIndex].children[1];
+    row.handlers.click({target:{closest(){return null;}},ctrlKey:groupIndex>0});
+  }
+  assert.match(get("trash-count").textContent,/3 من 3/);
+  assert.equal(get("trash-selected").disabled,false);
+  const protectedRow=get("triage-groups").children[3].children[1];
+  assert.equal(protectedRow.handlers.click,undefined);
+  assert.equal(get("trash-command").textContent,"");
 });
 
 test("Information row click, Ctrl+Click and Shift+Click behave like a desktop list", async () => {
@@ -242,9 +237,8 @@ test("Information row click, Ctrl+Click and Shift+Click behave like a desktop li
   click(rows[2], {ctrlKey:true});
   assert.equal(rows[2].children.at(-1).children[0].checked, false);
   assert.equal(rows[3].children.at(-1).children[0].checked, true);
-  await get("trash-selected").handlers.click();
-  assert.match(get("trash-command").textContent, /--ids dd/);
-  assert.doesNotMatch(get("trash-command").textContent, /--apply/);
+  assert.equal(get("trash-selected").disabled, false);
+  assert.equal(get("trash-command").textContent, "");
   // Clicking Gmail link is never intercepted as a selection.
   rows[0].handlers.click({target:{closest(){return {};}},ctrlKey:false});
   assert.equal(rows[0].children.at(-1).children[0].checked, false);
@@ -273,7 +267,7 @@ test("Shift+Click ranges honor 20-item ceiling and protected labels never select
   assert.equal(rows[19].children.at(-1).children[0].checked, true);
   assert.equal(rows[20].children.at(-1).children[0].checked, false);
   // Starred row never gets a selection checkbox or selectable role.
-  assert.equal(rows[24].children.at(-1).href,
+  assert.equal(rows[24].children.find(n => n.href).href,
     "https://mail.google.com/mail/#all/24");
 });
 
