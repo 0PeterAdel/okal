@@ -441,6 +441,8 @@ function lock() {
   el("connection").textContent = "العرض مخفي";
   el("connection").classList.remove("connected");
   resetMailStatus();
+  if (el("mail-viewer").open) el("mail-viewer").close();
+  if (el("trash-dialog").open) el("trash-dialog").close();
   setBusy(false);
 }
 
@@ -635,24 +637,162 @@ try {
   el("current-date").textContent = "Your local command center";
 }
 
+// MIME reader is an on-demand Gmail API read, not part of automatic sync.
+// Render untrusted original HTML ONLY inside a sandboxed, script-disabled
+// iframe with a restrictive per-message CSP.
+let currentViewerMessage = null;
+let approvedTrash = null;
+const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
+  (ch) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+
+function viewerDocument(message, remote) {
+  const imagePolicy = remote ? "data: https:" : "data:";
+  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; " +
+    "font-src data:; media-src data:; img-src " + imagePolicy + "; " +
+    "style-src 'unsafe-inline'; base-uri 'none'; form-action 'none';";
+  const head = '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta http-equiv="Content-Security-Policy" content="' + escapeHtml(csp) + '">' +
+    '<meta name="referrer" content="no-referrer"><style>' +
+    'body{margin:20px;color:#111;background:white;font-family:system-ui,Arial,sans-serif;' +
+    'font-size:15px;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}' +
+    'table{max-width:100%;}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body>';
+  const body = message.html || "<pre>" + escapeHtml(message.text ||
+    "محتوى الرسالة غير متوفر بصيغة مقروءة") + "</pre>";
+  return head + body + "</body></html>";
+}
+
+function refreshViewerDocument() {
+  if (!currentViewerMessage) return;
+  el("viewer-frame").srcdoc = viewerDocument(
+    currentViewerMessage, el("viewer-remote-images").checked
+  );
+}
+
+async function openMailViewer(id) {
+  if (!/^[a-fA-F0-9]{1,64}$/.test(String(id || ""))) return;
+  el("viewer-title").textContent = "جارٍ تحميل الرسالة الأصلية...";
+  el("viewer-from").textContent = "";
+  el("viewer-to").textContent = "";
+  el("viewer-date").textContent = "";
+  el("viewer-frame").srcdoc = "";
+  el("viewer-attachments").replaceChildren();
+  el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
+  el("viewer-remote-images").checked = false;
+  currentViewerMessage = null;
+  el("mail-viewer").showModal();
+  try {
+    const response = await fetch("/api/v1/mail/messages/" + id, {
+      credentials:"same-origin", cache:"no-store",
+      headers: token ? {Authorization: "Bearer " + token} : {},
+    });
+    if (!response.ok) throw new Error("read " + response.status);
+    const data = await response.json();
+    if (data.id !== id) throw new Error("source mismatch");
+    currentViewerMessage = data;
+    el("viewer-title").textContent = data.subject || "بدون عنوان";
+    el("viewer-from").textContent = data.from || "غير معروف";
+    el("viewer-to").textContent = data.to || "غير معروف";
+    el("viewer-date").textContent = data.date || "غير معروف";
+    el("viewer-gmail").href = data.gmail_link;
+    el("viewer-note").textContent = "محتوى Gmail الأصلي في إطار معزول. " +
+      "الصور الداخلية متاحة، والصور الخارجية تحتاج موافقتك بسبب احتمالية التتبع.";
+    for (const attachment of data.attachments || []) {
+      el("viewer-attachments").append(text("p",
+        "مرفق: " + attachment.name + " (" + attachment.mime_type +
+        ") — للتحميل افتح Gmail", "muted"));
+    }
+    refreshViewerDocument();
+  } catch (_) {
+    el("viewer-title").textContent = "تعذر فتح الرسالة";
+    el("viewer-note").textContent =
+      "لم نقدر نقرأ محتوى الرسالة من Gmail حاليًا؛ تحقق من الاتصال وصلاحية Google.";
+  }
+}
+el("viewer-close").addEventListener("click", () => el("mail-viewer").close());
+el("mail-viewer").addEventListener("close", () => {
+  currentViewerMessage = null;
+  el("viewer-frame").srcdoc = "";
+});
+el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
+
 el("trash-selected").addEventListener("click", async () => {
   const ids = selectableInfoIds.filter((mid) => selectedInfo.has(mid));
   if (!ids.length || ids.length > 20) return;
-  const command =
-    "bash scripts/run-okal-core.sh mail trash --ids " + ids.join(" ");
-  el("trash-command").hidden = false;
-  el("trash-command").textContent = command;
-  el("trash-help").textContent =
-    "الأمر مجرد معاينة. انسخه للـ Terminal ثم راجع العناوين. للتنفيذ أضف --apply ووافِق على كل الرسائل. لا حذف من المتصفح.";
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(command);
-      el("trash-count").textContent = "تم نسخ أمر المعاينة فقط · راجعه محليًا";
-    } catch (_) {
-      // Command is displayed for manual copy; don't claim clipboard success.
+  el("trash-selected").disabled = true;
+  el("trash-help").textContent = "جارٍ التأكد من العناوين والصلاحيات مباشرة من Gmail...";
+  try {
+    const response = await fetch("/api/v1/mail/trash/preview", {
+      method:"POST", credentials:"same-origin", cache:"no-store",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ids}),
+    });
+    if (!response.ok) throw new Error("preview " + response.status);
+    const data = await response.json();
+    if (data.count !== ids.length || !/^[a-f0-9]{64}$/.test(data.approval_digest))
+      throw new Error("unsafe preview");
+    approvedTrash = {ids, digest:data.approval_digest};
+    el("trash-preview-list").replaceChildren();
+    for (const message of data.items) {
+      el("trash-preview-list").append(text("p",
+        message.subject + " — " + message.sender));
     }
+    el("trash-pin").value = "";
+    el("trash-result").textContent = "";
+    el("trash-dialog").showModal();
+    el("trash-help").textContent = "راجع العناوين من Gmail داخل نافذة التأكيد. " +
+      "Delete PIN مطلوب للنقل الفعلي إلى Trash.";
+  } catch (_) {
+    approvedTrash = null;
+    el("trash-help").textContent =
+      "تعذر تجهيز معاينة Gmail. قد يحتاج الاتصال أو صلاحيات OAuth للمراجعة. " +
+      "تقدر تستخدم أمر mail trash من Terminal.";
+  } finally {
+    el("trash-selected").disabled = selectedInfo.size === 0;
   }
 });
+el("trash-cancel").addEventListener("click", () => el("trash-dialog").close());
+el("trash-dialog").addEventListener("close", () => {
+  el("trash-pin").value = "";
+  approvedTrash = null;
+});
+el("trash-confirm-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!approvedTrash) return;
+  const pin = el("trash-pin").value;
+  el("trash-pin").value = "";
+  el("trash-confirm").disabled = true;
+  el("trash-result").textContent = "جارٍ النقل إلى Trash...";
+  try {
+    const response = await fetch("/api/v1/mail/trash", {
+      method:"POST", credentials:"same-origin", cache:"no-store",
+      headers: {"Content-Type":"application/json"},
+      body:JSON.stringify({
+        ids: approvedTrash.ids, approval_digest:approvedTrash.digest,
+        confirmed:true,pin,
+      }),
+    });
+    if (!response.ok) {
+      const safe = await response.json();
+      throw new Error(safe?.detail || "provider operation failed");
+    }
+    const result = await response.json();
+    if (result.status !== "confirmed_trash")
+      throw new Error("provider result was not confirmed");
+    el("trash-dialog").close();
+    el("trash-help").textContent =
+      "تم نقل " + result.moved + " رسالة إلى Gmail Trash القابل للاسترجاع.";
+    clearInformationSelection();
+    load(true);
+  } catch (error) {
+    // No silent retry. A Gmail network failure may mean a partial batch.
+    el("trash-result").textContent =
+      "لم يتم تأكيد نقل كل الرسائل. راجع Gmail Trash قبل أي إعادة محاولة. " +
+      String(error.message).slice(0,90);
+  } finally {
+    el("trash-confirm").disabled = false;
+  }
+});
+
 el("refresh").addEventListener("click", () => load(true));
 el("more").addEventListener("click", () => load(false));
 el("logout").addEventListener("click", async () => {
