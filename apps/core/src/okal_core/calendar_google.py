@@ -435,6 +435,37 @@ def sync_calendar(store, account="default", calendar_id="primary", service=None,
         }
 
 
+def sync_authorized_account(store, account="default"):
+    """Immediately read permitted calendars after browser consent.
+
+    Runs in a FastAPI background task after the redirect is sent. A failed
+    provider call records a redacted code; it never blocks or breaks the UI.
+    """
+    validate_account(account)
+    try:
+        service = _service(store, account)
+        calendars = list_calendars(service)
+    except Exception as exc:
+        record_sync_failure(
+            store, account, "primary",
+            "google_calendar_reauthorization_required"
+            if isinstance(exc, CalendarGoogleError)
+            and str(exc) == "google_calendar_reauthorization_required"
+            else "google_calendar_provider_request_failed",
+        )
+        return
+    for item in calendars[:20]:
+        if item["access"] not in {"reader", "writer", "owner"}:
+            continue
+        try:
+            sync_calendar(
+                store, account=account, calendar_id=item["id"],
+                service=service, calendar_timezone=item["timezone"]
+            )
+        except Exception as exc:
+            record_sync_failure(store, account, item["id"], exc)
+
+
 class CalendarWorker:
     """Best-effort read-only polling; worker failure never breaks local Core."""
     def __init__(self, store, period_seconds=1800):

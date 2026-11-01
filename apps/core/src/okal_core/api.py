@@ -7,7 +7,7 @@ import json
 import os
 import re
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from .store import InvalidCursor, Store
@@ -798,7 +798,7 @@ def create_app(
             raise HTTPException(409, str(exc)) from None
 
     @app.get("/api/v1/calendar/oauth/callback")
-    def finish_calendar_connect(request: Request):
+    def finish_calendar_connect(request: Request, background_tasks: BackgroundTasks):
         """Google redirect: one-use state, PKCE, separate Calendar credentials."""
         from .calendar_google import CalendarGoogleError
         params = request.query_params
@@ -811,6 +811,8 @@ def create_app(
             calendar_oauth.finish(store, state, code, params.get("error"))
         except CalendarGoogleError as exc:
             raise HTTPException(400, str(exc)) from None
+        from .calendar_google import sync_authorized_account
+        background_tasks.add_task(sync_authorized_account, store, "default")
         return RedirectResponse(url="/#integrations", status_code=303)
 
     @app.get("/api/v1/calendar/status")

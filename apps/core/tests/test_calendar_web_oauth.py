@@ -150,7 +150,7 @@ class BrowserOAuthTests(unittest.TestCase):
         with patch(
             "google_auth_oauthlib.flow.InstalledAppFlow.from_client_config",
             return_value=fake,
-        ):
+        ), patch("okal_core.calendar_google.sync_authorized_account") as sync:
             with TestClient(
                 create_app(self.store), base_url="http://127.0.0.1:8766",
                 client=("127.0.0.1", 1234),
@@ -187,6 +187,7 @@ class BrowserOAuthTests(unittest.TestCase):
                     follow_redirects=False,
                 )
                 self.assertEqual(done.status_code, 303, done.text)
+                sync.assert_called_once_with(self.store, "default")
                 self.assertEqual(done.headers["location"], "/#integrations")
                 self.assertFalse("code" in done.headers["location"])
                 self.assertEqual(client.get(

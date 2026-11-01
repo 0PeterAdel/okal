@@ -1717,6 +1717,10 @@ async function connectGoogleCalendar() {
 }
 el("calendar-connect").addEventListener("click", connectGoogleCalendar);
 window.addEventListener("DOMContentLoaded", () => loadCalendarConnection());
+if (typeof window.setInterval === "function")
+  window.setInterval(() => {
+    if (!document.hidden) loadCalendarConnection();
+  }, 30000);
 
 // Default single-user loopback mode auto-opens; protected mode falls back to pairing.
 window.addEventListener("DOMContentLoaded", () => load(true));

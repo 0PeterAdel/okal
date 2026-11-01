@@ -48,9 +48,10 @@ token at `calendar/google/default.json`.
 
 This is a **single-user, single-local-core** UI consent. The state is
 in-process and expires after five minutes or a Core service restart;
-restart the consent with the button if expired. The background sync
-may take up to thirty minutes after the first consent, unless manually
-triggered; the UI must never claim connected until a successful checkpoint.
+restart the consent with the button if expired. After consent OKAL queues a bounded, read-only full sync and keeps its
+periodic worker for later changes. A failed provider fetch records only
+a redacted error code; the UI must never claim connected until a successful
+checkpoint.
 The original Gmail consent should still be rechecked after the Calendar
 consent, because both use the same Google OAuth client identity.
 Testing-mode Google refresh-token expiration may require reconnect.
