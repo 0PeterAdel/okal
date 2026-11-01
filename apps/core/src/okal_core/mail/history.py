@@ -470,8 +470,20 @@ def local_status(store, account):
                                   last_attempt=row[1], last_result=row[2],
                                   last_count=row[3], cursor_saved=True)
             if "mail_sync_quarantine" in tables:
+                excluded = ""
+                if "mail_sync_visibility" in tables:
+                    excluded += """ AND NOT EXISTS (
+                        SELECT 1 FROM mail_sync_visibility v
+                        WHERE v.account=q.account AND v.message_id=q.message_id
+                          AND v.status IN ('trashed','deleted'))"""
+                if "mail_trash_events" in tables:
+                    excluded += """ AND NOT EXISTS (
+                        SELECT 1 FROM mail_trash_events e
+                        WHERE e.account=q.account AND e.message_id=q.message_id
+                          AND e.status='confirmed_trash')"""
                 result["manual_review_count"] = db.execute(
-                    "SELECT COUNT(*) FROM mail_sync_quarantine WHERE account=?",
+                    "SELECT COUNT(*) FROM mail_sync_quarantine q "
+                    "WHERE q.account=?" + excluded,
                     (account.casefold(),),
                 ).fetchone()[0]
             if "mail_sync_failures" in tables:
