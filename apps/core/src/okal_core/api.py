@@ -46,6 +46,20 @@ def create_app(
         return method == "GET" and (
             path in local_read_paths
             or re.fullmatch(r"/api/v1/runs/[a-f0-9]{32}", path) is not None
+            or re.fullmatch(r"/api/v1/mail/messages/[a-fA-F0-9]{1,64}", path) is not None
+        )
+
+    def authorized_ui_trash(request):
+        # This route is write-sensitive even when the rest of the dashboard
+        # auto-opens: enforce browser same-origin + JSON + owner PIN in handler.
+        return (
+            request.url.path == "/api/v1/mail/trash"
+            and request.method == "POST"
+            and request.headers.get("origin") == f"http://{request.headers.get('host')}"
+            and request.headers.get("sec-fetch-site", "same-origin")
+                in {"same-origin", "none"}
+            and request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                == "application/json"
         )
 
     @app.middleware("http")
@@ -95,6 +109,7 @@ def create_app(
                 not require_read_key
                 and public_local_read(request.url.path, request.method)
             )
+            and not authorized_ui_trash(request)
             and not (
                 require_read_key
                 and request.url.path == "/api/v1/session"
@@ -203,6 +218,7 @@ def create_app(
             "local_auto_unlock": not require_read_key,
             "permissions": ["inbox:read"],
             "external_writes": False,
+            "ui_trash_available": False,
             "providers": ["gmail-configured-not-verified"] if configured else [],
             "scheduler": scheduled,
             "mail_operator_cli": configured,
@@ -264,6 +280,67 @@ def create_app(
                 "created_at": record["detected_at"],
             })
         return {"items": items, "state": "recorded_local_insights"}
+
+    @app.get("/api/v1/mail/messages/{message_id}")
+    def full_mail_message(message_id: str):
+        """Explicit on-click Gmail read, never called by regular dashboard load."""
+        from .mail.viewer import read_native
+        from .mail.contracts import MailError
+
+        try:
+            return read_native(store, message_id)
+        except MailError as exc:
+            code = str(exc)
+            raise HTTPException(
+                404 if code.startswith("viewer_source_") else 422,
+                code
+            ) from None
+
+    @app.post("/api/v1/mail/trash")
+    async def ui_move_to_trash(request: Request):
+        """Owner-confirmed recoverable Gmail Trash only. No permanent deletion."""
+        from .mail.contracts import MailError
+        from .mail.private import config, locked
+        from .mail.provider import Gmail
+        from .mail.trash import preview, apply
+        from .mail.ui_trash_auth import verify_pin
+
+        body = await request.body()
+        if len(body) > 3000:
+            raise HTTPException(413, "trash_request_too_large")
+        try:
+            payload = json.loads(body)
+            if not isinstance(payload, dict) or set(payload) != {
+                "ids", "pin", "confirmed"
+            } or payload["confirmed"] is not True:
+                raise ValueError()
+            ids, pin = payload["ids"], payload["pin"]
+            if not isinstance(ids, list) or not 1 <= len(ids) <= 20:
+                raise ValueError()
+            if not isinstance(pin, str):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(400, "invalid_trash_request") from None
+
+        try:
+            # The PIN is checked BEFORE any Gmail API access.
+            with locked(store):
+                verify_pin(store, pin)
+                cfg = config(store)
+                if not cfg.trash_enabled:
+                    raise MailError("trash_permission_disabled_reauthorize")
+                api = Gmail.open(store, cfg, trashing=True)
+                try:
+                    digest = preview(store, cfg, api, ids)["approval_digest"]
+                    return apply(store, cfg, api, ids, digest)
+                finally:
+                    api.close()
+        except MailError as exc:
+            code = str(exc)
+            status = 429 if code.startswith("ui_trash_pin") else 409
+            if code.startswith("trash_permission_disabled"):
+                status = 403
+            raise HTTPException(status, code) from None
 
     @app.get("/api/v1/mail/assistant")
     def mail_assistant():
