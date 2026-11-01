@@ -38,17 +38,30 @@ def main():
     t.add_argument("--status", choices=("open", "done", "dismissed", "all"),
                    default="open")
     t.add_argument("--limit", type=int, default=100)
+    task_commands.add_parser("agenda", help="Read local Cairo timezone week plan")
     t = task_commands.add_parser("add")
     t.add_argument("--title", required=True)
     t.add_argument("--notes", default="")
     t.add_argument("--due", help="Explicit ISO-8601 timestamp WITH timezone")
+    t.add_argument("--remind-minutes",type=int,
+                   choices=(0,5,15,60,1440),default=None,
+                   help="Optional local desktop reminder lead time")
     t = task_commands.add_parser("from-mail")
     t.add_argument("message_id")
     t.add_argument("--title")
     t.add_argument("--due", help="Owner-verified ISO-8601 timestamp WITH timezone")
     t.add_argument("--approve", action="store_true",
                    help="Explicitly create local task; never sends email")
-    for verb in ("done", "dismiss"):
+    t.add_argument("--remind-minutes",type=int,
+                   choices=(0,5,15,60,1440),default=None)
+    t = task_commands.add_parser("edit")
+    t.add_argument("task_id")
+    t.add_argument("--title",required=True)
+    t.add_argument("--notes",default="")
+    t.add_argument("--due",help="Timezone-aware ISO date; omit to clear due")
+    t.add_argument("--remind-minutes",type=int,
+                   choices=(0,5,15,60,1440),default=None)
+    for verb in ("done", "dismiss", "reopen"):
         t = task_commands.add_parser(verb)
         t.add_argument("task_id")
     commands.add_parser("demo", help="insert labeled fixtures, never connect to Gmail")
@@ -85,24 +98,37 @@ def main():
 
             return mail_main(store, args.mail_args)
         if args.command == "tasks":
-            from .tasks import TaskBoard
-            board = TaskBoard(store)
+            from .task_planner import TaskPlanner
+            planner = TaskPlanner(store)
             if args.task_command == "list":
-                result = board.list(args.status, args.limit)
+                result = planner.list(args.status, args.limit)
+            elif args.task_command == "agenda":
+                result = planner.agenda(7)
             elif args.task_command == "add":
-                result = board.add(args.title, args.notes, args.due)
+                result = planner.create(args.title,args.notes,args.due,
+                                        args.remind_minutes)
             elif args.task_command == "from-mail":
                 from .mail.private import config
                 cfg = config(store)
-                result = board.from_mail(
-                    cfg.account, args.message_id, args.title,
-                    args.due, approve=args.approve,
-                )
+                if args.approve:
+                    result = planner.from_mail(
+                        cfg.account,args.message_id,args.title,args.due,
+                        args.remind_minutes
+                    )
+                else:
+                    if args.remind_minutes is not None:
+                        parser.error("--remind-minutes requires --approve")
+                    result = planner.board.from_mail(
+                        cfg.account,args.message_id,args.title,args.due,
+                        approve=False
+                    )
+            elif args.task_command == "edit":
+                result = planner.edit(args.task_id,args.title,args.notes,
+                                      args.due,args.remind_minutes)
             else:
-                result = board.transition(
-                    args.task_id,
-                    "done" if args.task_command == "done" else "dismissed",
-                )
+                state = {"done":"done","dismiss":"dismissed",
+                         "reopen":"open"}[args.task_command]
+                result = planner.transition(args.task_id,state)
             print(json.dumps(result, ensure_ascii=True, indent=2))
             return 0
         if args.command == "device-add":
