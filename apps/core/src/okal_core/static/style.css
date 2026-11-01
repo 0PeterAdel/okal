@@ -485,3 +485,9 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .mail-viewer .viewer-header-buttons {width:100%;justify-content:flex-end;}
   .mail-viewer .viewer-header-buttons button {flex:1;min-width:120px;}
 }
+
+/* Calendar integration: clear single-tap connect without changing OKAL tokens. */
+.integrations .calendar-connection .btn-secondary {
+  min-height:44px;width:100%;font-size:12px;justify-content:center;
+}
+.integrations .calendar-connection small {overflow-wrap:anywhere;line-height:1.6;}

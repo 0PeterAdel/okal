@@ -1650,6 +1650,74 @@ el("logout").addEventListener("click", async () => {
 });
 window.addEventListener("pagehide", lock);
 
+// One-click Google Calendar connection, using Gmail's existing Desktop
+// OAuth CLIENT identity only. Access tokens never reach the browser.
+async function loadCalendarConnection() {
+  const status = el("calendar-status");
+  const button = el("calendar-connect");
+  button.disabled = true;
+  try {
+    const result = await fetch("/api/v1/calendar/status", {
+      credentials:"same-origin", cache:"no-store",
+      headers:token?{Authorization:"Bearer "+token}:{},
+    });
+    if (!result.ok) throw new Error("unavailable");
+    const data = await result.json();
+    const account = data.accounts?.find(item => item.account_alias === "default");
+    const synced = account?.connected === true;
+    const oauthReady = data.reuse_gmail_oauth_client_available === true;
+    const latest = account?.last_sync?.reduce(
+      (max, item) => Math.max(max, item.last_success || 0), 0) || 0;
+    const error = account?.last_attempts?.find(item => item.last_error)?.last_error;
+    if (synced) {
+      status.textContent = "متصل · آخر مزامنة: " +
+        new Date(latest * 1000).toLocaleString("ar-EG") +
+        (error ? " · آخر محاولة مزامنة فشلت" : "");
+      button.textContent = "إعادة ربط Google";
+    } else if (account?.authorization === "configured_not_verified") {
+      status.textContent = "تم التفويض · المزامنة الأولى لم تكتمل بعد";
+      button.textContent = "إعادة التفويض";
+    } else if (oauthReady) {
+      status.textContent = "جاهز للربط باستخدام حساب Google الحالي";
+      button.textContent = "ربط Google Calendar";
+    } else {
+      status.textContent = "يجب تفويض Gmail أولًا على هذا الجهاز";
+      button.textContent = "ربط Google Calendar";
+    }
+    button.disabled = !oauthReady;
+  } catch (_) {
+    status.textContent = "تعذّر قراءة حالة Google Calendar المحلية";
+    button.disabled = true;
+  }
+}
+
+async function connectGoogleCalendar() {
+  const button = el("calendar-connect");
+  const feedback = el("calendar-connect-feedback");
+  button.disabled = true;
+  feedback.textContent = "جاري فتح صفحة Google للموافقة...";
+  try {
+    const response = await fetch("/api/v1/calendar/oauth/start", {
+      method:"POST", credentials:"same-origin", cache:"no-store",
+      headers:{"Content-Type":"application/json",
+               ...(token?{Authorization:"Bearer "+token}:{})},
+      body:JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error("calendar oauth start failed");
+    const result = await response.json();
+    const target = new URL(result.authorization_url);
+    if (target.protocol !== "https:" || target.hostname !== "accounts.google.com")
+      throw new Error("untrusted Google consent destination");
+    // Real top-level browser redirect, not a popup or embedded login screen.
+    window.location.assign(target.href);
+  } catch (_) {
+    feedback.textContent = "تعذّر بدء الربط. تأكد من اتصال Google وGmail وحاول مجددًا.";
+    button.disabled = false;
+  }
+}
+el("calendar-connect").addEventListener("click", connectGoogleCalendar);
+window.addEventListener("DOMContentLoaded", () => loadCalendarConnection());
+
 // Default single-user loopback mode auto-opens; protected mode falls back to pairing.
 window.addEventListener("DOMContentLoaded", () => load(true));
 

@@ -333,7 +333,13 @@
         <p id="message" role="status" aria-live="polite" class="global-message"></p>
         <section id="integrations" class="integrations" aria-label="حالة ربط الخدمات">
           <div><span class="service-icon">G</span><span>Gmail</span><small id="mail-status">جاري القراءة</small></div>
-          <div><span class="service-icon">C</span><span>Calendar</span><small>غير مربوط</small></div>
+          <div class="calendar-connection" aria-labelledby="calendar-connect-label">
+            <span class="service-icon" aria-hidden="true">C</span>
+            <span id="calendar-connect-label">Google Calendar</span>
+            <small id="calendar-status" role="status" aria-live="polite">جاري التحقق من الاتصال...</small>
+            <button id="calendar-connect" class="btn-secondary" type="button" disabled>ربط Google Calendar</button>
+            <small id="calendar-connect-feedback" role="status" aria-live="polite"></small>
+          </div>
           <div><span class="service-icon">S</span><span>Social</span><small>غير مربوط</small></div>
           <div><span class="service-icon">F</span><span>Freelance</span><small>غير مربوط</small></div>
         </section>
