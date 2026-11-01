@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from okal_core.api import create_app
-from okal_core.mail.contracts import Config, Insight, Message, MailError
+from okal_core.mail.contracts import Config, Insight, Message, Draft, MailError
 from okal_core.mail.history import HistoryState, recent_evidence
 from okal_core.mail.operations import preview
 from okal_core.mail.private import root, write_private
@@ -147,6 +147,65 @@ class AgentActionsTests(unittest.TestCase):
         self.assertEqual(mod.json()["sent"],False)
         self.assertNotEqual(mod.json()["draft_id"],original["draft_id"])
         self.api.send.assert_not_called()
+
+    def test_send_is_never_invoked_before_owner_confirms_exact_draft(self):
+        state=MailState(self.store)
+        key=state.new_draft(self.cfg.account,Draft(
+            recipient="manager@example.com",
+            subject="Re: Project update",
+            body="Thank you for your email."
+        ))
+        with patch("okal_core.mail.provider.Gmail.open",return_value=self.api), patch(
+            "okal_core.mail.workflows.send_reviewed",
+            return_value={"status":"sent_verified","provider_id":"abcd"}
+        ) as sender:
+            preview=self.client.post("/api/v1/mail/reply-drafts/preview-send",
+                headers=self.headers,json={"draft_id":key})
+            self.assertEqual(preview.status_code,200,preview.text)
+            data=preview.json()
+            self.assertEqual(data["recipient"],"manager@example.com")
+            self.assertEqual(data["body"],"Thank you for your email.")
+            self.assertFalse(data["external_writes"])
+            sender.assert_not_called()
+            invalid=self.client.post("/api/v1/mail/reply-drafts/confirm-send",
+                headers=self.headers,json={
+                    "draft_id":key,"approval_digest":data["approval_digest"],
+                    "confirmation_token":data["confirmation_token"],
+                    "confirmed":False
+                })
+            self.assertEqual(invalid.status_code,400)
+            sender.assert_not_called()
+            accepted=self.client.post("/api/v1/mail/reply-drafts/confirm-send",
+                headers=self.headers,json={
+                    "draft_id":key,"approval_digest":data["approval_digest"],
+                    "confirmation_token":data["confirmation_token"],
+                    "confirmed":True
+                })
+            self.assertEqual(accepted.status_code,200,accepted.text)
+            self.assertEqual(accepted.json()["status"],"sent_verified")
+            sender.assert_called_once()
+            self.assertTrue(sender.call_args.args[1].send_enabled)
+            self.assertFalse(self.cfg.send_enabled) # permanent config unchanged
+            again=self.client.post("/api/v1/mail/reply-drafts/confirm-send",
+                headers=self.headers,json={
+                    "draft_id":key,"approval_digest":data["approval_digest"],
+                    "confirmation_token":data["confirmation_token"],
+                    "confirmed":True
+                })
+            self.assertEqual(again.status_code,409)
+            sender.assert_called_once()
+
+    def test_send_requires_modify_scope_even_if_local_draft_exists(self):
+        key=MailState(self.store).new_draft(self.cfg.account,Draft(
+            recipient="manager@example.com",subject="Re: Project update",body="Hello."
+        ))
+        cfg=self.cfg.model_copy(update={"trash_enabled":False})
+        write_private(root(self.store)/"config.json",cfg.model_dump())
+        response=self.client.post("/api/v1/mail/reply-drafts/preview-send",
+             headers=self.headers,json={"draft_id":key})
+        self.assertEqual(response.status_code,403)
+        self.assertEqual(response.json()["detail"],"gmail_modify_scope_required")
+
 
 
 if __name__=="__main__":
