@@ -88,7 +88,7 @@ function resetMailStatus() {
   el("metric-mail").textContent = "—";
   el("metric-tasks").textContent = "—";
   el("metric-action").textContent = "—";
-  el("morning-title").textContent = "صباحك فل!";
+  el("morning-title").textContent = "أهلاً بيك في OKAL";
   el("morning-text").textContent = "افتح OKAL لعرض موجز يومك المحلي.";
   el("morning-status").textContent = "مهام مؤكدة وبريد محفوظ؛ مش متصل بتقويم Google.";
   el("mail-status").textContent = "افتح الصندوق لعرض الحالة";
@@ -797,6 +797,36 @@ document.addEventListener("keydown", (event) => {
   }
   if (inside && event.key === "Escape") clearInformationSelection();
 });
+// Mirror the currently selected section in the navigation and breadcrumb.
+// Local presentation only: no provider calls or persisted browser state.
+const navigationSections = new Map([
+  ["#overview", "نظرة عامة"],
+  ["#inbox-panel", "البريد الذكي"],
+  ["#task-section", "المهام"],
+  ["#assistant-section", "اقتراحات OKAL"],
+  ["#activity-section", "السجل"],
+  ["#integrations", "الاتصالات"],
+]);
+function updateNavigationState() {
+  const requested = window.location?.hash || "#overview";
+  const section = navigationSections.has(requested) ? requested : "#overview";
+  const links = document.querySelectorAll?.(".side-nav .nav-item, .sidebar-system .nav-item") || [];
+  for (const link of links) {
+    const active = link.getAttribute("href") === section;
+    if (active) {
+      link.classList.add("active");
+      link.setAttribute("aria-current", "location");
+    } else {
+      link.classList.remove("active");
+      link.removeAttribute("aria-current");
+    }
+  }
+  const current = el("topbar-section-name");
+  if (current) current.textContent = navigationSections.get(section);
+}
+window.addEventListener("hashchange", updateNavigationState);
+window.addEventListener("DOMContentLoaded", updateNavigationState);
+
 try {
   el("current-date").textContent = new Intl.DateTimeFormat("ar-EG", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",

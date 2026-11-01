@@ -27,16 +27,38 @@ function harness(fetcher) {
     if (!nodes.has(id)) nodes.set(id, node());
     return nodes.get(id);
   };
+  const navLinks = [
+    "#overview", "#inbox-panel", "#task-section",
+    "#assistant-section", "#activity-section", "#integrations",
+  ].map((href) => {
+    const activeClasses = new Set();
+    const attributes = {href};
+    return {
+      activeClasses, attributes,
+      getAttribute(name) { return attributes[name] || null; },
+      setAttribute(name, value) { attributes[name] = value; },
+      removeAttribute(name) { delete attributes[name]; },
+      classList: {
+        add(name) { activeClasses.add(name); },
+        remove(name) { activeClasses.delete(name); },
+      },
+    };
+  });
   const context = vm.createContext({
-    document: { getElementById: get, createElement: node, addEventListener() {} },
-    window: { addEventListener() {} },
+    document: {
+      getElementById: get, createElement: node, addEventListener() {},
+      querySelectorAll(selector) {
+        return selector === ".side-nav .nav-item, .sidebar-system .nav-item" ? navLinks : [];
+      },
+    },
+    window: { location: {hash:"#overview"}, addEventListener() {} },
     URLSearchParams, AbortController, setTimeout,
     fetch: (url, options) => url === "/api/v1/mail/viewed"
       ? response({status:"viewed_locally",hidden_from_smart_inbox:true})
       : fetcher(url,options),
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/okal_core/static/app.js"), "utf8"), context);
-  return { context, get };
+  return { context, get, navLinks };
 }
 const configured = {
   configuration: "configured", authorization: "not_checked", history: "available",
@@ -807,4 +829,33 @@ test("OAuth reauthorization and unfinished catch-up have distinct honest labels"
   assert.match(status, /Catch-up in progress/);
   assert.match(status, /مراجعة يدوية/);
   assert.doesNotMatch(status, /نجحت المزامنة الآن/);
+});
+
+test("navigation follows section hashes and exposes one aria-current location", () => {
+  const { context, get, navLinks } = harness();
+  context.updateNavigationState();
+  assert.equal(get("topbar-section-name").textContent, "نظرة عامة");
+  assert.equal(navLinks.filter(link => link.attributes["aria-current"] === "location").length, 1);
+  context.window.location.hash = "#task-section";
+  context.updateNavigationState();
+  assert.equal(get("topbar-section-name").textContent, "المهام");
+  assert.equal(navLinks[2].attributes["aria-current"], "location");
+  assert.equal(navLinks[0].attributes["aria-current"], undefined);
+  assert.equal(navLinks[2].activeClasses.has("active"), true);
+  assert.equal(navLinks[0].activeClasses.has("active"), false);
+  context.window.location.hash = "#missing-section";
+  context.updateNavigationState();
+  assert.equal(get("topbar-section-name").textContent, "نظرة عامة");
+  assert.equal(navLinks[0].attributes["aria-current"], "location");
+});
+
+test("dashboard copy reflects confirmation and removes obsolete PIN/voice promises", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../src/okal_core/static/index.html"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "../src/okal_core/static/style.css"), "utf8");
+  assert.doesNotMatch(html, /PIN حذف محلي|VOICE READY|لا إرسال أو حذف مباشر/);
+  assert.match(html, /نقله إلى Trash يتطلب منك مراجعة وتأكيدًا صريحًا/);
+  assert.match(html, /id="topbar-section-name"/);
+  assert.match(html, /aria-current="location"/);
+  assert.match(css, /\.nav-item\[aria-current="location"\]/);
+  assert.match(css, /#integration-status\{[^}]*overflow-wrap:anywhere/);
 });
