@@ -80,9 +80,20 @@ def morning_brief(store):
                         int(store.clock()) - row[0] > 900
                     )
             if "mail_sync_quarantine" in tables:
+                exclusions = ""
+                if "mail_sync_visibility" in tables:
+                    exclusions += """ AND NOT EXISTS (
+                        SELECT 1 FROM mail_sync_visibility v
+                        WHERE v.account=q.account AND v.message_id=q.message_id
+                          AND v.status IN ('trashed','deleted'))"""
+                if "mail_trash_events" in tables:
+                    exclusions += """ AND NOT EXISTS (
+                        SELECT 1 FROM mail_trash_events t
+                        WHERE t.account=q.account AND t.message_id=q.message_id
+                          AND t.status='confirmed_trash')"""
                 info["manual_review_count"] = db.execute(
-                    "SELECT COUNT(*) FROM mail_sync_quarantine WHERE account=?",
-                    (account,),
+                    "SELECT COUNT(*) FROM mail_sync_quarantine q WHERE q.account=?"
+                    + exclusions, (account,),
                 ).fetchone()[0]
             if "mail_sync_insights" in tables:
                 # Last 24 hours of RECEIVED mail only. Never use record
@@ -94,6 +105,11 @@ def morning_brief(store):
                         SELECT 1 FROM mail_trash_events e
                         WHERE e.account=i.account AND e.message_id=i.message_id
                           AND e.status='confirmed_trash')"""
+                if "mail_sync_visibility" in tables:
+                    excluded += """ AND NOT EXISTS (
+                        SELECT 1 FROM mail_sync_visibility v
+                        WHERE v.account=i.account AND v.message_id=i.message_id
+                          AND v.status IN ('trashed','deleted'))"""
                 rows = db.execute(
                     """SELECT i.message_id,i.metadata,i.insight
                        FROM mail_sync_insights i
