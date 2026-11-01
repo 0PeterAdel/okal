@@ -144,6 +144,12 @@ def apply(store, cfg, api, ids, action, digest):
                 "WHERE id=? AND status='attempting'",
                 (int(store.clock()),event_id)
             )
+        from .inbox_visibility import restore_unread_view, upsert_unread
+        with store.connect() as db,db:
+            upsert_unread(db,cfg.account,mid,action=="mark_unread",
+                          int(store.clock())) if action in {"mark_read","mark_unread"} else None
+        if action=="mark_unread":
+            restore_unread_view(store,cfg.account,mid)
         succeeded.append(mid)
     return {"status":"confirmed", "action": action, "count": len(succeeded),
             "message_ids": succeeded, "external_writes": True,
