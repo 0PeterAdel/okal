@@ -256,6 +256,8 @@ def read_native(store, mid):
             **commentary,
             "id": mid, "subject": subject, "from": sender, "to": recipient,
             "date": date, "html": html, "text": plain,
+            "labels": [label for label in mail.get("labelIds", [])
+                       if isinstance(label,str)][:40],
             "inline_images": len(images), "attachments": attachments[:30],
             "remote_images_blocked_by_default": True,
             "source": "native_gmail_full_message_read_on_demand",
