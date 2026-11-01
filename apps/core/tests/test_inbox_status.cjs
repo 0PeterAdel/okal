@@ -12,6 +12,11 @@ function harness(fetcher) {
       textContent: "", value: "", hidden: false, children: [], handlers: {},
       attributes: {}, classList: { add() {}, remove() {} },
       addEventListener(type, fn) { this.handlers[type] = fn; },
+      showModal() { this.open = true; },
+      close() {
+        this.open = false;
+        if (this.handlers.close) this.handlers.close();
+      },
       setAttribute(name, value) { this.attributes[name] = value; },
       append(...items) { this.children.push(...items); },
       replaceChildren() { this.children = []; },
@@ -289,6 +294,107 @@ test("Information keyboard Enter and Space preserve native accessible selection"
   assert.equal(row.children.at(-1).children[0].attributes["aria-checked"],"true");
   get("clear-selection").handlers.click();
   assert.equal(row.attributes["data-selected"],"false");
+});
+
+test("GitHub PR notifications collapse into one closed expandable cluster", () => {
+  const {context,get} = harness();
+  const items=["Run 1","Run 2","Run 3"].map((label,n)=>({
+    id:(n+1).toString(16).padStart(2,"0"),
+    labels:["INBOX"],category:"information",
+    sender:"GitHub <notifications@github.com>",
+    subject:"[0PeterAdel/okal] PR #42 "+label,
+    summary:"workflow",suggested_action:"",
+    link:"https://mail.google.com/mail/#all/aa",
+  }));
+  context.renderTriage({items});
+  const group=get("triage-groups").children[0];
+  assert.equal(group.children.length,2);
+  const details=group.children[1];
+  assert.equal(details.className,"mail-cluster");
+  assert.equal(details.open,undefined);
+  assert.equal(details.children.length,4);
+  assert.match(details.children[0].children[1].textContent,/3 رسائل مشابهة/);
+  // All three child emails are still present, not lost or merged in the DB.
+  assert.match(get("trash-count").textContent,/0 من 3/);
+});
+
+test("on-demand original MIME viewer stays sandboxed and remote images opt-in", async () => {
+  const fake = {
+    id:"aa", subject:"Real message", from:"sender@example.com",
+    to:"owner@example.com", date:"Sunday", html:
+      '<p>Hello</p><img src="data:image/png;base64,QQ=="><img src="https://tracker.test/pixel"><script>alert(1)</script>',
+    text:"Hello",attachments:[{name:"report.pdf",mime_type:"application/pdf"}],
+    gmail_link:"https://mail.google.com/mail/#all/aa",
+  };
+  const {context,get}=harness(async (url) => {
+    assert.equal(url,"/api/v1/mail/messages/aa");
+    return response(fake);
+  });
+  await context.openMailViewer("aa");
+  assert.equal(get("mail-viewer").open,true);
+  assert.equal(get("viewer-title").textContent,"Real message");
+  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+  assert.match(get("viewer-frame").srcdoc,/script-src &#39;none&#39;/);
+  assert.match(get("viewer-attachments").children[0].textContent,/report.pdf/);
+  get("viewer-remote-images").checked=true;
+  get("viewer-remote-images").handlers.change();
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https:;/);
+  get("viewer-close").handlers.click();
+  assert.equal(get("mail-viewer").open,false);
+  assert.equal(get("viewer-frame").srcdoc,"");
+});
+
+test("Delete previews exact native subjects then requires local PIN and consent", async () => {
+  const digest="a".repeat(64);
+  let previewed=false,deleted=false;
+  const {context,get}=harness(async (url,options)=>{
+    if (url==="/api/v1/mail/trash/preview") {
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.ids.join(","),"aa,bb");
+      previewed=true;
+      return response({count:2,approval_digest:digest,items:[
+        {id:"aa",subject:"Action",sender:"Manager"},
+        {id:"bb",subject:"Info",sender:"Updates"},
+      ]});
+    }
+    if (url==="/api/v1/mail/trash") {
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.pin,"my-super-secure-PIN");
+      assert.equal(payload.approval_digest,digest);
+      assert.equal(payload.confirmed,true);
+      assert.equal(previewed,true);
+      deleted=true;
+      return response({status:"confirmed_trash",moved:2});
+    }
+    // Harmless fallback after the browser reloads local state on success.
+    if (url.startsWith("/api/v1/summaries"))
+      return response({items:[],fetched_at:1800000000,next_cursor:null});
+    if (url==="/api/v1/capabilities")
+      return response({mail:configured,read_key_required:false});
+    return response({});
+  });
+  context.renderTriage({items:[
+    {id:"aa",category:"action",labels:["INBOX"],sender:"M",
+      subject:"Action",summary:"",link:"#inbox-panel"},
+    {id:"bb",category:"information",labels:["INBOX"],sender:"U",
+      subject:"Info",summary:"",link:"#inbox-panel"},
+  ]});
+  get("triage-groups").children[0].children[1].handlers.click({
+    target:{closest(){return null;}}
+  });
+  get("triage-groups").children[1].children[1].handlers.click({
+    target:{closest(){return null;}},ctrlKey:true
+  });
+  assert.equal(deleted,false);
+  await get("trash-selected").handlers.click();
+  assert.equal(previewed,true);
+  assert.equal(deleted,false);
+  assert.equal(get("trash-dialog").open,true);
+  assert.equal(get("trash-preview-list").children.length,2);
+  get("trash-pin").value="my-super-secure-PIN";
+  await get("trash-confirm-form").handlers.submit({preventDefault(){}});
+  assert.equal(deleted,true);
+  assert.equal(get("trash-dialog").open,false);
 });
 
 test("morning rendering resets private text on hide", () => {
