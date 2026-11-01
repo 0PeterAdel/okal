@@ -289,7 +289,7 @@ def read_native(store, mid):
             "inline_images": len(images) + len(location_images),
             "skipped_inline_images": skipped_images,
             "external_images_detected": bool(re.search(
-                r"(?i)\b(?:src|srcset|data-src|background|data-background)"
+                r"(?i)\b(?:src|srcset|data-src|data-original|data-lazy-src|data-srcset|data-lazy-srcset|background|data-background)"
                 r"\s*=\s*['\"]?(?:https?://|//)|"
                 r"url\(\s*['\"]?(?:https?://|//)",
                 html
