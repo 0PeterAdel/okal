@@ -60,4 +60,4 @@ jobs:
         run: |
           bash -n scripts/run-okal-core.sh
           node --check apps/core/src/okal_core/static/app.js
-          node --test apps/core/tests/test_inbox_status.cjs
+          node --test apps/core/tests/test_*.cjs
