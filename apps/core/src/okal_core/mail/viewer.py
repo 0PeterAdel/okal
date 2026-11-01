@@ -136,9 +136,11 @@ def saved_analysis(store, account, mid):
         insight = Insight.model_validate_json(row["insight"])
         if insight.source_id != mid:
             raise ValueError("invalid_source")
+        from .owner_voice import owner_voice
+        owner = config(store).owner_name
         return {
-            "ai_summary": insight.summary[:900],
-            "ai_suggested_action": insight.suggested_action[:400],
+            "ai_summary": owner_voice(insight.summary, owner)[:900],
+            "ai_suggested_action": owner_voice(insight.suggested_action, owner)[:400],
             "ai_category": insight.category,
         }
     except (ValueError, TypeError):
