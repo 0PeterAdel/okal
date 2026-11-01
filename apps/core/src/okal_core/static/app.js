@@ -641,6 +641,7 @@ try {
 // Render untrusted original HTML ONLY inside a sandboxed, script-disabled
 // iframe with a restrictive per-message CSP.
 let currentViewerMessage = null;
+let viewerGeneration = 0;
 let approvedTrash = null;
 const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
   (ch) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -679,6 +680,7 @@ async function openMailViewer(id) {
   el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
   el("viewer-remote-images").checked = false;
   currentViewerMessage = null;
+  const requestGeneration = ++viewerGeneration;
   el("mail-viewer").showModal();
   try {
     const response = await fetch("/api/v1/mail/messages/" + id, {
@@ -687,6 +689,7 @@ async function openMailViewer(id) {
     });
     if (!response.ok) throw new Error("read " + response.status);
     const data = await response.json();
+    if (requestGeneration !== viewerGeneration || !el("mail-viewer").open) return;
     if (data.id !== id) throw new Error("source mismatch");
     currentViewerMessage = data;
     el("viewer-title").textContent = data.subject || "بدون عنوان";
@@ -703,6 +706,7 @@ async function openMailViewer(id) {
     }
     refreshViewerDocument();
   } catch (_) {
+    if (requestGeneration !== viewerGeneration || !el("mail-viewer").open) return;
     el("viewer-title").textContent = "تعذر فتح الرسالة";
     el("viewer-note").textContent =
       "لم نقدر نقرأ محتوى الرسالة من Gmail حاليًا؛ تحقق من الاتصال وصلاحية Google.";
@@ -710,7 +714,11 @@ async function openMailViewer(id) {
 }
 el("viewer-close").addEventListener("click", () => el("mail-viewer").close());
 el("mail-viewer").addEventListener("close", () => {
+  viewerGeneration += 1;
   currentViewerMessage = null;
+  for (const id of ["viewer-from","viewer-to","viewer-date","viewer-note"])
+    el(id).textContent = "";
+  el("viewer-attachments").replaceChildren();
   el("viewer-frame").srcdoc = "";
 });
 el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
