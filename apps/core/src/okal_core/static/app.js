@@ -825,19 +825,60 @@ const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
 // Keep the sender's own <html>, <head>, <body> attributes and newsletter
 // media-query CSS. Stripping the body/head tags caused fixed-width LinkedIn
 // and Alison templates to fall back to raw links, text and broken tables.
+// Newsletter lazy image attributes are inert without sender JavaScript.
+// Rehydrate ONLY image URLs after explicit consent. Decode the common HTML
+// ampersand entity before escaping again: double-escaping &amp; breaks CDN
+// signature/query URLs, which can leave newsletters with blank pictures.
+function newsletterImageUrl(value) {
+  if (!value || value.length > 4096) return null;
+  const decoded = value.replace(/&amp;/gi, "&")
+    .replace(/&#(?:0*38|x0*26);/gi, "&");
+  return /^(?:https?:\\/\\/|\\/\\/)[^\\s<>"'\\x00-\\x1f]+$/i.test(decoded)
+    ? decoded : null;
+}
+function newsletterAttr(tag, namePattern) {
+  const match = new RegExp("\\s" + namePattern +
+    "\\s*=\\s*([\"'])([^\"']{1,4096})\\1", "i").exec(tag);
+  return match ? match[2] : null;
+}
+function setNewsletterAttr(tag, name, value) {
+  const safe = escapeHtml(value);
+  const pattern = new RegExp("\\s" + name +
+    "\\s*=\\s*(?:([\"'])(.*?)\\1|[^\\s>]+)", "i");
+  if (pattern.test(tag))
+    return tag.replace(pattern, " " + name + '="' + safe + '"');
+  return tag.replace(/^<(img|source)\\b/i,
+    (head) => head + ' ' + name + '="' + safe + '"');
+}
+function newsletterSrcset(value) {
+  if (!value || value.length > 4096) return null;
+  const candidates = value.split(",");
+  if (!candidates.length || candidates.length > 8) return null;
+  const cleaned = [];
+  for (const candidate of candidates) {
+    const match = /^([^\\s]+)(?:\\s+([1-9][0-9]{0,4}(?:w|x)))?$/i.exec(candidate.trim());
+    if (!match) return null;
+    const url = newsletterImageUrl(match[1]);
+    if (!url) return null;
+    cleaned.push(url + (match[2] ? " " + match[2] : ""));
+  }
+  return cleaned.join(", ");
+}
 function enableConsentedLazyImages(html) {
-  // Some marketing templates defer images in data-src/data-original while
-  // relying on sender scripts. Those scripts are intentionally disabled.
-  // Reveal only direct image URLs AFTER the owner allows remote images.
-  return html.replace(/<img\b[^>]*>/gi, (tag) => {
-    const lazy = /\sdata-(?:src|original|lazy-src)\s*=\s*(["'])([^"']{1,2048})\1/i.exec(tag);
-    if (!lazy || !/^(?:https?:\/\/|\/\/)[^\s<>"']+$/i.test(lazy[2]))
-      return tag;
-    const safe = escapeHtml(lazy[2]);
-    if (/\ssrc\s*=/i.test(tag))
-      return tag.replace(/\ssrc\s*=\s*(?:(["'])(.*?)\1|[^\s>]+)/i,
-        ' src="' + safe + '"');
-    return tag.replace(/^<img\b/i, '<img src="' + safe + '"');
+  return html.replace(/<(?:img|source)\\b[^>]*>/gi, (original) => {
+    let tag = original;
+    if (/^<img\\b/i.test(tag)) {
+      const lazy = newsletterAttr(tag, "data-(?:src|original|lazy-src)");
+      const src = newsletterImageUrl(lazy);
+      if (src) tag = setNewsletterAttr(tag, "src", src);
+    }
+    // <picture><source data-srcset> and <img data-srcset> are common in
+    // responsive newsletters; a sandboxed no-script viewer cannot activate
+    // these itself. Reject non-HTTP, oversized and malformed candidates.
+    const deferredSet = newsletterAttr(tag, "data-(?:srcset|lazy-srcset)");
+    const srcset = newsletterSrcset(deferredSet);
+    if (srcset) tag = setNewsletterAttr(tag, "srcset", srcset);
+    return tag;
   });
 }
 
