@@ -8,7 +8,7 @@ import os
 import re
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from .store import InvalidCursor, Store
 
@@ -44,6 +44,8 @@ def create_app(
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     from .mail.approval import PendingTrashConfirmations
     approvals = PendingTrashConfirmations(store.clock)
+    from .calendar_web_oauth import CalendarOAuthWeb, CALLBACK
+    calendar_oauth = CalendarOAuthWeb(store.clock)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     # Never let a future privileged /api/ endpoint inherit passwordless access.
@@ -77,7 +79,8 @@ def create_app(
                 "/api/v1/mail/reply-drafts/generate",
                 "/api/v1/mail/reply-drafts/revise",
                 "/api/v1/mail/reply-drafts/preview-send",
-                "/api/v1/mail/reply-drafts/confirm-send"
+                "/api/v1/mail/reply-drafts/confirm-send",
+                "/api/v1/calendar/oauth/start"
             }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
@@ -91,6 +94,13 @@ def create_app(
                     request.cookies.get("okal_session", "")
                  ))
         )
+
+    def is_google_oauth_callback(request):
+        # Native Desktop OAuth completes by a top-level cross-site navigation
+        # from accounts.google.com; one-use state+PKCE gate is in the endpoint.
+        return (request.method == "GET"
+                and request.url.path == CALLBACK
+                and request.headers.get("origin") is None)
 
     @app.middleware("http")
     async def boundary(request: Request, call_next):
@@ -108,7 +118,8 @@ def create_app(
             not local
             or host not in hosts
             or (origin is not None and origin != f"http://{host}")
-            or request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
+            or (request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
+                and not is_google_oauth_callback(request))
             or (
                 request.url.path == "/api/v1/session"
                 and request.method in {"POST", "DELETE"}
@@ -140,6 +151,7 @@ def create_app(
                 and public_local_read(request.url.path, request.method)
             )
             and not authorized_ui_trash(request)
+            and not is_google_oauth_callback(request)
             and not (
                 require_read_key
                 and request.url.path == "/api/v1/session"
@@ -167,6 +179,9 @@ def create_app(
             not in (
                 {"limit", "cursor"}
                 if request.url.path == "/api/v1/summaries"
+                else {"state", "code", "scope", "authuser", "prompt",
+                      "error", "error_description"}
+                if is_google_oauth_callback(request)
                 else set()
             )
             for k in request.query_params
@@ -772,13 +787,41 @@ def create_app(
         from .calendar_core import CalendarCore
         return CalendarCore(store).agenda()
 
+    @app.post("/api/v1/calendar/oauth/start")
+    async def start_calendar_connect(request: Request):
+        """Explicit same-origin owner click starts Google consent in browser."""
+        from .calendar_google import CalendarGoogleError
+        await action_payload(request, set())
+        try:
+            return calendar_oauth.start(store, request.headers["host"])
+        except CalendarGoogleError as exc:
+            raise HTTPException(409, str(exc)) from None
+
+    @app.get("/api/v1/calendar/oauth/callback")
+    def finish_calendar_connect(request: Request):
+        """Google redirect: one-use state, PKCE, separate Calendar credentials."""
+        from .calendar_google import CalendarGoogleError
+        params = request.query_params
+        state = params.get("state")
+        code = params.get("code")
+        if (len(params.getlist("state")) != 1
+                or len(params.getlist("code")) > 1):
+            raise HTTPException(400, "invalid_calendar_oauth_callback")
+        try:
+            calendar_oauth.finish(store, state, code, params.get("error"))
+        except CalendarGoogleError as exc:
+            raise HTTPException(400, str(exc)) from None
+        return RedirectResponse(url="/#integrations", status_code=303)
+
     @app.get("/api/v1/calendar/status")
     def local_calendar_status():
         """Cached sync status only; no provider calls or OAuth information."""
         from .calendar_google import configured_accounts, status
+        from .calendar_web_oauth import client_available
         return {"accounts": [
             status(store, account) for account in configured_accounts(store)
-        ], "external_reads": False, "external_writes": False}
+        ], "reuse_gmail_oauth_client_available": client_available(store),
+            "external_reads": False, "external_writes": False}
 
     @app.get("/api/v1/calendar/availability")
     def local_calendar_availability():
