@@ -438,3 +438,44 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 #task-create-feedback,#task-edit-feedback {font-size:12px;line-height:1.5;}
 @media(max-width:620px){.planner-overview {grid-template-columns:1fr 1fr;}
   .task-card-actions button{flex:1;min-width:90px;}}
+
+/* Gmail reader: focused mode uses ONE content scroll inside the isolated
+   iframe, rather than a narrow inner viewport plus a nested dialog scroll. */
+.viewer-header-buttons {display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.viewer-header-buttons button {min-height:40px;}
+.mail-viewer {width:min(96vw,1100px);max-height:94dvh;}
+#viewer-image-status {display:block;flex-basis:100%;font-size:12px;
+  line-height:1.65;color:var(--muted);overflow-wrap:anywhere;}
+.mail-viewer .viewer-tools label {min-height:44px;}
+.mail-viewer.reader-focus[open] {
+  display:flex;flex-direction:column;box-sizing:border-box;
+  width:min(98vw,1400px);height:96dvh;max-height:96dvh;
+  min-width:0;overflow:hidden;padding:clamp(12px,1.6vw,20px);
+}
+.mail-viewer.reader-focus .dialog-header {
+  flex:0 0 auto;padding-bottom:10px;align-items:center;}
+.mail-viewer.reader-focus .dialog-header h2 {
+  font-size:clamp(14px,1.5vw,19px);max-width:65vw;line-height:1.5;}
+.mail-viewer.reader-focus .viewer-ai,
+.mail-viewer.reader-focus .viewer-actions,
+.mail-viewer.reader-focus #viewer-task-options,
+.mail-viewer.reader-focus #viewer-reply-panel,
+.mail-viewer.reader-focus .viewer-meta,
+.mail-viewer.reader-focus .viewer-attachments {
+  display:none!important;
+}
+.mail-viewer.reader-focus .viewer-tools {
+  flex:0 0 auto;padding:8px 0;gap:8px;}
+.mail-viewer.reader-focus #viewer-note {
+  flex:0 0 auto;margin:0 0 8px;font-size:11px;}
+.mail-viewer.reader-focus #viewer-frame {
+  display:block;box-sizing:border-box;flex:1 1 auto;
+  width:100%;min-height:0;height:auto;max-height:none;
+  background:#fff;border-radius:9px;overflow:auto;
+}
+@media(max-width:700px) {
+  .mail-viewer.reader-focus[open] {width:99vw;height:98dvh;max-height:98dvh;
+    padding:10px;}
+  .mail-viewer.reader-focus .viewer-tools {gap:7px;}
+  .viewer-header-buttons button {min-height:44px;}
+}
