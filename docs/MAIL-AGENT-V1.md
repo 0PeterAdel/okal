@@ -20,9 +20,15 @@ actual Omarchy checkout is unchanged until they fetch/switch branches.
    model on the native Gmail message. The recipient/thread metadata comes
    from Gmail, **never from AI**. Choose Egyptian Arabic or English, review
    the proposed reply in the UI, edit and save local revisions, or copy it.
-   The API intentionally contains **no email Send endpoint**. The existing
-   authorization is Gmail modify, not Gmail send; do not silently broaden
-   scopes. The original draft is preserved when an edited revision is saved.
+   The original draft is preserved when an edited revision is saved.
+5. **Send after explicit owner approval**: click Review & Send, verify the exact
+   recipient, subject and complete saved draft body, then click Confirm Send.
+   Gmail's existing `gmail.modify` scope also permits `messages.send`.
+   The request requires one-time approval (120 seconds), and the existing
+   reconciliation-aware `send_reviewed` path records its pending tombstone
+   BEFORE making a single provider write. No automatic retry of an uncertain
+   send. The persistent `send_enabled=false` setting remains unchanged;
+   only this owner-approved API request is permitted to send.
 
 ## Before real-device testing
 
@@ -65,7 +71,12 @@ editing and copying, and verify no email was sent.
 - The local model must be available, cloud-disabled and have the expected
   digest; otherwise AI drafting fails closed with an explicit error. No
   auto-pull and no paid inference API.
-- No Send button until safe combined Gmail scope authorization and a
-  separate send-specific approval/reconciliation design are tested.
+- Sending is strictly opt-in per message and requires two explicit clicks:
+  Review & Send, then Confirm Send in a separate preview. Always verify
+  real recipient and facts; generated claims may be wrong.
+- The manual CLI send configuration remains disabled with this Google grant.
+  The in-app confirmed send uses the existing Google gmail.modify scope.
+  Gmail sent receipts may be uncertain on a network interruption: inspect
+  the Sent folder before considering a new draft or trying again.
 - Tests are entirely synthetic; owner Firefox/Gmail acceptance is required
   before merging stacked Draft PRs into `main`.
