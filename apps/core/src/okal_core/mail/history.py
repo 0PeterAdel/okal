@@ -118,13 +118,19 @@ class HistoryState:
         with self.store.connect() as db:
             rows = db.execute("""
                 SELECT src.message_id FROM (
-                    SELECT message_id FROM mail_sync_insights WHERE account=?
-                    UNION SELECT message_id FROM mail_sync_quarantine WHERE account=?
+                    SELECT message_id, MAX(recency) AS recency FROM (
+                        SELECT i.message_id, r.created_at AS recency
+                        FROM mail_sync_insights i JOIN runs r ON r.id=i.run_id
+                        WHERE i.account=?
+                        UNION ALL
+                        SELECT q.message_id, q.detected_at AS recency
+                        FROM mail_sync_quarantine q WHERE q.account=?
+                    ) GROUP BY message_id
                 ) src LEFT JOIN mail_sync_visibility v
                   ON v.account=? AND v.message_id=src.message_id
                 WHERE v.checked_at IS NULL OR v.checked_at<?
                 ORDER BY CASE WHEN v.checked_at IS NULL THEN 0 ELSE 1 END,
-                         v.checked_at ASC, src.message_id ASC LIMIT ?
+                         v.checked_at ASC, src.recency DESC LIMIT ?
             """, (account.casefold(), account.casefold(), account.casefold(),
                   now - 86400, limit)).fetchall()
         return [r[0] for r in rows]
