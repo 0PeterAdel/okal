@@ -263,6 +263,11 @@ def recent_quarantines(store, account, limit=60):
                 SELECT 1 FROM mail_sync_visibility v
                 WHERE v.account=q.account AND v.message_id=q.message_id
                   AND v.status IN ('trashed','deleted'))"""
+        if "mail_action_events" in tables:
+            excluded += """ AND NOT EXISTS (
+                SELECT 1 FROM mail_action_events a
+                WHERE a.account=q.account AND a.message_id=q.message_id
+                AND a.action='archive' AND a.status='confirmed')"""
         rows = db.execute(
             "SELECT q.message_id,q.code,q.detected_at FROM mail_sync_quarantine q "
             "WHERE q.account=? " + excluded +
@@ -288,6 +293,11 @@ def recent_evidence(store, account, limit=60):
                 SELECT 1 FROM mail_sync_visibility v
                 WHERE v.account=i.account AND v.message_id=i.message_id
                 AND v.status IN ('trashed','deleted'))"""
+        if "mail_action_events" in tables:
+            excluded += """ AND NOT EXISTS (
+                SELECT 1 FROM mail_action_events a
+                WHERE a.account=i.account AND a.message_id=i.message_id
+                  AND a.action='archive' AND a.status='confirmed')"""
         rows = db.execute("""SELECT i.metadata,i.insight,r.created_at
             FROM mail_sync_insights i JOIN runs r ON r.id=i.run_id
             WHERE i.account=? """ + excluded +
