@@ -96,11 +96,21 @@ def create_app(
         )
 
     def is_google_oauth_callback(request):
-        # Native Desktop OAuth completes by a top-level cross-site navigation
-        # from accounts.google.com; one-use state+PKCE gate is in the endpoint.
-        return (request.method == "GET"
-                and request.url.path == CALLBACK
-                and request.headers.get("origin") is None)
+        # Google redirects the owner's top-level browser navigation here.
+        # Firefox can send Origin: null after cross-site redirects; other
+        # browsers may send the Google origin or omit Origin entirely.
+        # This exception is ONLY for a document GET to the OAuth callback;
+        # its state, issuer, one-use nonce and PKCE are checked below.
+        host = request.headers.get("host", "")
+        origin = request.headers.get("origin")
+        return (
+            request.method == "GET"
+            and request.url.path == CALLBACK
+            and origin in (None, "null", "https://accounts.google.com",
+                           f"http://{host}")
+            and request.headers.get("sec-fetch-mode") in (None, "navigate")
+            and request.headers.get("sec-fetch-dest") in (None, "document")
+        )
 
     @app.middleware("http")
     async def boundary(request: Request, call_next):
@@ -117,7 +127,8 @@ def create_app(
         if (
             not local
             or host not in hosts
-            or (origin is not None and origin != f"http://{host}")
+            or (origin is not None and origin != f"http://{host}"
+                and not is_google_oauth_callback(request))
             or (request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
                 and not is_google_oauth_callback(request))
             or (
