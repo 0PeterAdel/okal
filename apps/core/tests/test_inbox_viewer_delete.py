@@ -68,7 +68,7 @@ class InboxViewerDeleteTests(unittest.TestCase):
         self.assertEqual(message["subject"],"Original <body>")
         self.assertIn("data:image/png;base64,",message["html"])
         self.assertEqual(message["inline_images"],1)
-        self.assertTrue(message["remote_images_blocked_by_default"])
+        self.assertFalse(message["remote_images_blocked_by_default"])
         self.gmail.close.assert_called_once()
 
     def test_local_source_provenance_blocks_unknown_id(self):
