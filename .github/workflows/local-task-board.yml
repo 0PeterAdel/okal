@@ -12,8 +12,10 @@ on:
       - feat/core-mail-agent-actions-v1
       - feat/core-local-planner-reminders-v1
       - feat/mail-long-content-resilient-analysis
+      - fix/mail-viewer-images-responsive-reader
   pull_request:
     branches:
+      - feat/mail-long-content-resilient-analysis
       - feat/core-local-planner-reminders-v1
       - feat/core-mail-agent-actions-v1
       - feat/inbox-confirm-delete-message-details
