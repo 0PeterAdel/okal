@@ -892,10 +892,10 @@ function nativeMailBody(message) {
     .replace(/<meta\b(?=[^>]*\bhttp-equiv\s*=\s*["']?refresh\b)[^>]*>/gi, "");
 }
 
-function viewerDocument(message, remote) {
+function viewerDocument(message) {
   // Remote images are a per-message opt-in. The original HTML stays inside
   // an opaque-origin, no-script iframe, never inserted in the parent DOM.
-  const imagePolicy = remote ? "data: https: http:" : "data:";
+  const imagePolicy = "data: https: http:";
   const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; " +
     "font-src data:; media-src data:; img-src " + imagePolicy + "; " +
     "style-src 'unsafe-inline'; base-uri 'none'; form-action 'none';";
@@ -909,8 +909,7 @@ function viewerDocument(message, remote) {
     'pre{white-space:pre-wrap;overflow-wrap:anywhere}' +
     '@media(max-width:600px){body{margin:0!important;padding:8px!important}}' +
     '</style>';
-  const original = remote ? enableConsentedLazyImages(nativeMailBody(message))
-    : nativeMailBody(message);
+  const original = enableConsentedLazyImages(nativeMailBody(message));
   // Full email document: insert CSP BEFORE any sender-owned tags/resources,
   // preserving sender's head styles, body bgcolor and table layout.
   if (/<html\b/i.test(original)) {
@@ -941,80 +940,27 @@ function setViewerFocus(value) {
     ? "الرجوع للتفاصيل" : "توسيع القراءة";
   el("viewer-focus-toggle").setAttribute("aria-pressed", String(viewerFocus));
 }
-// Only the owner's explicit choice persists. By default no external
-// message images load, preventing tracking pixels from firing invisibly.
-// Only an explicit owner choice is stored in private OKAL SQLite; never
-// persist tokens, email data or settings in browser storage.
-el("viewer-remember-images").addEventListener("change", async () => {
-  const checkbox = el("viewer-remember-images");
-  const allowed = checkbox.checked;
-  checkbox.disabled = true;
-  try {
-    const response = await fetch("/api/v1/mail/image-preference",{
-      method:"POST",credentials:"same-origin",cache:"no-store",
-      headers:{"Content-Type":"application/json",
-        ...(token?{Authorization:"Bearer "+token}:{})},
-      body:JSON.stringify({allow_remote_images:allowed})
-    });
-    if (!response.ok) throw new Error("image_preference_not_saved");
-    if (currentViewerMessage) {
-      currentViewerMessage.remote_image_preference=allowed;
-      if (allowed) {
-        el("viewer-remote-images").checked=true;
-        refreshViewerDocument();
-      }
-    }
-  } catch (_) {
-    checkbox.checked=!allowed;
-    el("viewer-image-status").textContent =
-      "تعذر حفظ تفضيل الصور محليًا، ولم يتم تغيير موافقتك.";
-  } finally {checkbox.disabled=false;}
-});
-
-function syncViewerImageButton() {
-  const external = currentViewerMessage?.external_images_detected === true;
-  const enabled = el("viewer-remote-images").checked;
-  const button = el("viewer-load-images");
-  button.disabled = !external;
-  button.textContent = !external ? "لا توجد صور خارجية" :
-    enabled ? "إخفاء الصور الخارجية" : "عرض صور الرسالة";
-  button.setAttribute("aria-pressed",String(enabled));
-}
-el("viewer-load-images").addEventListener("click", () => {
-  if (!currentViewerMessage || !currentViewerMessage.external_images_detected) return;
-  // User activation deliberately changes the same per-message consent box.
-  el("viewer-remote-images").checked = !el("viewer-remote-images").checked;
-  refreshViewerDocument();
-});
-
-function imageDisplayStatus(message, remote, pending=false) {
+function imageDisplayStatus(message, pending=false) {
   const internal = Number(message.inline_images) || 0;
   const skipped = Number(message.skipped_inline_images) || 0;
-  const external = message.external_images_detected === true;
   const parts = [];
   if (internal) parts.push("صور داخلية: " + internal);
   if (skipped) parts.push(skipped + " صورة داخلية كبيرة لم تُحمّل؛ افتحها في Gmail");
-  if (external) parts.push(remote
-    ? "تم السماح بطلب الصور الخارجية لهذه الرسالة فقط؛ ظهورها يعتمد على المصدر"
-    : "فيه صور خارجية محجوبة؛ فعّل المربع لعرضها (قد يحدث تتبع)");
-  else parts.push("لا توجد صور خارجية مؤكدة في الرسالة");
-  if (pending) parts.push("جارٍ تحميل محتوى الرسالة...");
+  parts.push("الصور الخارجية مفعّلة تلقائيًا عند فتح الرسالة (قد يتم تتبع فتح البريد)");
+  if (message.external_images_detected === true)
+    parts.push("ظهور الصور يعتمد على مصدرها وإعدادات Firefox");
+  if (pending) parts.push("جارٍ عرض محتوى الرسالة...");
   return parts.join(" · ");
 }
 function refreshViewerDocument() {
   if (!currentViewerMessage) return;
-  syncViewerImageButton();
-  const remote = el("viewer-remote-images").checked;
-  el("viewer-image-status").textContent =
-    imageDisplayStatus(currentViewerMessage, remote, true);
-  // Content is still inert inside sandboxed iframe, no parent DOM injection.
-  el("viewer-frame").srcdoc = viewerDocument(currentViewerMessage, remote);
+  el("viewer-image-status").textContent = imageDisplayStatus(currentViewerMessage, true);
+  // Remote image requests happen only inside the opened, script-disabled iframe.
+  el("viewer-frame").srcdoc = viewerDocument(currentViewerMessage);
 }
 el("viewer-frame").addEventListener("load", () => {
   if (!currentViewerMessage || !el("mail-viewer").open) return;
-  el("viewer-image-status").textContent = imageDisplayStatus(
-    currentViewerMessage, el("viewer-remote-images").checked
-  );
+  el("viewer-image-status").textContent = imageDisplayStatus(currentViewerMessage);
 });
 el("viewer-focus-toggle").addEventListener("click", () => {
   setViewerFocus(!viewerFocus);
