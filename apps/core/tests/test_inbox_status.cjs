@@ -545,7 +545,7 @@ test("Consented deferred picture sources keep signed CDN query params and reject
   assert.ok(after.includes('src="https://cdn.example/hero.jpg?x=1&amp;y=2"'));
   assert.ok(!after.includes("&amp;amp;"));
   assert.ok(after.includes('srcset="https://cdn.example/one.png 1x, https://cdn.example/two.png 2x"'));
-  assert.ok(!after.includes('src="javascript:'));
+  assert.doesNotMatch(after, /\ssrc="javascript:/);
   assert.ok(after.includes('data-lazy-src="javascript:alert(1)"'));
   get("viewer-load-images").handlers.click();
   assert.ok(get("viewer-frame").srcdoc.includes("img-src data:;"));
