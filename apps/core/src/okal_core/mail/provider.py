@@ -333,11 +333,12 @@ class HistoryDelta:
     Iteration preserves existing cursor, new_ids, deleted_count callers.
     visibility maps affected message IDs to present, trashed or deleted.
     """
-    def __init__(self, cursor, ids, deleted, visibility):
+    def __init__(self, cursor, ids, deleted, visibility, read_updates=None):
         self.cursor = cursor
         self.ids = ids
         self.deleted = deleted
         self.visibility = visibility
+        self.read_updates = read_updates or {}
 
     def __iter__(self):
         yield self.cursor
@@ -473,6 +474,7 @@ class Gmail:
             raise MailError("invalid_gmail_history_id")
         token, used, seen_pages, ids, deleted = None, 0, set(), set(), set()
         visibility = {}
+        read_updates = {}
         started = time.monotonic()
         marker = None
         while used < 100:
@@ -503,6 +505,10 @@ class Gmail:
                 for event in item.get("labelsAdded", []):
                     labels = event.get("labelIds", [])
                     mid = event.get("message", {}).get("id")
+                    if "UNREAD" in labels:
+                        if not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
+                            raise MailError("invalid_message_id")
+                        read_updates[mid] = True
                     if "TRASH" in labels:
                         if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
                             raise MailError("invalid_message_id")
@@ -510,6 +516,10 @@ class Gmail:
                 for event in item.get("labelsRemoved", []):
                     labels = event.get("labelIds", [])
                     mid = event.get("message", {}).get("id")
+                    if "UNREAD" in labels:
+                        if not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
+                            raise MailError("invalid_message_id")
+                        read_updates[mid] = False
                     if "TRASH" in labels:
                         if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
                             raise MailError("invalid_message_id")
@@ -519,13 +529,13 @@ class Gmail:
                     if isinstance(mid, str) and re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
                         deleted.add(mid)
                         visibility[mid] = "deleted"
-                if len(ids) > limit or len(visibility) > limit:
+                if len(ids) > limit or len(visibility) > limit or len(read_updates) > limit:
                     raise MailError("message_budget_exceeded_narrow_interval")
             token = page.get("nextPageToken")
             if not token:
                 if int(marker) < int(start_id):
                     raise MailError("history_cursor_regressed")
-                return HistoryDelta(marker, sorted(ids), len(deleted), visibility)
+                return HistoryDelta(marker, sorted(ids), len(deleted), visibility,read_updates)
             if token in seen_pages:
                 raise MailError("repeated_page_token")
             seen_pages.add(token)
@@ -548,6 +558,25 @@ class Gmail:
         if row.get("id") != mid or not isinstance(row.get("labelIds"), list):
             raise MailError("invalid_gmail_message_metadata")
         return "trashed" if "TRASH" in row["labelIds"] else "present"
+
+    def message_unread(self, mid):
+        """Read-only native UNREAD state for historical reconciliation."""
+        if not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
+            raise MailError("invalid_message_id")
+        try:
+            row=self.call(
+                self.service.users().messages().get(
+                    userId="me",id=mid,format="minimal"
+                ),missing="message_disappeared"
+            )
+        except MailError as exc:
+            if str(exc)=="message_disappeared":
+                return False
+            raise
+        if row.get("id")!=mid or not isinstance(row.get("labelIds"),list):
+            raise MailError("invalid_gmail_message_metadata")
+        labels=set(row["labelIds"])
+        return "UNREAD" in labels and not bool(labels & {"TRASH","SPAM","SENT","DRAFT"})
 
     def _inline_text_fetcher(self, mid):
         def fetch(aid):
