@@ -40,6 +40,9 @@ class Strict(BaseModel):
 
 class Config(Strict):
     account: str
+    # Single-user local account display name; can be adjusted in the private
+    # config without relying on untrusted sender-provided email instructions.
+    owner_name: str = Field(default="بيتر", min_length=1, max_length=80)
     model: str = Field(min_length=1, max_length=160, pattern=r"^[a-zA-Z0-9_./:-]+$")
     model_digest: str = Field(pattern=r"^(sha256:)?[a-f0-9]{64}$")
     local_only_confirmed: bool = False
@@ -55,6 +58,13 @@ class Config(Strict):
     @classmethod
     def valid_account(cls, v):
         return address(v)
+
+    @field_validator("owner_name")
+    @classmethod
+    def valid_owner_name(cls, value):
+        if (not value.strip() or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)):
+            raise ValueError("invalid_owner_name")
+        return value.strip()
 
     @field_validator("timezone")
     @classmethod
