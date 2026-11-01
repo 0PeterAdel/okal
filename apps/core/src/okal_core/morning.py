@@ -110,6 +110,11 @@ def morning_brief(store):
                         SELECT 1 FROM mail_sync_visibility v
                         WHERE v.account=i.account AND v.message_id=i.message_id
                           AND v.status IN ('trashed','deleted'))"""
+                if "mail_action_events" in tables:
+                    excluded += """ AND NOT EXISTS (
+                        SELECT 1 FROM mail_action_events a
+                        WHERE a.account=i.account AND a.message_id=i.message_id
+                          AND a.action='archive' AND a.status='confirmed')"""
                 rows = db.execute(
                     """SELECT i.message_id,i.metadata,i.insight
                        FROM mail_sync_insights i
