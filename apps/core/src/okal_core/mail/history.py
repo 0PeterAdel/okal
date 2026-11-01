@@ -68,6 +68,12 @@ class HistoryState:
             )""")
             db.execute("""CREATE INDEX IF NOT EXISTS mail_visibility_due
                 ON mail_sync_visibility(account,checked_at)""")
+            db.execute("""CREATE TABLE IF NOT EXISTS mail_sync_long_retries(
+                account TEXT NOT NULL,message_id TEXT NOT NULL,
+                last_attempt INTEGER NOT NULL, attempts INTEGER NOT NULL,
+                last_code TEXT NOT NULL,
+                PRIMARY KEY(account,message_id)
+            )""")
 
     def current(self, account):
         with self.store.connect() as db:
@@ -135,6 +141,30 @@ class HistoryState:
                   now - 86400, limit)).fetchall()
         return [r[0] for r in rows]
 
+    def long_reanalysis_candidates(self, account, now, limit=2):
+        """Recover pre-fix long-mail quarantines, rate-limited without writes."""
+        if not 0 <= limit <= 2:
+            raise MailError("invalid_long_reanalysis_limit")
+        if limit == 0:
+            return []
+        with self.store.connect() as db:
+            rows=db.execute("""
+                SELECT q.message_id FROM mail_sync_quarantine q
+                LEFT JOIN mail_sync_long_retries retry
+                  ON retry.account=q.account AND retry.message_id=q.message_id
+                LEFT JOIN mail_sync_visibility v
+                  ON v.account=q.account AND v.message_id=q.message_id
+                WHERE q.account=?
+                  AND q.code IN (
+                    'message_body_truncated_narrow_scope_or_review_manually',
+                    'message_exceeds_size_budget')
+                  AND (retry.attempts IS NULL OR retry.attempts<3)
+                  AND (retry.last_attempt IS NULL OR retry.last_attempt<?)
+                  AND (v.status IS NULL OR v.status='present')
+                ORDER BY q.detected_at DESC,q.message_id DESC LIMIT ?
+            """,(account.casefold(),now-86400,limit)).fetchall()
+        return [r[0] for r in rows]
+
     def failure(self, account, code):
         # Error codes are allowlisted; never persist provider error bodies/credentials.
         allowed = {
@@ -154,7 +184,7 @@ class HistoryState:
 
     def commit(self, account, previous, new_cursor, result, observations, body,
                ignored_ids=(), advance=True, alert=False, quarantines=(),
-               visibility=None):
+               visibility=None, recovered_ids=(), recovery_failures=()):
         """CAS prevents lost updates; both checkpoint and all visible data commit together."""
         account = account.casefold()
         safe_cursor(new_cursor)
@@ -196,7 +226,7 @@ class HistoryState:
                 )
             for message, insight in observations:
                 db.execute(
-                    "INSERT INTO mail_sync_seen(account,message_id) VALUES(?,?)",
+                    "INSERT OR IGNORE INTO mail_sync_seen(account,message_id) VALUES(?,?)",
                     (account, message.id),
                 )
                 metadata = message.model_dump(exclude={"body"})
@@ -221,6 +251,24 @@ class HistoryState:
                     ON CONFLICT(account,message_id) DO UPDATE
                     SET status=excluded.status, checked_at=excluded.checked_at""",
                     (account, mid, status, now))
+            for mid in recovered_ids:
+                if not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
+                    raise MailError("invalid_recovered_message_id")
+                db.execute("DELETE FROM mail_sync_quarantine WHERE account=? AND message_id=?",
+                           (account,mid))
+                db.execute("DELETE FROM mail_sync_long_retries WHERE account=? AND message_id=?",
+                           (account,mid))
+            for mid, code in recovery_failures:
+                if (not isinstance(mid,str)
+                        or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid)
+                        or code not in UNREADABLE_CODES):
+                    raise MailError("invalid_long_reanalysis_error")
+                db.execute("""INSERT INTO mail_sync_long_retries
+                    (account,message_id,last_attempt,attempts,last_code)
+                    VALUES(?,?,?,1,?)
+                    ON CONFLICT(account,message_id) DO UPDATE SET
+                    last_attempt=excluded.last_attempt,attempts=attempts+1,
+                    last_code=excluded.last_code""",(account,mid,now,code))
             for mid, code in quarantines:
                 if code not in UNREADABLE_CODES | {"message_disappeared"}:
                     raise MailError("unapproved_manual_review_code")
@@ -368,6 +416,9 @@ def run(store, cfg, api, model):
     ignored_ids = []
     quarantines = []
     visibility = {}
+    recovered_ids = []
+    recovery_failures = []
+    recovery_messages = []
     try:
         api.check_account(account)
         if previous is None:
@@ -438,27 +489,54 @@ def run(store, cfg, api, model):
                 # reconciliation probe based on the previous checkpoint.
                 if mid not in visibility:
                     visibility[mid] = native_visibility(mid)
-        # Existing seen-set is committed with the last cursor; duplicates remain inert.
+        # Previously quarantined long messages were recorded in mail_sync_seen;
+        # without this explicit recovery, normal history sync never retries them.
+        # Read at most two old items per tick, within the existing model budget.
+        if previous is not None:
+            capacity=max(0,cfg.max_messages-len(messages))
+            candidates=state.long_reanalysis_candidates(
+                account,now,limit=min(2,capacity)
+            )
+            for mid in candidates:
+                try:
+                    msg=api.get_optional(mid)
+                except MailError as exc:
+                    if str(exc) not in UNREADABLE_CODES:
+                        raise
+                    recovery_failures.append((mid,str(exc)))
+                    continue
+                if msg is None:
+                    visibility[mid]="deleted"
+                    recovered_ids.append(mid)
+                elif set(msg.labels) & SKIPPED_LABELS:
+                    # Native Gmail has removed the email from current inbox.
+                    visibility[mid]="trashed" if "TRASH" in msg.labels else "present"
+                    recovered_ids.append(mid)
+                else:
+                    recovery_messages.append(msg)
+        # Normal seen-set remains deduplicated. Explicit recovered IDs bypass
+        # it once, then the quarantine is cleared atomically with new evidence.
         unique = {m.id: m for m in messages if not set(m.labels) & SKIPPED_LABELS}
         missing = set(unique) - state.seen(account, list(unique))
         if len(missing) > cfg.max_messages:
             raise MailError("message_budget_exceeded_narrow_interval")
         observations = []
         for mid in sorted(missing, key=lambda k: (unique[k].received_ms, k)):
-            msg = unique[mid]
-            if msg.truncated:
-                quarantines.append(
-                    (mid, "message_body_truncated_narrow_scope_or_review_manually")
-                )
-                continue
-            observations.append((msg, model.summarize(msg)))
+            msg=unique[mid]
+            # Truncated now means bounded partial coverage. Do not quarantine
+            # merely because the original exceeds the local model context.
+            observations.append((msg,model.summarize(msg)))
+        for msg in recovery_messages:
+            observations.append((msg,model.summarize(msg)))
+            recovered_ids.append(msg.id)
         body = briefing(account, start, now, observations, deleted if not pending else 0,
                         recovered, pending, quarantines)
         outcome = state.commit(
             account, previous, cursor, result, observations, body,
             ignored_ids=ignored_ids, advance=not pending, quarantines=quarantines,
             alert=(not pending and (recovered or deleted > 0 or bool(quarantines))),
-            visibility=visibility,
+            visibility=visibility,recovered_ids=recovered_ids,
+            recovery_failures=recovery_failures,
         )
         outcome.update(deleted_or_unavailable=deleted, recovered=recovered,
                        manual_review=len(quarantines))
