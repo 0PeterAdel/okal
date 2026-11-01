@@ -124,19 +124,19 @@
               </div>
               <span id="triage-count" class="counter-pill">—</span>
             </div>
-            <div class="selection-toolbar" aria-label="تحديد رسائل Information">
+            <div class="selection-toolbar" aria-label="تحديد رسائل البريد في جميع الأقسام">
               <div class="selection-toolbar-main">
                 <span class="toolbar-label">SELECTION</span>
                 <strong id="trash-count" role="status" aria-live="polite">لم تحدد رسائل</strong>
                 <span class="selection-hint">Click اختيار · Ctrl+Click إضافة · Shift+Click نطاق · Ctrl+A تحديد الكل</span>
               </div>
               <div class="selection-buttons">
-                <button id="select-all-info" class="btn-ghost" type="button">تحديد الكل</button>
+                <button id="select-all-info" class="btn-ghost" type="button">تحديد حتى 20 رسالة</button>
                 <button id="clear-selection" class="btn-ghost" type="button">إلغاء التحديد</button>
-                <button id="trash-selected" class="btn-danger-soft" type="button" disabled>نقل إلى Trash</button>
+                <button id="trash-selected" class="btn-danger-soft" type="button" disabled>Delete · إلى Trash</button>
               </div>
             </div>
-            <p id="trash-help" class="operation-note">مراجعة فقط: الزر يجهز أمرًا تنفذه بنفسك داخل Terminal. لا يُحذف بريد من الصفحة.</p>
+            <p id="trash-help" class="operation-note">الحذف الفعلي ينقل الرسائل إلى Gmail Trash بعد مراجعة العناوين وإدخال PIN حذف محلي مستقل. لا حذف نهائي.</p>
             <code id="trash-command" class="trash-command" hidden></code>
             <div id="triage-groups" class="triage-groups"></div>
           </section>
@@ -162,6 +162,40 @@
             <button id="more" class="btn-secondary more" type="button" hidden>تحميل المزيد</button>
           </section>
         </section>
+
+        <dialog id="mail-viewer" class="okal-dialog mail-viewer" aria-labelledby="viewer-title">
+          <div class="dialog-header">
+            <div><p class="overline">ORIGINAL GMAIL MESSAGE</p><h2 id="viewer-title">قراءة الرسالة داخل OKAL</h2></div>
+            <button id="viewer-close" class="btn-secondary" type="button">إغلاق</button>
+          </div>
+          <div class="viewer-meta">
+            <p><strong>من:</strong> <span id="viewer-from"></span></p>
+            <p><strong>إلى:</strong> <span id="viewer-to"></span></p>
+            <p><strong>بتاريخ:</strong> <span id="viewer-date"></span></p>
+          </div>
+          <div class="viewer-tools">
+            <label><input id="viewer-remote-images" type="checkbox" /> تحميل الصور الخارجية (ممكن تُبلّغ المرسل بفتح الرسالة)</label>
+            <a id="viewer-gmail" href="#" target="_blank" rel="noopener noreferrer">فتح في Gmail</a>
+          </div>
+          <p id="viewer-note" class="muted">HTML داخل صندوق معزول؛ JavaScript والروابط التلقائية ممنوعة.</p>
+          <iframe id="viewer-frame" sandbox="" referrerpolicy="no-referrer" title="محتوى البريد الأصلي المعزول"></iframe>
+          <div id="viewer-attachments" class="viewer-attachments"></div>
+        </dialog>
+
+        <dialog id="trash-dialog" class="okal-dialog trash-dialog" aria-labelledby="delete-title">
+          <div class="dialog-header">
+            <div><p class="overline">RECOVERABLE DELETE</p><h2 id="delete-title">مراجعة نقل الرسائل إلى Trash</h2></div>
+            <button id="trash-cancel" class="btn-secondary" type="button">إلغاء</button>
+          </div>
+          <p class="muted">راجع العناوين الحقيقية من Gmail. سيتم نقلها إلى Trash القابل للاسترجاع، وليس حذفها نهائيًا.</p>
+          <div id="trash-preview-list" class="preview-list"></div>
+          <form id="trash-confirm-form">
+            <label for="trash-pin">Delete PIN (مختلف عن مفتاح قراءة OKAL)</label>
+            <input id="trash-pin" type="password" autocomplete="off" required minlength="12" maxlength="128" placeholder="PIN الحذف الذي ضبطته محليًا" />
+            <p id="trash-result" role="status" aria-live="polite"></p>
+            <button id="trash-confirm" class="btn-danger-soft" type="submit">تأكيد النقل الفعلي إلى Gmail Trash</button>
+          </form>
+        </dialog>
 
         <p id="message" role="status" aria-live="polite" class="global-message"></p>
         <section id="integrations" class="integrations" aria-label="حالة ربط الخدمات">
