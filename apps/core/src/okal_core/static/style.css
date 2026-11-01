@@ -402,3 +402,39 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   font-family:inherit;font-size:13px;line-height:1.75; }
 #mail-send-result {font-size:12px;line-height:1.65;min-height:24px;}
 #mail-send-confirm {min-height:48px;width:100%;margin-top:12px;}
+
+/* Unified local task planner — small, keyboard-friendly and responsive. */
+.planner-overview {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px;margin:12px 0;}
+.planner-overview span {padding:10px 12px;background:var(--surface-raised);
+ border:1px solid var(--line);border-radius:9px;color:var(--ink);
+ font-size:12px;font-weight:650;}
+.task-create-panel {margin:12px 0;border:1px solid var(--line-strong);
+ border-radius:12px;padding:12px;background:var(--surface-raised);}
+.task-create-panel summary {cursor:pointer;min-height:30px;
+ color:var(--accent);font-weight:750;}
+.task-form {display:grid;gap:9px;margin-top:13px;}
+.task-form label {font-size:12px;color:var(--ink);font-weight:650;}
+.task-form input,.task-form textarea,.task-form select,
+#viewer-task-options input,#viewer-task-options select {
+ box-sizing:border-box;width:100%;min-width:0;min-height:42px;
+ border-radius:9px;padding:9px 12px;border:1px solid var(--line-strong);
+ background:var(--surface);color:var(--ink);font:inherit;}
+.task-form input:focus-visible,.task-form textarea:focus-visible,
+.task-form select:focus-visible,
+#viewer-task-options input:focus-visible,
+#viewer-task-options select:focus-visible {
+ outline:3px solid var(--focus);outline-offset:2px;}
+.task-form textarea{resize:vertical;}
+.task-form .btn-primary{min-height:44px;}
+.task-card-actions {display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.task-card-actions button {min-height:40px;font-size:12px;}
+.task-reminder-state {font-size:12px;color:var(--accent);line-height:1.6;}
+.task-overdue {color:var(--danger);font-size:12px;}
+#tasks-history-toggle {min-height:40px;margin-top:12px;}
+#tasks-history-list {margin-top:12px;}
+#viewer-task-options {margin-bottom:15px;}
+#viewer-task-options label {display:block;font-size:12px;margin:8px 0;}
+#task-create-feedback,#task-edit-feedback {font-size:12px;line-height:1.5;}
+@media(max-width:620px){.planner-overview {grid-template-columns:1fr 1fr;}
+  .task-card-actions button{flex:1;min-width:90px;}}
