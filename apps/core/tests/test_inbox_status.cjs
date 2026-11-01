@@ -463,7 +463,7 @@ test("Native newsletter respects image privacy and single-scroll focus reader", 
   assert.equal(get("viewer-remote-images").checked,false);
   assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
   assert.doesNotMatch(get("viewer-frame").srcdoc,/img-src data: https:/);
-  assert.match(get("viewer-frame").srcdoc,/script-src 'none'/);
+  assert.match(get("viewer-frame").srcdoc,/script-src &#39;none&#39;/);
   assert.equal((get("viewer-frame").srcdoc.match(/<html\b/g)||[]).length,1);
   assert.match(get("viewer-frame").srcdoc,/<style>td{color:red}<\/style>/);
   assert.match(get("viewer-image-status").textContent,/محجوبة/);
