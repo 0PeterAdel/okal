@@ -523,6 +523,34 @@ test("Lazy marketing images stay inert until owner explicitly presses Load Image
   assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
 });
 
+test("Consented deferred picture sources keep signed CDN query params and reject unsafe URLs", async () => {
+  const mail={
+    id:"aa",subject:"Responsive newsletter",from:"news@example.com",
+    to:"owner@example.com",date:"Today",labels:["INBOX"],
+    html:'<html><body><picture><source data-srcset="https://cdn.example/one.png 1x, https://cdn.example/two.png 2x">' +
+      '<img data-original="https://cdn.example/hero.jpg?x=1&amp;y=2" src="data:image/gif;base64,AA==">' +
+      '<img data-lazy-src="javascript:alert(1)"></picture></body></html>',
+    external_images_detected:true,inline_images:0,skipped_inline_images:0,
+    ai_summary:"News",ai_suggested_action:"",ai_category:"information",
+    gmail_link:"https://mail.google.com/mail/#all/aa",attachments:[]
+  };
+  const {context,get}=harness(async () => response(mail));
+  await context.openMailViewer("aa");
+  const before=get("viewer-frame").srcdoc;
+  assert.ok(before.includes('data-original="https://cdn.example/hero.jpg?x=1&amp;y=2"'));
+  assert.ok(!before.includes('src="https://cdn.example/hero.jpg'));
+  assert.ok(before.includes("img-src data:;"));
+  get("viewer-load-images").handlers.click();
+  const after=get("viewer-frame").srcdoc;
+  assert.ok(after.includes('src="https://cdn.example/hero.jpg?x=1&amp;y=2"'));
+  assert.ok(!after.includes("&amp;amp;"));
+  assert.ok(after.includes('srcset="https://cdn.example/one.png 1x, https://cdn.example/two.png 2x"'));
+  assert.ok(!after.includes('src="javascript:'));
+  assert.ok(after.includes('data-lazy-src="javascript:alert(1)"'));
+  get("viewer-load-images").handlers.click();
+  assert.ok(get("viewer-frame").srcdoc.includes("img-src data:;"));
+});
+
 test("Viewing a saved Gmail email removes it immediately from active Smart Inbox", async () => {
   const mail={id:"aa",subject:"Workflow Alert",from:"sender@example.com",
     to:"owner@example.com",date:"Today",html:"<p>Original email</p>",
