@@ -7,6 +7,7 @@ on:
       - feat/core-morning-brief-gmail-trash
       - feat/core-ai-morning-editor
       - feat/core-pro-dashboard-multiselect
+      - feat/inbox-selection-clusters-inline-reader
   pull_request:
     branches:
       - feat/core-local-task-planning
