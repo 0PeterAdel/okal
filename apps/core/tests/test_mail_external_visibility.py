@@ -27,7 +27,7 @@ class SyntheticGmail:
                 sender="Person <person@example.com>", recipient="owner@example.com",
                 reply_to="", cc="", bcc="", subject="Real planning mail",
                 body="Review the verified agenda", rfc_id="<mail@example.com>",
-                labels=["INBOX"], attachment_count=0,
+                labels=["INBOX","UNREAD"], attachment_count=0,
             )
         }
         self.delta = HistoryDelta("100", [], 0, {})
