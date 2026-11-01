@@ -418,7 +418,10 @@ def run(store, cfg, api, model):
         if callable(native_visibility):
             candidates = state.visibility_candidates(account, now, limit=50)
             for mid in candidates:
-                visibility[mid] = native_visibility(mid)
+                # Avoid overwriting a newer history change with a redundant
+                # reconciliation probe based on the previous checkpoint.
+                if mid not in visibility:
+                    visibility[mid] = native_visibility(mid)
         # Existing seen-set is committed with the last cursor; duplicates remain inert.
         unique = {m.id: m for m in messages if not set(m.labels) & SKIPPED_LABELS}
         missing = set(unique) - state.seen(account, list(unique))
