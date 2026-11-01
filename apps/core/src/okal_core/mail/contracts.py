@@ -80,7 +80,10 @@ class Message(Strict):
     bcc: str = Field(default="", max_length=1000)
     reply_to: str = Field(max_length=1000)
     subject: str = Field(max_length=500)
-    body: str = Field(max_length=8000)
+    # Larger native Gmail body is retained in memory only during ingestion.
+    # Only hashed provenance + AI summary is persisted; raw body is not saved.
+    body: str = Field(max_length=96000)
+    body_total_chars: int = Field(default=0, ge=0)
     rfc_id: str = Field(max_length=500)
     labels: list[str]
     truncated: bool = False
