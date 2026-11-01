@@ -395,7 +395,7 @@ class HistoryTests(unittest.TestCase):
         marker, mids, deleted = Gmail(service).history_changes("100", 3)
         self.assertEqual(
             service.users.return_value.history.return_value.list.call_args.kwargs["historyTypes"],
-            ["messageAdded", "messageDeleted"],
+            ["messageAdded", "messageDeleted", "labelAdded", "labelRemoved"],
         )
         self.assertEqual((marker, mids, deleted), ("120", ["aa", "bb"], 1))
         service.users.return_value.history.return_value.list.return_value.execute.side_effect = None
