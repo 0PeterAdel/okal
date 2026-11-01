@@ -138,18 +138,28 @@ def apply(store, cfg, api, ids, action, digest):
                 raise MailError("action_verification_uncertain_check_gmail")
         except Exception:
             raise MailError("action_write_uncertain_check_gmail_no_auto_retry") from None
+        # Keep the confirmed Gmail write and local unread/Viewed projections
+        # in ONE atomic transaction. If SQLite fails, the pending attempt
+        # remains recorded and the UI must not claim a verified local state.
+        from .inbox_visibility import upsert_unread, initialize as init_read
         with store.connect() as db, db:
-            db.execute(
+            db.execute("BEGIN IMMEDIATE")
+            if action in {"mark_read", "mark_unread"}:
+                init_read(db)
+                upsert_unread(db, cfg.account, mid, action == "mark_unread",
+                              int(store.clock()))
+                if action == "mark_unread":
+                    db.execute(
+                        "DELETE FROM mail_local_seen WHERE account=? AND message_id=?",
+                        (cfg.account.casefold(), mid)
+                    )
+            updated = db.execute(
                 "UPDATE mail_action_events SET status='confirmed',verified_at=? "
                 "WHERE id=? AND status='attempting'",
-                (int(store.clock()),event_id)
+                (int(store.clock()), event_id)
             )
-        from .inbox_visibility import restore_unread_view, upsert_unread
-        with store.connect() as db,db:
-            upsert_unread(db,cfg.account,mid,action=="mark_unread",
-                          int(store.clock())) if action in {"mark_read","mark_unread"} else None
-        if action=="mark_unread":
-            restore_unread_view(store,cfg.account,mid)
+            if updated.rowcount != 1:
+                raise MailError("action_ledger_confirmation_failed")
         succeeded.append(mid)
     return {"status":"confirmed", "action": action, "count": len(succeeded),
             "message_ids": succeeded, "external_writes": True,
