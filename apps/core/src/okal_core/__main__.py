@@ -30,6 +30,10 @@ def main():
         "mail", help="optional Gmail backend; explicit local onboarding"
     )
     mail.add_argument("mail_args", nargs=argparse.REMAINDER)
+    calendar = commands.add_parser(
+        "calendar", help="Google Calendar owner-only OAuth, sync and status"
+    )
+    calendar.add_argument("calendar_args", nargs=argparse.REMAINDER)
     tasks = commands.add_parser(
         "tasks", help="Owner-approved local tasks; never writes to Gmail or Calendar"
     )
@@ -93,6 +97,9 @@ def main():
             result = notify_login_once(store) if args.notify else view(store)
             print(json.dumps(result, ensure_ascii=True, indent=2))
             return 0
+        if args.command == "calendar":
+            from .calendar_cli import main as calendar_main
+            return calendar_main(store, args.calendar_args)
         if args.command == "mail":
             from .mail.cli import main as mail_main
 
@@ -178,6 +185,9 @@ def main():
             @asynccontextmanager
             async def lifecycle(app):
                 worker = None
+                from .calendar_google import CalendarWorker
+                calendar_worker = CalendarWorker(store)
+                calendar_worker.start()
                 # Local reminder scheduler runs independently of Gmail/Ollama,
                 # using only explicitly approved SQLite tasks.
                 from .task_planner import ReminderWorker
@@ -193,6 +203,7 @@ def main():
                     if worker:
                         worker.stop()
                     reminders.stop()
+                    calendar_worker.stop()
 
             uvicorn.run(
                 create_app(store, args.port, lifespan=lifecycle),

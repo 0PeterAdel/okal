@@ -181,6 +181,7 @@ def list_calendars(service):
                 "name": str(item.get("summary") or calendar_id)[:150],
                 "primary": item.get("primary") is True,
                 "access": str(item.get("accessRole") or "")[:30],
+                "timezone": str(item.get("timeZone") or "UTC")[:100],
             })
         page_token = page.get("nextPageToken")
         if not page_token:
@@ -410,8 +411,15 @@ class CalendarWorker:
                 if self.stop_event.is_set():
                     break
                 try:
-                    sync_calendar(self.store, account=account)
-                except (CalendarGoogleError, OSError, ValueError):
+                    service = _service(self.store, account)
+                    calendars = list_calendars(service)
+                    for item in calendars[:20]:
+                        if item["access"] in {"reader", "writer", "owner"}:
+                            sync_calendar(
+                                self.store, account=account, calendar_id=item["id"],
+                                service=service, calendar_timezone=item["timezone"]
+                            )
+                except Exception:
                     # Operator can inspect 'calendar status' / manual sync.
                     continue
             if self.stop_event.wait(self.period):
