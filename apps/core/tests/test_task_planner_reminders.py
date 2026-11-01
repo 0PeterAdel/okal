@@ -136,7 +136,6 @@ class PlannerTests(unittest.TestCase):
         reopen=self.client.post("/api/v1/tasks/transition",headers=self.headers,
             json={"task_id":key,"status":"open"})
         self.assertEqual(reopen.status_code,200)
-        self.assertEqual(len(self.planner.list()["items"]),0) if False else None
         self.assertEqual(len(self.planner.list()["items"]),1)
 
     def test_local_write_rejects_cross_site_and_invalid_due(self):
