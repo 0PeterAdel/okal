@@ -339,7 +339,16 @@ def create_app(
                 finally:
                     api.close()
         except MailError as exc:
-            raise HTTPException(409, str(exc)) from None
+            code = str(exc)
+            # Stable machine-readable codes, never token/provider exception text.
+            status = (
+                423 if code == "mail_operation_already_running"
+                else 401 if code == "authorization_required"
+                else 403 if code in {"scope_or_send_permission_mismatch",
+                                    "wrong_google_account"}
+                else 409
+            )
+            raise HTTPException(status, code) from None
 
     @app.post("/api/v1/mail/trash")
     async def ui_move_to_trash(request: Request):
