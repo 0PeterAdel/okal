@@ -30,7 +30,7 @@ function harness(fetcher) {
   const context = vm.createContext({
     document: { getElementById: get, createElement: node, addEventListener() {} },
     window: { addEventListener() {} },
-    URLSearchParams, AbortController, fetch: fetcher,
+    URLSearchParams, AbortController, setTimeout, fetch: fetcher,
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/okal_core/static/app.js"), "utf8"), context);
   return { context, get };
