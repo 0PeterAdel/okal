@@ -508,6 +508,53 @@ test("Mail Agent task from email stays local and reply draft remains editable", 
   assert.equal(events.some(x=>x.includes("/send")),false);
 });
 
+test("AI Reply Send never runs without exact native preview and separate owner click", async () => {
+  const events=[];
+  const original={id:"aa",subject:"Project update",from:"Tester <a@example.com>",
+    to:"owner@example.com",date:"Today",html:"<p>Mail</p>",
+    labels:["INBOX"],ai_summary:"Review",ai_category:"action",
+    ai_suggested_action:"Reply",attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"};
+  const {context,get}=harness(async (url,options)=>{
+    events.push(url);
+    if(url==="/api/v1/mail/messages/aa") return response(original);
+    if(url==="/api/v1/mail/reply-drafts/generate")
+      return response({draft_id:"a".repeat(32),subject:"Project update",
+        recipient:"a@example.com",body:"Original AI draft",sent:false});
+    if(url==="/api/v1/mail/reply-drafts/revise")
+      return response({draft_id:"b".repeat(32),sent:false});
+    if(url==="/api/v1/mail/reply-drafts/preview-send") {
+      assert.equal(JSON.parse(options.body).draft_id,"b".repeat(32));
+      return response({draft_id:"b".repeat(32),recipient:"a@example.com",
+        subject:"Project update",body:"Reviewed and edited",approval_digest:"a".repeat(64),
+        confirmation_token:"T".repeat(43)});
+    }
+    if(url==="/api/v1/mail/reply-drafts/confirm-send") {
+      const payload=JSON.parse(options.body);
+      assert.equal(payload.confirmed,true);
+      assert.equal(payload.draft_id,"b".repeat(32));
+      return response({status:"sent_verified",provider_id:"nativegmailid"});
+    }
+    return response({});
+  });
+  await context.openMailViewer("aa");
+  await get("viewer-reply-generate").handlers.click();
+  get("viewer-reply-body").value="Reviewed and edited";
+  // Unsaved owner edits cannot bypass the review.
+  await get("viewer-reply-send").handlers.click();
+  assert.match(get("viewer-reply-state").textContent,/احفظ التعديل/);
+  assert.equal(events.includes("/api/v1/mail/reply-drafts/preview-send"),false);
+  await get("viewer-reply-save").handlers.click();
+  await get("viewer-reply-send").handlers.click();
+  assert.equal(get("mail-send-dialog").open,true);
+  assert.equal(get("mail-send-to").textContent,"a@example.com");
+  assert.equal(get("mail-send-body").textContent,"Reviewed and edited");
+  assert.equal(events.includes("/api/v1/mail/reply-drafts/confirm-send"),false);
+  await get("mail-send-confirm").handlers.click();
+  assert.equal(events.filter(u=>u==="/api/v1/mail/reply-drafts/confirm-send").length,1);
+  assert.equal(get("viewer-reply-send").disabled,true);
+});
+
 test("morning rendering resets private text on hide", () => {
   const { context, get } = harness();
   context.renderMorning({
