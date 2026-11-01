@@ -701,8 +701,19 @@ async function openMailViewer(id) {
       "الصور الداخلية متاحة، والصور الخارجية تحتاج موافقتك بسبب احتمالية التتبع.";
     for (const attachment of data.attachments || []) {
       el("viewer-attachments").append(text("p",
-        "مرفق: " + attachment.name + " (" + attachment.mime_type +
-        ") — للتحميل افتح Gmail", "muted"));
+        "مرفق: " + attachment.name + " (" + attachment.mime_type + ")" +
+        (attachment.too_large_for_preview ? " — الصورة كبيرة، افتحها في Gmail" :
+          attachment.data_url ? " — معاينة الصورة محفوظة مؤقتًا داخل الصفحة" :
+          " — للتحميل افتح Gmail"), "muted"));
+      if (typeof attachment.data_url === "string" &&
+          /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(attachment.data_url)) {
+        const image = document.createElement("img");
+        image.src = attachment.data_url;
+        image.alt = "مرفق صورة: " + attachment.name;
+        image.className = "viewer-attached-image";
+        image.loading = "lazy";
+        el("viewer-attachments").append(image);
+      }
     }
     refreshViewerDocument();
   } catch (_) {
