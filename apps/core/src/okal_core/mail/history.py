@@ -196,11 +196,19 @@ class HistoryState:
 
 
 def recent_quarantines(store, account, limit=60):
-    """Only locally saved manual-review metadata; never fetch Gmail on GET."""
+    """Only locally saved manual-review metadata, excluding confirmed Trash."""
     with store.connect() as db:
+        has_trash_ledger = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_trash_events'"
+        ).fetchone() is not None
+        excluded = (""" AND NOT EXISTS (
+            SELECT 1 FROM mail_trash_events e
+            WHERE e.account=q.account AND e.message_id=q.message_id
+              AND e.status='confirmed_trash')""" if has_trash_ledger else "")
         rows = db.execute(
-            "SELECT message_id,code,detected_at FROM mail_sync_quarantine "
-            "WHERE account=? ORDER BY detected_at DESC,message_id DESC LIMIT ?",
+            "SELECT q.message_id,q.code,q.detected_at FROM mail_sync_quarantine q "
+            "WHERE q.account=? " + excluded +
+            " ORDER BY q.detected_at DESC,q.message_id DESC LIMIT ?",
             (account.casefold(), limit),
         ).fetchall()
     return [dict(r) for r in rows]
