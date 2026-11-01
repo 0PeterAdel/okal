@@ -58,6 +58,16 @@ class HistoryState:
                 account TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL,
                 code TEXT NOT NULL
             )""")
+            # Native Gmail's Trash state is separate from immutable saved AI
+            # evidence. Hide from current views but preserve original audit.
+            db.execute("""CREATE TABLE IF NOT EXISTS mail_sync_visibility (
+                account TEXT NOT NULL, message_id TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('present','trashed','deleted')),
+                checked_at INTEGER NOT NULL,
+                PRIMARY KEY(account,message_id)
+            )""")
+            db.execute("""CREATE INDEX IF NOT EXISTS mail_visibility_due
+                ON mail_sync_visibility(account,checked_at)""")
 
     def current(self, account):
         with self.store.connect() as db:
@@ -96,6 +106,29 @@ class HistoryState:
                 ))
         return found
 
+    def visibility_candidates(self, account, now, limit=50):
+        """Bounded reconciliation of previously saved mail after startup.
+
+        The history cursor can predate this feature, so existing records may
+        already be trashed in Gmail. Prefer never checked, then >24h old.
+        Native labels are fetched outside the SQLite transaction.
+        """
+        if not 1 <= limit <= 50:
+            raise MailError("invalid_visibility_reconcile_limit")
+        with self.store.connect() as db:
+            rows = db.execute("""
+                SELECT src.message_id FROM (
+                    SELECT message_id FROM mail_sync_insights WHERE account=?
+                    UNION SELECT message_id FROM mail_sync_quarantine WHERE account=?
+                ) src LEFT JOIN mail_sync_visibility v
+                  ON v.account=? AND v.message_id=src.message_id
+                WHERE v.checked_at IS NULL OR v.checked_at<?
+                ORDER BY CASE WHEN v.checked_at IS NULL THEN 0 ELSE 1 END,
+                         v.checked_at ASC, src.message_id ASC LIMIT ?
+            """, (account.casefold(), account.casefold(), account.casefold(),
+                  now - 86400, limit)).fetchall()
+        return [r[0] for r in rows]
+
     def failure(self, account, code):
         # Error codes are allowlisted; never persist provider error bodies/credentials.
         allowed = {
@@ -114,7 +147,8 @@ class HistoryState:
                 (account.casefold(), int(self.store.clock()), clean))
 
     def commit(self, account, previous, new_cursor, result, observations, body,
-               ignored_ids=(), advance=True, alert=False, quarantines=()):
+               ignored_ids=(), advance=True, alert=False, quarantines=(),
+               visibility=None):
         """CAS prevents lost updates; both checkpoint and all visible data commit together."""
         account = account.casefold()
         safe_cursor(new_cursor)
@@ -169,6 +203,18 @@ class HistoryState:
             for mid in ignored_ids:
                 db.execute("INSERT OR IGNORE INTO mail_sync_seen VALUES(?,?)",
                            (account, mid))
+            # Apply visibility changes atomically with history cursor. Never
+            # delete evidence or silently re-ingest a previously seen ID.
+            for mid, status in (visibility or {}).items():
+                if (not isinstance(mid, str)
+                        or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid)
+                        or status not in {"present", "trashed", "deleted"}):
+                    raise MailError("invalid_gmail_visibility_event")
+                db.execute("""INSERT INTO mail_sync_visibility
+                    (account,message_id,status,checked_at) VALUES(?,?,?,?)
+                    ON CONFLICT(account,message_id) DO UPDATE
+                    SET status=excluded.status, checked_at=excluded.checked_at""",
+                    (account, mid, status, now))
             for mid, code in quarantines:
                 if code not in UNREADABLE_CODES | {"message_disappeared"}:
                     raise MailError("unapproved_manual_review_code")
@@ -198,13 +244,19 @@ class HistoryState:
 def recent_quarantines(store, account, limit=60):
     """Only locally saved manual-review metadata, excluding confirmed Trash."""
     with store.connect() as db:
-        has_trash_ledger = db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_trash_events'"
-        ).fetchone() is not None
+        tables = {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )}
+        has_trash_ledger = "mail_trash_events" in tables
         excluded = (""" AND NOT EXISTS (
             SELECT 1 FROM mail_trash_events e
             WHERE e.account=q.account AND e.message_id=q.message_id
               AND e.status='confirmed_trash')""" if has_trash_ledger else "")
+        if "mail_sync_visibility" in tables:
+            excluded += """ AND NOT EXISTS (
+                SELECT 1 FROM mail_sync_visibility v
+                WHERE v.account=q.account AND v.message_id=q.message_id
+                  AND v.status IN ('trashed','deleted'))"""
         rows = db.execute(
             "SELECT q.message_id,q.code,q.detected_at FROM mail_sync_quarantine q "
             "WHERE q.account=? " + excluded +
@@ -217,13 +269,19 @@ def recent_quarantines(store, account, limit=60):
 def recent_evidence(store, account, limit=60):
     """Pure SELECT for GET endpoints; exclude confirmed Gmail Trash items."""
     with store.connect() as db:
-        has_trash_ledger = db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_trash_events'"
-        ).fetchone() is not None
+        tables = {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )}
+        has_trash_ledger = "mail_trash_events" in tables
         excluded = (""" AND NOT EXISTS (
             SELECT 1 FROM mail_trash_events e
             WHERE e.account=i.account AND e.message_id=i.message_id
             AND e.status='confirmed_trash')""" if has_trash_ledger else "")
+        if "mail_sync_visibility" in tables:
+            excluded += """ AND NOT EXISTS (
+                SELECT 1 FROM mail_sync_visibility v
+                WHERE v.account=i.account AND v.message_id=i.message_id
+                AND v.status IN ('trashed','deleted'))"""
         rows = db.execute("""SELECT i.metadata,i.insight,r.created_at
             FROM mail_sync_insights i JOIN runs r ON r.id=i.run_id
             WHERE i.account=? """ + excluded +
@@ -293,6 +351,7 @@ def run(store, cfg, api, model):
     pending = False
     ignored_ids = []
     quarantines = []
+    visibility = {}
     try:
         api.check_account(account)
         if previous is None:
@@ -313,9 +372,11 @@ def run(store, cfg, api, model):
             try:
                 # A bounded history listing may span several model batches. The
                 # cursor stays unchanged until ALL listed IDs are accounted for.
-                cursor, ids, deleted = api.history_changes(
+                delta = api.history_changes(
                     previous, 100000  # 100 history pages x up to 500 events; bounded
                 )
+                cursor, ids, deleted = delta
+                visibility.update(getattr(delta, "visibility", {}))
                 already = state.seen(account, ids)
                 pending_ids = [mid for mid in ids if mid not in already]
                 batch = pending_ids[:cfg.max_messages]
@@ -349,6 +410,15 @@ def run(store, cfg, api, model):
                 # Overlap guards timestamp resolution/backdated arrivals after failure.
                 messages = api.collect(max(0, start - 300), now, cfg.max_messages)
                 result = "history_expired_visible_mail_backfill"
+        # Reconcile older saved messages too. The current history cursor
+        # cannot reconstruct changes made BEFORE this fix was installed.
+        # Bound this to 50 read-only metadata lookups per successful sync.
+        # Never call Gmail while holding a database write transaction.
+        native_visibility = getattr(api, "message_visibility", None)
+        if callable(native_visibility):
+            candidates = state.visibility_candidates(account, now, limit=50)
+            for mid in candidates:
+                visibility[mid] = native_visibility(mid)
         # Existing seen-set is committed with the last cursor; duplicates remain inert.
         unique = {m.id: m for m in messages if not set(m.labels) & SKIPPED_LABELS}
         missing = set(unique) - state.seen(account, list(unique))
@@ -369,6 +439,7 @@ def run(store, cfg, api, model):
             account, previous, cursor, result, observations, body,
             ignored_ids=ignored_ids, advance=not pending, quarantines=quarantines,
             alert=(not pending and (recovered or deleted > 0 or bool(quarantines))),
+            visibility=visibility,
         )
         outcome.update(deleted_or_unavailable=deleted, recovered=recovered,
                        manual_review=len(quarantines))
