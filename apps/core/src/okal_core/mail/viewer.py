@@ -295,6 +295,10 @@ def read_native(store, mid):
             )),
             "attachments": attachments[:30],
             "remote_images_blocked_by_default": True,
+            "remote_image_preference": __import__(
+                "okal_core.mail.inbox_visibility",
+                fromlist=["image_preference"]
+            ).image_preference(store,account),
             "source": "native_gmail_full_message_read_on_demand",
             "gmail_link": "https://mail.google.com/mail/?authuser=" +
             quote(account, safe="") + "#all/" + mid,
