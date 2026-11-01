@@ -442,6 +442,50 @@ test("Delete previews native subjects then requires one explicit confirmation cl
   assert.equal(get("trash-dialog").open,false);
 });
 
+test("Native newsletter respects image privacy and single-scroll focus reader", async () => {
+  let reads=0;
+  const mail={
+    id:"aa",subject:"Newsletter",from:"courses@example.com",to:"owner@example.com",
+    date:"Today",labels:["INBOX"],
+    html:'<!doctype html><html><head><style>td{color:red}</style></head>'+
+      '<body><table><tr><td><img src="https://images.example/logo.png"></td></tr></table></body></html>',
+    inline_images:2,skipped_inline_images:1,external_images_detected:true,
+    ai_summary:"Review",ai_suggested_action:"",ai_category:"information",
+    gmail_link:"https://mail.google.com/mail/#all/aa",attachments:[]
+  };
+  const {context,get}=harness(async (url)=>{
+    assert.equal(url,"/api/v1/mail/messages/aa");
+    reads++;
+    return response(mail);
+  });
+  await context.openMailViewer("aa");
+  assert.equal(reads,1);
+  assert.equal(get("viewer-remote-images").checked,false);
+  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+  assert.doesNotMatch(get("viewer-frame").srcdoc,/img-src data: https:/);
+  assert.match(get("viewer-frame").srcdoc,/script-src 'none'/);
+  assert.equal((get("viewer-frame").srcdoc.match(/<html\b/g)||[]).length,1);
+  assert.match(get("viewer-frame").srcdoc,/<style>td{color:red}<\/style>/);
+  assert.match(get("viewer-image-status").textContent,/محجوبة/);
+  // No explicit remote consent => the browser CSP forbids external pixels.
+  get("viewer-focus-toggle").handlers.click();
+  assert.equal(get("viewer-focus-toggle").attributes["aria-pressed"],"true");
+  assert.match(get("viewer-focus-toggle").textContent,/الرجوع/);
+  get("viewer-remote-images").checked=true;
+  get("viewer-remote-images").handlers.change();
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https:/);
+  assert.match(get("viewer-image-status").textContent,/تم السماح/);
+  get("viewer-frame").handlers.load();
+  assert.doesNotMatch(get("viewer-image-status").textContent,/جارٍ تحميل/);
+  get("mail-viewer").close();
+  assert.equal(get("viewer-remote-images").checked,false);
+  assert.equal(get("viewer-focus-toggle").attributes["aria-pressed"],"false");
+  await context.openMailViewer("aa");
+  assert.equal(reads,2);
+  assert.equal(get("viewer-remote-images").checked,false);
+  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+});
+
 test("Mail Agent previews Gmail action and writes only after explicit confirmation", async () => {
   const events=[];
   const original={id:"aa",subject:"Native subject",from:"sender@example.com",
