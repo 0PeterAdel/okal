@@ -157,7 +157,8 @@ class HistoryState:
                 WHERE q.account=?
                   AND q.code IN (
                     'message_body_truncated_narrow_scope_or_review_manually',
-                    'message_exceeds_size_budget')
+                    'message_exceeds_size_budget',
+                    'body_requires_attachment_fetch_manual_review')
                   AND (retry.attempts IS NULL OR retry.attempts<3)
                   AND (retry.last_attempt IS NULL OR retry.last_attempt<?)
                   AND (v.status IS NULL OR v.status='present')
