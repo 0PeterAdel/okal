@@ -145,7 +145,38 @@
             <section id="task-section" class="secondary-panel" aria-labelledby="tasks-title">
               <div class="panel-head"><div><p class="overline">MY TASKS</p><h3 id="tasks-title">مهامي ومواعيدي</h3></div><span id="tasks-count" class="counter-pill">—</span></div>
               <p id="tasks-note" class="muted">المواعيد اللي أنت أكدتها فقط.</p>
+              <div id="planner-overview" class="planner-overview" aria-label="ملخص جدول الأسبوع">
+                <span id="planner-today">اليوم —</span>
+                <span id="planner-overdue">المتأخر —</span>
+                <span id="planner-upcoming">الأسبوع —</span>
+                <span id="planner-unscheduled">بلا موعد —</span>
+              </div>
+              <details id="task-create-panel" class="task-create-panel">
+                <summary>إضافة مهمة جديدة +</summary>
+                <form id="task-create-form" class="task-form">
+                  <label for="task-new-title">عنوان المهمة</label>
+                  <input id="task-new-title" maxlength="180" required placeholder="مثلاً: راجع PR الأسبوع" />
+                  <label for="task-new-notes">ملاحظات (اختياري)</label>
+                  <textarea id="task-new-notes" rows="2" maxlength="2000"></textarea>
+                  <label for="task-new-due">الموعد الذي اخترته (اختياري)</label>
+                  <input id="task-new-due" type="datetime-local" />
+                  <label for="task-new-reminder">إشعار محلي قبل الموعد</label>
+                  <select id="task-new-reminder">
+                    <option value="">بدون تذكير</option>
+                    <option value="0">عند الموعد</option>
+                    <option value="5">قبل 5 دقائق</option>
+                    <option value="15">قبل 15 دقيقة</option>
+                    <option value="60">قبل ساعة</option>
+                    <option value="1440">قبل يوم</option>
+                  </select>
+                  <p class="muted">سيُحفظ الوقت وفق المنطقة الزمنية على جهازك. لن يُنشأ Google Calendar Event.</p>
+                  <button class="btn-primary" id="task-create-submit" type="submit">حفظ المهمة محليًا</button>
+                  <p id="task-create-feedback" role="status" aria-live="polite"></p>
+                </form>
+              </details>
               <div id="tasks-list" class="task-list"></div>
+              <button id="tasks-history-toggle" class="btn-secondary" type="button">عرض المكتملة والمستبعدة</button>
+              <div id="tasks-history-list" class="task-list" hidden></div>
             </section>
             <section id="assistant-section" class="secondary-panel" aria-labelledby="assistant-title">
               <div class="panel-head"><div><p class="overline">OKAL RECOMMENDS</p><h3 id="assistant-title">اقتراحات المساعد</h3></div><span id="assistant-count" class="counter-pill">—</span></div>
@@ -162,6 +193,33 @@
             <button id="more" class="btn-secondary more" type="button" hidden>تحميل المزيد</button>
           </section>
         </section>
+
+        <dialog id="task-edit-dialog" class="okal-dialog trash-dialog" aria-labelledby="task-edit-title">
+          <div class="dialog-header">
+            <div><p class="overline">LOCAL TASK</p><h2 id="task-edit-title">تعديل المهمة</h2></div>
+            <button id="task-edit-close" class="btn-secondary" type="button">إغلاق</button>
+          </div>
+          <form id="task-edit-form" class="task-form">
+            <label for="task-edit-name">عنوان المهمة</label>
+            <input id="task-edit-name" maxlength="180" required />
+            <label for="task-edit-notes">الملاحظات</label>
+            <textarea id="task-edit-notes" maxlength="2000" rows="3"></textarea>
+            <label for="task-edit-due">الوقت المؤكد</label>
+            <input id="task-edit-due" type="datetime-local" />
+            <label for="task-edit-reminder">التذكير المحلي</label>
+            <select id="task-edit-reminder">
+              <option value="">بدون تذكير</option>
+              <option value="0">عند الموعد</option>
+              <option value="5">قبل 5 دقائق</option>
+              <option value="15">قبل 15 دقيقة</option>
+              <option value="60">قبل ساعة</option>
+              <option value="1440">قبل يوم</option>
+            </select>
+            <p class="muted">أي موعد أو تذكير لازم تحدده بنفسك. مش بنستنتج تواريخ من AI.</p>
+            <button id="task-edit-save" class="btn-primary" type="submit">حفظ التعديل</button>
+            <p id="task-edit-feedback" role="status" aria-live="polite"></p>
+          </form>
+        </dialog>
 
         <dialog id="mail-viewer" class="okal-dialog mail-viewer" aria-labelledby="viewer-title">
           <div class="dialog-header">
@@ -184,6 +242,20 @@
             <button id="viewer-create-task" class="btn-secondary" type="button" disabled>إنشاء Task</button>
             <span id="viewer-action-note" class="muted" role="status"></span>
           </div>
+          <details id="viewer-task-options" class="viewer-reply-panel">
+            <summary>اختياري · تأكيد موعد المهمة من هذا البريد</summary>
+            <p class="muted">اكتب الموعد بنفسك إن كان مؤكدًا. تركه فارغًا ينشئ Task بدون موعد.</p>
+            <label for="viewer-task-due">موعد المهمة</label>
+            <input id="viewer-task-due" type="datetime-local" />
+            <label for="viewer-task-reminder">تذكير محلي</label>
+            <select id="viewer-task-reminder">
+              <option value="">بدون تذكير</option>
+              <option value="0">عند الموعد</option>
+              <option value="15">قبل 15 دقيقة</option>
+              <option value="60">قبل ساعة</option>
+              <option value="1440">قبل يوم</option>
+            </select>
+          </details>
           <details id="viewer-reply-panel" class="viewer-reply-panel">
             <summary>AI Reply Draft · إنشاء رد محلي للمراجعة</summary>
             <p class="muted">بيستخدم Ollama المحلي فقط. الرد مش هيتبعت تلقائيًا، ولازم تراجع الحقائق والمستلم قبل نسخه أو إرساله لاحقًا.</p>
