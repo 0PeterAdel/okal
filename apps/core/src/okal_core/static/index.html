@@ -30,7 +30,7 @@
       </a>
       <div class="sidebar-section-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="أقسام OKAL">
-        <a class="nav-item active" href="#overview"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg></span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
+        <a class="nav-item active" href="#overview" aria-current="location"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg></span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
         <a class="nav-item" href="#inbox-panel"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg></span><span>البريد الذكي</span><span class="nav-english">Inbox</span></a>
         <a class="nav-item" href="#task-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-checks"></use></svg></span><span>المهام</span><span class="nav-english">Tasks</span></a>
         <a class="nav-item" href="#assistant-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-spark"></use></svg></span><span>اقتراحات OKAL</span><span class="nav-english">Assistant</span></a>
@@ -40,7 +40,7 @@
       <div class="sidebar-system">
         <a class="nav-item" href="#integrations"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-plug"></use></svg></span><span>الاتصالات</span></a>
         <span class="system-note"><span class="presence-dot" aria-hidden="true"></span> Local-first · يعمل على جهازك</span>
-        <p>لا إرسال أو حذف مباشر من المتصفح. البيانات المعروضة محفوظة محليًا.</p>
+        <p>إرسال البريد أو تغيير حالته أو نقله إلى Trash يتطلب منك مراجعة وتأكيدًا صريحًا.</p>
       </div>
       <div class="sidebar-footer"><span class="avatar" aria-hidden="true">P</span><span><strong>Personal workspace</strong><small>Single-user mode</small></span></div>
     </aside>
@@ -48,7 +48,7 @@
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-context">
-          <span class="topbar-label">YOUR WORKSPACE <span aria-hidden="true">/</span> OVERVIEW</span>
+          <span class="topbar-label">مساحة OKAL <span aria-hidden="true">/</span> <span id="topbar-section-name">نظرة عامة</span></span>
           <span id="current-date" class="today-date"></span>
         </div>
         <div class="topbar-right">
@@ -60,11 +60,10 @@
       <main id="main">
         <section id="overview" class="welcome-header" aria-labelledby="overview-title">
           <div>
-            <p class="overline">GOOD TO HAVE YOU HERE</p>
-            <h1 id="overview-title">صباحك أحلى مع <span>OKAL.</span></h1>
+            <h1 id="overview-title">يومك مع <span>OKAL.</span></h1>
             <p class="section-lead">بريدك، أولوياتك، ومهامك — مساحة واحدة عشان تعرف تبدأ منين.</p>
           </div>
-          <span class="today-pill"><span class="presence-dot" aria-hidden="true"></span> Offline-first</span>
+          <span class="today-pill"><span class="presence-dot" aria-hidden="true"></span> Local-first</span>
         </section>
 
         <section class="overview-metrics" aria-label="ملخص الحالة">
@@ -74,7 +73,6 @@
         </section>
 
         <section class="morning-brief" aria-label="موجز يومك">
-          <div class="section-overline"><span class="eyebrow-mark"></span> YOUR DAILY BRIEF <span class="feature-tag">VOICE READY</span></div>
           <div class="morning-content">
             <div class="morning-heading">
               <span class="morning-orb"><svg class="icon" aria-hidden="true"><use href="#ico-sun"></use></svg></span>
@@ -128,15 +126,15 @@
               <div class="selection-toolbar-main">
                 <span class="toolbar-label">SELECTION</span>
                 <strong id="trash-count" role="status" aria-live="polite">لم تحدد رسائل</strong>
-                <span class="selection-hint">Click اختيار · Ctrl+Click إضافة · Shift+Click نطاق · Ctrl+A تحديد الكل</span>
+                <span class="selection-hint">اضغط لفتح الرسالة · Ctrl/⌘ مع الضغط للتحديد · Shift لتحديد نطاق · الحد الأقصى 20</span>
               </div>
               <div class="selection-buttons">
                 <button id="select-all-info" class="btn-ghost" type="button">تحديد حتى 20 رسالة</button>
                 <button id="clear-selection" class="btn-ghost" type="button">إلغاء التحديد</button>
-                <button id="trash-selected" class="btn-danger-soft" type="button" disabled>Delete · إلى Trash</button>
+                <button id="trash-selected" class="btn-danger-soft" type="button" disabled>نقل إلى Trash</button>
               </div>
             </div>
-            <p id="trash-help" class="operation-note">الحذف الفعلي ينقل الرسائل إلى Gmail Trash بعد مراجعة العناوين وإدخال PIN حذف محلي مستقل. لا حذف نهائي.</p>
+            <p id="trash-help" class="operation-note">النقل إلى Gmail Trash قابل للاسترجاع، ولا يحدث إلا بعد عرض الرسائل والتأكيد منك. لا يوجد PIN ولا حذف نهائي.</p>
             <code id="trash-command" class="trash-command" hidden></code>
             <div id="triage-groups" class="triage-groups"></div>
           </section>
