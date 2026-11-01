@@ -14,7 +14,7 @@ const informationRows = new Map();
 
 function updateTrashSelection() {
   el("trash-count").textContent =
-    `${selectedInfo.size} من ${selectableInfoIds.length} رسالة محددة (الحد الأقصى 20)`;
+    `${selectedInfo.size} من ${selectableInfoIds.length} رسالة قابلة للتحديد (من كل الأقسام، حد أقصى 20)`;
   el("trash-selected").disabled = selectedInfo.size === 0;
   el("clear-selection").disabled = selectedInfo.size === 0;
   el("select-all-info").disabled = selectableInfoIds.length === 0 ||
@@ -167,9 +167,30 @@ function renderMailStatus(mail) {
   el("integration-status").textContent = parts.join(" ");
 }
 
+function clusterKey(item) {
+  const sender = String(item.sender || "").toLowerCase();
+  const subject = String(item.subject || "").trim();
+  const cleaned = subject.replace(/^(re:|fwd:|fw:)\s*/ig, "").trim();
+  if (sender.includes("github.com")) {
+    const repo = cleaned.match(/([a-z0-9_.-]+\/[a-z0-9_.-]+)/i)?.[1]?.toLowerCase();
+    const pr = cleaned.match(/(?:pull\/?|pr\s*#|#)(\d{1,7})\b/i)?.[1];
+    if (repo && pr) return `github-pr:${repo}:${pr}`;
+    // Same workflow/repo, but never mix different PRs or workflows.
+    if (repo) {
+      const workflow = cleaned.replace(/\([a-f0-9]{7,40}\)/ig, "")
+        .replace(/20\d\d[-/]\d\d[-/]\d\d/g, "")
+        .replace(/\s+/g," ").toLowerCase();
+      return "github-workflow:" + repo + ":" + workflow.slice(0, 95);
+    }
+  }
+  if (cleaned.length < 8) return null;
+  const normalized = cleaned.toLowerCase().replace(/\s+/g," ");
+  const domain = sender.match(/@([a-z0-9.-]+)/)?.[1];
+  return domain ? domain + ":" + normalized : null;
+}
+
 function renderTriage(result) {
-  if (!result || !Array.isArray(result.items))
-    throw new Error("invalid triage payload");
+  if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
   const groups = el("triage-groups");
   groups.replaceChildren();
   selectedInfo.clear();
@@ -184,109 +205,123 @@ function renderTriage(result) {
     ["low_priority", "03", "لاحقًا", "Low priority"],
   ];
   const eligible = (item) => (
-    item && item.category === "information" &&
-    typeof item.id === "string" && /^[a-fA-F0-9]{1,64}$/.test(item.id) &&
-    Array.isArray(item.labels) &&
-    !item.labels.some((v) =>
-      ["SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "IMPORTANT"].includes(v))
+    item && typeof item.id === "string" &&
+    /^[a-fA-F0-9]{1,64}$/.test(item.id) && Array.isArray(item.labels) &&
+    !item.labels.some((v) => ["SENT","DRAFT","SPAM","TRASH","STARRED","IMPORTANT"].includes(v))
   );
   const counts = categories.map(([key]) =>
     result.items.filter((item) => item.category === key).length);
   el("triage-count").textContent =
     `${result.items.length} رسالة · ${counts[1]} تحتاج إجراء · ${counts[0]} للمراجعة اليدوية`;
   el("triage-note").textContent =
-    "اقتراحات AI للعرض والمراجعة، وليست تأكيدًا لصحة الرسالة. افتح Gmail للتحقق.";
+    "حدد من أي تصنيف؛ الرسائل المحمية في Gmail غير قابلة للحذف. اضغط على عنوان الرسالة لعرض محتواها هنا.";
   el("metric-mail").textContent = String(result.items.length);
   el("metric-action").textContent = String(counts[0] + counts[1]);
-  for (let index = 0; index < categories.length; index += 1) {
-    const [key, number, arabic, english] = categories[index];
+  for (const [key, number, arabic, english] of categories) {
     const items = result.items.filter((item) => item.category === key);
     if (!items.length) continue;
     const column = document.createElement("section");
     column.className = `triage-column triage-${key}`;
-    if (key === "information") {
-      column.setAttribute("aria-label", "Information messages — select with Click, Ctrl, or Shift");
-    }
+    column.setAttribute("aria-label", `${arabic} — تحديد الرسائل وفتحها`);
     const head = document.createElement("div");
     head.className = "triage-column-head";
     head.append(text("span", number, "triage-number"),
       text("h4", `${arabic} · ${english}`),
       text("span", String(items.length), "triage-number"));
     column.append(head);
+    const buckets = new Map();
     for (const item of items) {
-      const article = document.createElement("article");
-      article.className = "triage-message";
-      article.append(text("span", item.sender, "triage-sender"),
-        text("h5", item.subject),
-        text("p", item.summary, "triage-summary"));
-      if (item.suggested_action) {
-        article.append(text("p", `Next step · ${item.suggested_action}`,
-          "triage-action"));
+      const cluster = clusterKey(item);
+      // Messages without a strong source+subject match must remain separate.
+      const clusterId = cluster || `single-${item.id || buckets.size}`;
+      if (!buckets.has(clusterId)) buckets.set(clusterId, []);
+      buckets.get(clusterId).push(item);
+    }
+    for (const clusterItems of buckets.values()) {
+      let target = column;
+      if (clusterItems.length > 1) {
+        const details = document.createElement("details");
+        details.className = "mail-cluster";
+        const summary = document.createElement("summary");
+        const leader = clusterItems[0];
+        summary.append(
+          text("strong", String(leader.subject).slice(0,150)),
+          text("span", `${clusterItems.length} رسائل مشابهة · اضغط للعرض`,
+            "cluster-count"),
+        );
+        details.append(summary);
+        target = details;
+        column.append(details);
       }
-      if (item.has_unread_attachments) {
-        article.append(text("p",
-          "مرفقات لم تُحلَّل · Attachments not reviewed",
-          "triage-warning"));
-      }
-      const link = document.createElement("a");
-      link.textContent = "فتح الرسالة الأصلية في Gmail";
-      link.href = item.link;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      article.append(link);
-      if (eligible(item) && !informationRows.has(item.id)) {
-        const selection = document.createElement("label");
-        selection.className = "trash-selector";
-        const check = document.createElement("input");
-        check.type = "checkbox";
-        check.checked = false;
-        check.setAttribute("aria-label",
-          `اختيار رسالة للاطلاع: ${String(item.subject).slice(0, 120)}`);
-        // Native checkbox default toggling happens before its change event.
-        // Capture modifiers, then reconcile on change; preventing the click
-        // default would make browsers undo our checked state after the handler.
-        let checkboxModifiers = {};
-        check.addEventListener("click", (event) => {
-          checkboxModifiers = {
-            ctrlKey: Boolean(event?.ctrlKey),
-            metaKey: Boolean(event?.metaKey),
-            shiftKey: Boolean(event?.shiftKey),
-          };
+      for (const item of clusterItems) {
+        const article = document.createElement("article");
+        article.className = "triage-message";
+        article.append(text("span", item.sender, "triage-sender"));
+        const title = document.createElement("button");
+        title.className = "message-open";
+        title.textContent = item.subject;
+        title.type = "button";
+        title.addEventListener("click", (event) => {
           event?.stopPropagation?.();
+          openMailViewer(item.id);
         });
-        check.addEventListener("change", () => {
-          if (checkboxModifiers.shiftKey) {
-            chooseInformation(item.id, checkboxModifiers);
-          } else {
-            const next = new Set(selectedInfo);
-            if (check.checked) next.add(item.id);
-            else next.delete(item.id);
-            if (commitSelection(next)) selectionAnchor = item.id;
-          }
-          checkboxModifiers = {};
-        });
-        selection.append(check, text("span", "تحديد الرسالة"));
-        article.append(selection);
-        article.className = "triage-message is-selectable";
-        article.tabIndex = 0;
-        article.setAttribute("aria-label",
-          `رسالة للاطلاع: ${String(item.subject).slice(0, 120)}. Click أو Ctrl أو Shift للتحديد.`);
-        article.addEventListener("click", (event) => {
-          // Opening original mail or clicking the native checkbox must not
-          // accidentally select the entire message.
-          if (event?.target?.closest?.("a, label, input, button")) return;
-          chooseInformation(item.id, event);
-        });
-        article.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          if (event?.target?.closest?.("a, label, input, button")) return;
-          event.preventDefault();
-          chooseInformation(item.id, event);
-        });
-        selectableInfoIds.push(item.id);
-        informationRows.set(item.id, {article, checkbox:check});
+        article.append(title, text("p", item.summary, "triage-summary"));
+        if (item.suggested_action)
+          article.append(text("p", `Next step · ${item.suggested_action}`, "triage-action"));
+        if (item.has_unread_attachments)
+          article.append(text("p", "مرفقات تحتاج مراجعة", "triage-warning"));
+        const link = document.createElement("a");
+        link.textContent = "فتح في Gmail";
+        link.href = item.link;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        article.append(link);
+
+        if (eligible(item) && !informationRows.has(item.id)) {
+          const selection = document.createElement("label");
+          selection.className = "trash-selector";
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.checked = false;
+          check.setAttribute("aria-label", `تحديد: ${String(item.subject).slice(0,120)}`);
+          let checkboxModifiers = {};
+          check.addEventListener("click", (event) => {
+            checkboxModifiers = {ctrlKey: !!event?.ctrlKey, metaKey: !!event?.metaKey,
+              shiftKey: !!event?.shiftKey};
+            event?.stopPropagation?.();
+          });
+          check.addEventListener("change", () => {
+            if (checkboxModifiers.shiftKey) chooseInformation(item.id, checkboxModifiers);
+            else {
+              const next = new Set(selectedInfo);
+              if (check.checked) next.add(item.id); else next.delete(item.id);
+              if (commitSelection(next)) selectionAnchor = item.id;
+            }
+            checkboxModifiers = {};
+          });
+          selection.append(check, text("span", "تحديد الرسالة"));
+          article.append(selection);
+          article.className = "triage-message is-selectable";
+          article.tabIndex = 0;
+          article.setAttribute("aria-label", `رسالة: ${String(item.subject).slice(0,120)}`);
+          article.addEventListener("click", (event) => {
+            if (event?.target?.closest?.("a, label, input, button, summary")) return;
+            chooseInformation(item.id, event);
+          });
+          article.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            if (event?.target?.closest?.("a, label, input, button")) return;
+            event.preventDefault();
+            chooseInformation(item.id, event);
+          });
+          selectableInfoIds.push(item.id);
+          informationRows.set(item.id, {article,checkbox:check});
+        } else if (!eligible(item)) {
+          article.append(text("p", "محمي من النقل التلقائي إلى Trash",
+            "triage-warning"));
+        }
+        target.append(article);
       }
-      column.append(article);
     }
     groups.append(column);
   }
@@ -580,9 +615,9 @@ el("select-all-info").addEventListener("click", () => {
   if (commitSelection(next)) selectionAnchor = selectableInfoIds[0] || null;
 });
 document.addEventListener("keydown", (event) => {
-  // Only intercept Ctrl/Cmd+A when focus is inside the Information group,
+  // Only intercept Ctrl/Cmd+A when focus is inside a Gmail message group,
   // not in the entire document or an editable field.
-  const inside = event.target?.closest?.(".triage-information");
+  const inside = event.target?.closest?.(".triage-column");
   if (inside && (event.ctrlKey || event.metaKey) &&
       event.key?.toLowerCase() === "a") {
     event.preventDefault();
