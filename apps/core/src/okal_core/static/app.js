@@ -413,42 +413,162 @@ function renderAssistant(result) {
   }
 }
 
+let currentEditingTask = null;
+let taskHistoryExpanded = false;
+
+function taskDueIso(field) {
+  const raw = el(field).value;
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) throw new Error("اختار وقت صالح.");
+  return parsed.toISOString(); // includes UTC offset; no invented timezone
+}
+function reminderChoice(field, hasDue) {
+  const raw = el(field).value;
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!hasDue) throw new Error("اختار موعدًا صريحًا قبل التذكير.");
+  if (![0,5,15,60,1440].includes(value))
+    throw new Error("قيمة التذكير غير مدعومة.");
+  return value;
+}
+function taskLocalDate(unixSeconds) {
+  const date = new Date(unixSeconds*1000);
+  return new Intl.DateTimeFormat("ar-EG",{
+    timeZone:"Africa/Cairo",year:"numeric",month:"short",
+    day:"numeric",hour:"2-digit",minute:"2-digit"
+  }).format(date);
+}
+function dateInputValue(unixSeconds) {
+  if (unixSeconds === null || unixSeconds === undefined) return "";
+  const date = new Date(unixSeconds*1000);
+  const local = new Date(date.getTime()-date.getTimezoneOffset()*60000);
+  return local.toISOString().slice(0,16);
+}
+async function taskPost(path,payload) {
+  const response = await fetch(path,{
+    method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(payload)
+  });
+  const output = await response.json().catch(()=>({}));
+  if (!response.ok) {
+    const code = String(output.detail || "request_failed");
+    // Only safe validated local error identifiers, not private stack traces.
+    throw new Error(/^[a-z0-9_]{1,80}$/.test(code) ? code :
+      "تعذر حفظ التغيير المحلي.");
+  }
+  return output;
+}
+function renderPlanner(result) {
+  if (!result || !result.counts) throw new Error("invalid agenda");
+  const counts = result.counts;
+  el("planner-today").textContent = "اليوم · " + (counts.today || 0);
+  el("planner-overdue").textContent = "متأخر · " + (counts.overdue || 0);
+  el("planner-upcoming").textContent = "الأسبوع · " + (counts.upcoming || 0);
+  el("planner-unscheduled").textContent = "بدون موعد · " +
+    (counts.unscheduled || 0);
+}
+function taskCard(item,history=false) {
+  const article=document.createElement("article");
+  article.className="task-card";
+  article.append(text("h4",item.title));
+  if (item.notes) article.append(text("p",item.notes,"muted"));
+  article.append(text("p",
+    item.due_at === null || item.due_at === undefined
+      ? "بدون موعد محدد" : "الموعد المؤكد · " + taskLocalDate(item.due_at),
+    item.due_at && item.due_at < Date.now()/1000 ? "task-overdue":"task-due"));
+  if(item.reminder){
+    const labels={scheduled:"تم جدولة التنبيه المحلي",
+      sent:"تم إرسال التنبيه إلى النظام",missed:"فات وقت التنبيه",
+      failed:"التنبيه لم يصل للنظام",cancelled:"التنبيه متوقف",
+      attempting:"جارٍ تسليم التنبيه"};
+    article.append(text("p",
+      (labels[item.reminder.status] || "التذكير") +
+      " · " + item.reminder.lead_minutes + " دقيقة قبل الموعد",
+      "task-reminder-state"));
+  }
+  if(item.source_link){
+    const link=document.createElement("a");
+    link.href=item.source_link;
+    link.target="_blank";
+    link.rel="noopener noreferrer";
+    link.textContent="الرسالة المصدر في Gmail";
+    article.append(link);
+  }
+  const tools=document.createElement("div");
+  tools.className="task-card-actions";
+  function control(label,handler) {
+    const button=document.createElement("button");
+    button.type="button";
+    button.className="btn-secondary";
+    button.textContent=label;
+    button.addEventListener("click",handler);
+    tools.append(button);
+  }
+  if(!history){
+    control("تم ✓",()=>changeTaskStatus(item.id,"done"));
+    control("تعديل",()=>openTaskEditor(item));
+    control("استبعاد",()=>changeTaskStatus(item.id,"dismissed"));
+  } else {
+    control("إعادة فتح",()=>changeTaskStatus(item.id,"open"));
+  }
+  article.append(tools);
+  return article;
+}
 function renderTasks(result) {
   if (!result || !Array.isArray(result.items))
     throw new Error("invalid local tasks payload");
-  const list = el("tasks-list");
+  const list=el("tasks-list");
   list.replaceChildren();
   el("tasks-count").textContent =
-    `${result.total_in_sample} مهمة مفتوحة · ${result.overdue_in_sample || 0} فات موعدها`;
-  el("metric-tasks").textContent = String(result.total_in_sample);
+    result.total_in_sample + " مفتوحة · " +
+    (result.overdue_in_sample || 0) + " متأخرة";
+  el("metric-tasks").textContent=String(result.total_in_sample);
   el("tasks-note").textContent =
-    "المواعيد أدخلتها أنت؛ بدون Google Calendar أو تنبيهات نظام مجدولة حتى الآن.";
-  for (const item of result.items) {
-    const article = document.createElement("article");
-    article.className = "task-card";
-    article.append(text("h4", item.title));
-    if (item.due_at !== null && item.due_at !== undefined) {
-      const due = new Date(item.due_at * 1000);
-      if (!Number.isNaN(due.getTime())) {
-        article.append(text("p",
-          `الموعد المؤكد · ${due.toLocaleString("ar-EG")}`, "task-due"));
-      }
-    } else {
-      article.append(text("p", "بدون موعد محدد", "muted"));
-    }
-    if (item.source_link) {
-      const link = document.createElement("a");
-      link.textContent = "الرسالة الأصلية في Gmail";
-      link.href = item.source_link;
-      link.rel = "noopener noreferrer";
-      link.target = "_blank";
-      article.append(link);
-    }
-    list.append(article);
+    "مهام في SQLite ومواعيدك المؤكدة. تذكير Desktop اختياري؛ لا اتصال بـ Google Calendar.";
+  for(const item of result.items) list.append(taskCard(item));
+  if(!result.items.length)
+    list.append(text("p","لا توجد مهام مفتوحة. أضف مهمة فوق.","muted"));
+}
+async function changeTaskStatus(id,status) {
+  try {
+    await taskPost("/api/v1/tasks/transition",{task_id:id,status});
+    await load(true);
+    if(taskHistoryExpanded) await loadTaskHistory();
+  } catch(error) {
+    el("tasks-note").textContent = "تعذر تغيير حالة المهمة: " +
+      String(error.message).slice(0,85);
   }
-  if (!result.items.length)
-    list.append(text("p", "لسه مفيش مهام مؤكدة. اقتراحات البريد موجودة فوق.",
-      "muted"));
+}
+function openTaskEditor(item) {
+  currentEditingTask=item.id;
+  el("task-edit-name").value=item.title;
+  el("task-edit-notes").value=item.notes || "";
+  el("task-edit-due").value=dateInputValue(item.due_at);
+  el("task-edit-reminder").value =
+    item.reminder?.status==="scheduled"
+      ? String(item.reminder.lead_minutes) : "";
+  el("task-edit-feedback").textContent="";
+  el("task-edit-dialog").showModal();
+}
+async function loadTaskHistory() {
+  try {
+    const response=await fetch("/api/v1/tasks/history",{
+      credentials:"same-origin",cache:"no-store",
+      headers:token?{Authorization:"Bearer "+token}:{}
+    });
+    if(!response.ok) throw new Error("history_unavailable");
+    const data=await response.json();
+    const list=el("tasks-history-list");
+    list.replaceChildren();
+    const past=(data.items || []).filter(item=>item.status!=="open");
+    for(const item of past)list.append(taskCard(item,true));
+    if(!past.length) list.append(text("p","لا توجد مهام مكتملة أو مستبعدة.","muted"));
+  } catch(_) {
+    el("tasks-history-list").replaceChildren(text("p",
+      "تعذر قراءة سجل المهام.","muted"));
+  }
 }
 
 function lock() {
@@ -468,6 +588,10 @@ function lock() {
   if (el("trash-dialog").open) el("trash-dialog").close();
   if (el("mail-action-dialog").open) el("mail-action-dialog").close();
   if (el("mail-send-dialog").open) el("mail-send-dialog").close();
+  if (el("task-edit-dialog").open) el("task-edit-dialog").close();
+  el("tasks-history-list").replaceChildren();
+  el("tasks-history-list").hidden=true;
+  taskHistoryExpanded=false;
   setBusy(false);
 }
 
@@ -578,6 +702,14 @@ async function load(reset) {
     } else {
       el("assistant-groups").replaceChildren();
       el("assistant-count").textContent = "البريد غير مهيأ";
+    }
+    try {
+      const plannerResponse = await fetch("/api/v1/planner", options);
+      if (active !== generation) return;
+      if (plannerResponse.ok) renderPlanner(await plannerResponse.json());
+    } catch (error) {
+      if (active !== generation || error.name === "AbortError") return;
+      el("planner-today").textContent="الجدول غير متاح";
     }
     try {
       const tasksResponse = await fetch("/api/v1/tasks", options);
@@ -968,8 +1100,10 @@ el("viewer-create-task").addEventListener("click", async () => {
   if (!currentViewerMessage) return;
   el("viewer-create-task").disabled = true;
   try {
+    const due = taskDueIso("viewer-task-due");
+    const reminder_minutes = reminderChoice("viewer-task-reminder",due!==null);
     const result = await fetchMailAgent("/api/v1/mail/tasks/from-message",{
-      message_id:currentViewerMessage.id
+      message_id:currentViewerMessage.id,due,reminder_minutes
     });
     el("viewer-action-note").textContent = result.status === "already_recorded"
       ? "المهمة مسجلة بالفعل في OKAL." : "تم إنشاء Task محلي من الرسالة.";
@@ -1095,6 +1229,59 @@ el("viewer-reply-copy").addEventListener("click", async () => {
   } catch (_) {
     el("viewer-reply-state").textContent = "استخدم تحديد النص وCtrl+C.";
   }
+});
+
+// Task Board forms only write the owner-approved local SQLite database.
+el("task-create-form").addEventListener("submit",async (event)=>{
+  event.preventDefault();
+  el("task-create-submit").disabled=true;
+  try {
+    const due=taskDueIso("task-new-due");
+    const reminder_minutes=reminderChoice("task-new-reminder",due!==null);
+    const result=await taskPost("/api/v1/tasks/create",{
+      title:el("task-new-title").value,notes:el("task-new-notes").value,
+      due,reminder_minutes
+    });
+    if(result.status!=="open")throw new Error("task_creation_unconfirmed");
+    el("task-create-feedback").textContent="تم حفظ المهمة في OKAL.";
+    el("task-new-title").value="";
+    el("task-new-notes").value="";
+    el("task-new-due").value="";
+    el("task-new-reminder").value="";
+    await load(true);
+  } catch(error) {
+    el("task-create-feedback").textContent=String(error.message).slice(0,120);
+  } finally {
+    el("task-create-submit").disabled=false;
+  }
+});
+el("task-edit-close").addEventListener("click",()=>el("task-edit-dialog").close());
+el("task-edit-dialog").addEventListener("close",()=>{currentEditingTask=null;});
+el("task-edit-form").addEventListener("submit",async (event)=>{
+  event.preventDefault();
+  if(!currentEditingTask)return;
+  el("task-edit-save").disabled=true;
+  try {
+    const due=taskDueIso("task-edit-due");
+    const reminder_minutes=reminderChoice("task-edit-reminder",due!==null);
+    const result=await taskPost("/api/v1/tasks/edit",{
+      task_id:currentEditingTask,
+      title:el("task-edit-name").value,notes:el("task-edit-notes").value,
+      due,reminder_minutes
+    });
+    if(result.updated!==true)throw new Error("task_update_unconfirmed");
+    el("task-edit-dialog").close();
+    await load(true);
+  } catch(error) {
+    el("task-edit-feedback").textContent=String(error.message).slice(0,130);
+  } finally {el("task-edit-save").disabled=false;}
+});
+el("tasks-history-toggle").addEventListener("click",async ()=>{
+  taskHistoryExpanded=!taskHistoryExpanded;
+  el("tasks-history-list").hidden=!taskHistoryExpanded;
+  el("tasks-history-toggle").textContent=taskHistoryExpanded
+    ? "إخفاء سجل المهام" : "عرض المكتملة والمستبعدة";
+  if(taskHistoryExpanded)await loadTaskHistory();
 });
 
 // Human-readable, safe diagnostics only. Never expose provider payloads,
