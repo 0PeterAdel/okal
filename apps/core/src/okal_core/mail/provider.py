@@ -305,6 +305,24 @@ def authorize(store, cfg, client_path, enable_send=False, enable_trash=False):
     write_private(root(store) / "config.json", cfg.model_dump())
 
 
+class HistoryDelta:
+    """Backward-compatible three-value history result plus Gmail visibility events.
+
+    Iteration preserves existing cursor, new_ids, deleted_count callers.
+    visibility maps affected message IDs to present, trashed or deleted.
+    """
+    def __init__(self, cursor, ids, deleted, visibility):
+        self.cursor = cursor
+        self.ids = ids
+        self.deleted = deleted
+        self.visibility = visibility
+
+    def __iter__(self):
+        yield self.cursor
+        yield self.ids
+        yield self.deleted
+
+
 class Gmail:
     def __init__(self, service, sleep=time.sleep):
         self.service = service
@@ -422,10 +440,17 @@ class Gmail:
         return marker
 
     def history_changes(self, start_id, limit):
-        """Consume ALL history pages before authorizing a checkpoint advance."""
+        """Consume all pages, including Trash and deletion label changes.
+
+        Gmail moving mail to Trash generates a labelsAdded(TRASH) event, NOT
+        necessarily messagesDeleted. Retain messageDeleted for permanent
+        removal and labelsRemoved(TRASH) for restore. Only advance after
+        all pages are parsed and the Core atomically persists events.
+        """
         if not isinstance(start_id, str) or not re.fullmatch(r"[0-9]{1,32}", start_id):
             raise MailError("invalid_gmail_history_id")
         token, used, seen_pages, ids, deleted = None, 0, set(), set(), set()
+        visibility = {}
         started = time.monotonic()
         marker = None
         while used < 100:
@@ -434,8 +459,8 @@ class Gmail:
             page = self.call(
                 self.service.users().history().list(
                     userId="me", startHistoryId=start_id,
-                    # Label-only churn is irrelevant to new-message ingestion.
-                    historyTypes=["messageAdded", "messageDeleted"],
+                    historyTypes=["messageAdded", "messageDeleted",
+                                  "labelAdded", "labelRemoved"],
                     maxResults=500, pageToken=token,
                 ),
                 missing="history_cursor_expired",
@@ -444,27 +469,63 @@ class Gmail:
             marker = page.get("historyId")
             if not isinstance(marker, str) or not re.fullmatch(r"[0-9]{1,32}", marker):
                 raise MailError("invalid_gmail_history_id")
-            for item in page.get("history", []):
+            history = page.get("history", [])
+            if not isinstance(history, list):
+                raise MailError("invalid_gmail_history_payload")
+            for item in history:
                 for added in item.get("messagesAdded", []):
                     mid = added.get("message", {}).get("id")
                     if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
                         raise MailError("invalid_message_id")
                     ids.add(mid)
+                for event in item.get("labelsAdded", []):
+                    labels = event.get("labelIds", [])
+                    mid = event.get("message", {}).get("id")
+                    if "TRASH" in labels:
+                        if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+                            raise MailError("invalid_message_id")
+                        visibility[mid] = "trashed"
+                for event in item.get("labelsRemoved", []):
+                    labels = event.get("labelIds", [])
+                    mid = event.get("message", {}).get("id")
+                    if "TRASH" in labels:
+                        if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+                            raise MailError("invalid_message_id")
+                        visibility[mid] = "present"
                 for gone in item.get("messagesDeleted", []):
                     mid = gone.get("message", {}).get("id")
                     if isinstance(mid, str) and re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
                         deleted.add(mid)
-                if len(ids) > limit:
+                        visibility[mid] = "deleted"
+                if len(ids) > limit or len(visibility) > limit:
                     raise MailError("message_budget_exceeded_narrow_interval")
             token = page.get("nextPageToken")
             if not token:
                 if int(marker) < int(start_id):
                     raise MailError("history_cursor_regressed")
-                return marker, sorted(ids), len(deleted)
+                return HistoryDelta(marker, sorted(ids), len(deleted), visibility)
             if token in seen_pages:
                 raise MailError("repeated_page_token")
             seen_pages.add(token)
         raise MailError("page_budget_exceeded")
+
+    def message_visibility(self, mid):
+        """Read current native Gmail labels, not stale stored classifications."""
+        if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
+            raise MailError("invalid_message_id")
+        try:
+            row = self.call(
+                self.service.users().messages().get(
+                    userId="me", id=mid, format="minimal"
+                ), missing="message_disappeared",
+            )
+        except MailError as exc:
+            if str(exc) == "message_disappeared":
+                return "deleted"
+            raise
+        if row.get("id") != mid or not isinstance(row.get("labelIds"), list):
+            raise MailError("invalid_gmail_message_metadata")
+        return "trashed" if "TRASH" in row["labelIds"] else "present"
 
     def get_optional(self, mid):
         if not re.fullmatch(r"[a-fA-F0-9]{1,64}", mid):
