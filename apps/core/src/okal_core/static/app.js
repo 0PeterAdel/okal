@@ -191,8 +191,13 @@ function clusterKey(item) {
   return domain ? domain + ":" + normalized : null;
 }
 
+let lastTriageResult = null;
+let lastAssistantResult = null;
+const viewedThisSession = new Set();
 function renderTriage(result) {
   if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
+  lastTriageResult = result;
+  result = {...result, items:result.items.filter(item => !viewedThisSession.has(item.id))};
   const groups = el("triage-groups");
   groups.replaceChildren();
   selectedInfo.clear();
@@ -354,6 +359,11 @@ function renderTriage(result) {
 function renderAssistant(result) {
   if (!result || !Array.isArray(result.items) || !result.counts)
     throw new Error("invalid assistant preview");
+  lastAssistantResult = result;
+  const items = result.items.filter(item => !viewedThisSession.has(item.message_id));
+  const counts = {};
+  for (const item of items) counts[item.bucket] = (counts[item.bucket]||0)+1;
+  result = {...result,items,counts,total_in_sample:items.length};
   const groups = el("assistant-groups");
   groups.replaceChildren();
   const buckets = [
@@ -1066,9 +1076,11 @@ async function openMailViewer(item) {
                  ...(token?{Authorization:"Bearer "+token}:{})},
         body:JSON.stringify({message_id:id})
       });
-      if (seenResponse.ok && requestGeneration === viewerGeneration)
-        await load(true);
-      else if (!seenResponse.ok)
+      if (seenResponse.ok && requestGeneration === viewerGeneration) {
+        viewedThisSession.add(id);
+        if (lastTriageResult) renderTriage(lastTriageResult);
+        if (lastAssistantResult) renderAssistant(lastAssistantResult);
+      } else if (!seenResponse.ok)
         el("viewer-action-note").textContent =
           "الرسالة اتفتحت لكن لم تُحفظ علامة Viewed؛ راجع حالة OKAL.";
     } catch (_) {
@@ -1244,6 +1256,9 @@ el("mail-action-confirm").addEventListener("click", async () => {
       el("viewer-mark-read").disabled = !writable || !labels.has("UNREAD");
       el("viewer-mark-unread").disabled = !writable || labels.has("UNREAD");
       el("viewer-archive").disabled = !writable || !labels.has("INBOX");
+    }
+    if (chosen.action === "mark_unread") {
+      viewedThisSession.delete(chosen.ids[0]);
     }
     if (chosen.action === "archive") {
       el("mail-action-dialog").close();
