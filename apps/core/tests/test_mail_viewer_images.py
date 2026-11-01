@@ -93,6 +93,22 @@ class ViewerImageTests(TestCase):
         self.assertIn("cid:big@newsletter",result["html"])
         self.assertEqual(api.call.call_count,1)
 
+    def test_deferred_original_and_responsive_srcsets_are_recognized(self):
+        # LinkedIn/Alison-style media may not have a normal src at all.
+        # The client must offer opt-in; no remote host is fetched here.
+        html=('<html><body><picture>'
+              '<source data-srcset="https://cdn.example/a.jpg 1x, '
+              'https://cdn.example/b.jpg 2x">'
+              '<img data-original="https://cdn.example/hero.png?key=1&amp;size=2" '
+              'src="data:image/gif;base64,AA=="></picture>'
+              '<img data-lazy-src="https://cdn.example/avatar.jpg">'
+              '</body></html>')
+        result,api=self.open(email_part(html))
+        self.assertTrue(result["external_images_detected"])
+        self.assertIn("data-original=",result["html"])
+        self.assertIn("data-srcset=",result["html"])
+        self.assertEqual(api.call.call_count,1)  # never proxy remote pixels
+
     def test_html_body_is_kept_out_of_parent_dom_by_client_contract(self):
         # Only a string is returned. HTML is not parsed into the API DOM.
         html='<img src="cid:logo@newsletter" onerror="alert(1)">'
