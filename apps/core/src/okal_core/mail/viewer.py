@@ -265,13 +265,13 @@ def read_native(store, mid):
 
         if html:
             html = re.sub(
-                r'(?i)cid:(<[^<>]{1,512}>|[^\\s"\\\'<>),;]{1,512})',
+                r"(?i)cid:(<[^<>]{1,512}>|[^\s\"'<>),;]{1,512})",
                 replace_cid, html
             )
             if location_images:
                 html = re.sub(
-                    r'(?i)(?P<prefix>\\b(?:src|background)\\s*=\\s*'
-                    r'(?P<quote>["\\\']))(?P<url>https?://[^"\\\']+)(?P=quote)',
+                    r"(?i)(?P<prefix>\b(?:src|background)\s*=\s*"
+                    r"(?P<quote>['\"]))(?!data:)(?P<url>https?://[^\"']+)(?P=quote)",
                     replace_location, html
                 )
         if len(html.encode("utf-8")) > 8_000_000:
@@ -286,7 +286,7 @@ def read_native(store, mid):
             "inline_images": len(images) + len(location_images),
             "skipped_inline_images": skipped_images,
             "external_images_detected": bool(re.search(
-                r'(?i)(?:src|background)\\s*=\\s*["\\\']?https?://|url\\(\\s*["\\\']?https?://',
+                r"(?i)(?:src|background)\s*=\s*['\"]?https?://|url\(\s*['\"]?https?://",
                 html
             )),
             "attachments": attachments[:30],
