@@ -97,7 +97,11 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("/api/v1/mail/trash/preview", self.js)
         self.assertIn("/api/v1/mail/trash", self.js)
         self.assertIn("approval_digest", self.js)
-        self.assertIn('id="trash-pin"', self.html)
+        self.assertIn('id="trash-confirm"', self.html)
+        self.assertNotIn('id="trash-pin"', self.html)
+        self.assertIn("confirmation_token", self.js)
+        self.assertIn('id="viewer-ai-summary"', self.html)
+        self.assertIn('id="viewer-ai-action"', self.html)
 
 
 if __name__ == "__main__":
