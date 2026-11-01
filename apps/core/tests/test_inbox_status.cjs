@@ -27,12 +27,7 @@ function harness(fetcher) {
     if (!nodes.has(id)) nodes.set(id, node());
     return nodes.get(id);
   };
-  const localPreferences = new Map();
   const context = vm.createContext({
-    localStorage: {
-      getItem(key){return localPreferences.has(key)?localPreferences.get(key):null;},
-      setItem(key,value){localPreferences.set(key,String(value));}
-    },
     document: { getElementById: get, createElement: node, addEventListener() {} },
     window: { addEventListener() {} },
     URLSearchParams, AbortController, setTimeout,
@@ -559,19 +554,26 @@ test("Owner may remember image permission across messages; default remains priva
     labels:["INBOX"],ai_summary:"Hello",ai_category:"information",
     inline_images:0,external_images_detected:true,attachments:[],
     gmail_link:"https://mail.google.com/mail/#all/aa"};
-  const {context,get}=harness(async url=>
-    url==="/api/v1/mail/messages/aa" ? response(mail):response({}));
+  let consent = false;
+  const {context,get}=harness(async (url,options)=>{
+    if (url === "/api/v1/mail/image-preference") {
+      consent = JSON.parse(options.body).allow_remote_images;
+      return response({remote_images:consent,saved_locally:true});
+    }
+    return url==="/api/v1/mail/messages/aa"
+      ? response({...mail,remote_image_preference:consent}):response({});
+  });
   await context.openMailViewer("aa");
   assert.equal(get("viewer-remote-images").checked,false);
   get("viewer-remember-images").checked=true;
-  get("viewer-remember-images").handlers.change();
+  await get("viewer-remember-images").handlers.change();
   assert.equal(get("viewer-remote-images").checked,true);
   get("mail-viewer").close();
   await context.openMailViewer("aa");
   assert.equal(get("viewer-remote-images").checked,true);
   assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
   get("viewer-remember-images").checked=false;
-  get("viewer-remember-images").handlers.change();
+  await get("viewer-remember-images").handlers.change();
   get("mail-viewer").close();
   await context.openMailViewer("aa");
   assert.equal(get("viewer-remote-images").checked,false);
