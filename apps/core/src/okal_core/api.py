@@ -68,6 +68,7 @@ def create_app(
             request.url.path in {
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
+                "/api/v1/mail/viewed",
                 "/api/v1/mail/tasks/from-message",
                 "/api/v1/tasks/create", "/api/v1/tasks/edit",
                 "/api/v1/tasks/transition",
@@ -327,6 +328,22 @@ def create_app(
                 404 if code.startswith("viewer_source_") else 422,
                 code
             ) from None
+
+    @app.post("/api/v1/mail/viewed")
+    async def mark_local_mail_viewed(request: Request):
+        """One owner interaction acknowledges a successfully opened message.
+
+        Local-only projection. Does NOT mark Gmail read, send or delete mail.
+        """
+        from .mail.private import config
+        from .mail.contracts import MailError
+        from .mail.inbox_visibility import mark_viewed
+        payload = await action_payload(request, {"message_id"})
+        mid = payload["message_id"]
+        try:
+            return mark_viewed(store,config(store).account,mid)
+        except (ValueError,MailError) as exc:
+            raise HTTPException(409,str(exc)) from None
 
     @app.post("/api/v1/mail/trash/preview")
     async def ui_trash_preview(request: Request):
