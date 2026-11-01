@@ -466,6 +466,7 @@ function lock() {
   resetMailStatus();
   if (el("mail-viewer").open) el("mail-viewer").close();
   if (el("trash-dialog").open) el("trash-dialog").close();
+  if (el("mail-action-dialog").open) el("mail-action-dialog").close();
   setBusy(false);
 }
 
@@ -669,6 +670,8 @@ let currentViewerMessage = null;
 let viewerItem = null;
 let viewerGeneration = 0;
 let approvedTrash = null;
+let pendingMailAction = null;
+let currentReplyDraft = null;
 const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
   (ch) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 
@@ -703,8 +706,16 @@ async function openMailViewer(item) {
   el("viewer-ai-action").textContent = "";
   el("viewer-category").textContent = "";
   el("viewer-action-note").textContent = "";
-  for (const name of ["viewer-copy-summary","viewer-select","viewer-delete"])
+  for (const name of ["viewer-copy-summary","viewer-select","viewer-delete",
+                      "viewer-mark-read","viewer-mark-unread","viewer-archive",
+                      "viewer-create-task","viewer-reply-generate"])
     el(name).disabled = true;
+  currentReplyDraft = null;
+  el("viewer-reply-body").value = "";
+  el("viewer-reply-to").textContent = "";
+  el("viewer-reply-state").textContent = "";
+  el("viewer-reply-copy").disabled = true;
+  el("viewer-reply-save").disabled = true;
   el("viewer-title").textContent = "جارٍ تحميل الرسالة الأصلية...";
   el("viewer-from").textContent = "";
   el("viewer-to").textContent = "";
@@ -738,6 +749,14 @@ async function openMailViewer(item) {
     const selectable = informationRows.has(id);
     el("viewer-select").disabled = !selectable;
     el("viewer-delete").disabled = !selectable;
+    const nativeLabels = Array.isArray(data.labels) ? data.labels : [];
+    const writable = trashPermissionConfigured !== false &&
+      !nativeLabels.some(label => ["TRASH","DRAFT","SENT","SPAM"].includes(label));
+    el("viewer-mark-read").disabled = !writable || !nativeLabels.includes("UNREAD");
+    el("viewer-mark-unread").disabled = !writable || nativeLabels.includes("UNREAD");
+    el("viewer-archive").disabled = !writable || !nativeLabels.includes("INBOX");
+    el("viewer-create-task").disabled = data.ai_category === "manual_review";
+    el("viewer-reply-generate").disabled = data.ai_category === "manual_review";
     if (!selectable)
       el("viewer-action-note").textContent =
         "الرسالة محمية أو غير مؤهلة للنقل الجماعي إلى Trash.";
@@ -782,8 +801,15 @@ el("mail-viewer").addEventListener("close", () => {
   viewerItem = null;
   for (const name of ["viewer-ai-summary","viewer-ai-action","viewer-category",
                       "viewer-action-note"]) el(name).textContent = "";
-  for (const name of ["viewer-copy-summary","viewer-select","viewer-delete"])
+  for (const name of ["viewer-copy-summary","viewer-select","viewer-delete",
+                      "viewer-mark-read","viewer-mark-unread","viewer-archive",
+                      "viewer-create-task","viewer-reply-generate",
+                      "viewer-reply-save","viewer-reply-copy"])
     el(name).disabled = true;
+  currentReplyDraft = null;
+  el("viewer-reply-body").value = "";
+  el("viewer-reply-to").textContent = "";
+  el("viewer-reply-state").textContent = "";
   for (const id of ["viewer-from","viewer-to","viewer-date","viewer-note"])
     el(id).textContent = "";
   el("viewer-attachments").replaceChildren();
@@ -815,6 +841,179 @@ el("viewer-delete").addEventListener("click", async () => {
   await showTrashPreview([id]);
 });
 
+
+// Privileged Gmail operations always start from an explicit user click.
+// The native preview is read-only; a separate confirmation button executes
+// a one-time, exact-selection, digest-bound action. Never auto-retry writes.
+const actionNames = {mark_read:"Mark as read",mark_unread:"Mark as unread",
+  archive:"Archive from Inbox"};
+async function fetchMailAgent(url, payload) {
+  const response = await fetch(url, {
+    method:"POST", credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const code = typeof data.detail === "string" &&
+      /^[a-z][a-z0-9_]{1,100}$/.test(data.detail) ? data.detail : "";
+    if (code === "mail_operation_already_running")
+      throw new Error("المزامنة مشغولة حاليًا. أعد المحاولة بعد اكتمالها.");
+    if (code === "gmail_modify_scope_required" ||
+        code === "scope_or_send_permission_mismatch")
+      throw new Error("صلاحية gmail.modify غير متاحة؛ راجع تفويض Google.");
+    if (code === "action_already_attempted_review_gmail")
+      throw new Error("العملية دي لها محاولة سابقة. راجع Gmail يدويًا قبل أي إعادة محاولة.");
+    if (code === "mail_action_confirmation_expired")
+      throw new Error("انتهت صلاحية التأكيد. افتح المعاينة مجددًا.");
+    if (code === "action_write_uncertain_check_gmail_no_auto_retry")
+      throw new Error("تعديل Gmail غير مؤكد. راجع البريد يدويًا قبل أي إجراء جديد.");
+    throw new Error("تعذر تنفيذ العملية (" + (code || "HTTP " + response.status) + ")");
+  }
+  return data;
+}
+
+async function showMailActionPreview(action) {
+  const id = currentViewerMessage?.id;
+  if (!id || !actionNames[action] || trashPermissionConfigured === false) {
+    el("viewer-action-note").textContent =
+      "Gmail modify غير مفعّل أو الرسالة غير متاحة للتعديل.";
+    return;
+  }
+  el("viewer-action-note").textContent = "جارٍ قراءة حالة Gmail للمراجعة...";
+  try {
+    const data = await fetchMailAgent("/api/v1/mail/actions/preview",
+      {ids:[id],action});
+    if (data.action !== action || data.count !== 1 ||
+        !/^[a-f0-9]{64}$/.test(data.approval_digest) ||
+        typeof data.confirmation_token !== "string") throw new Error("معاينة غير صالحة");
+    pendingMailAction = {
+      ids:[id], action, digest:data.approval_digest,
+      ticket:data.confirmation_token
+    };
+    el("mail-action-title").textContent = actionNames[action];
+    el("mail-action-preview-list").replaceChildren();
+    for (const item of data.items)
+      el("mail-action-preview-list").append(
+        text("p", item.subject + " · " + item.labels.join(", "))
+      );
+    el("mail-action-result").textContent = "";
+    el("mail-action-dialog").showModal();
+    el("viewer-action-note").textContent = "راجع النافذة ثم أكد الإجراء.";
+  } catch (error) {
+    el("viewer-action-note").textContent = String(error.message).slice(0,220);
+  }
+}
+for (const [button,action] of [
+  ["viewer-mark-read","mark_read"],
+  ["viewer-mark-unread","mark_unread"],
+  ["viewer-archive","archive"]
+]) el(button).addEventListener("click", () => showMailActionPreview(action));
+el("mail-action-cancel").addEventListener("click", () =>
+  el("mail-action-dialog").close());
+el("mail-action-dialog").addEventListener("close", () => {
+  pendingMailAction = null;
+});
+el("mail-action-confirm").addEventListener("click", async () => {
+  if (!pendingMailAction) return;
+  const chosen = pendingMailAction;
+  // Cancel the local ticket on close, including ambiguous network outcomes.
+  pendingMailAction = null;
+  el("mail-action-confirm").disabled = true;
+  el("mail-action-result").textContent = "جارٍ التحقق والتنفيذ في Gmail...";
+  try {
+    const result = await fetchMailAgent("/api/v1/mail/actions/commit",{
+      ids:chosen.ids, action:chosen.action,
+      approval_digest:chosen.digest,confirmation_token:chosen.ticket,
+      confirmed:true
+    });
+    if (result.status !== "confirmed") throw new Error("رد Gmail غير مؤكد");
+    el("mail-action-result").textContent = "تم تنفيذ " + actionNames[chosen.action] + " بنجاح.";
+    if (currentViewerMessage && currentViewerMessage.id === chosen.ids[0]) {
+      const labels = new Set(currentViewerMessage.labels || []);
+      if (chosen.action === "mark_read") labels.delete("UNREAD");
+      if (chosen.action === "mark_unread") labels.add("UNREAD");
+      if (chosen.action === "archive") labels.delete("INBOX");
+      currentViewerMessage.labels = [...labels];
+      const writable = trashPermissionConfigured !== false;
+      el("viewer-mark-read").disabled = !writable || !labels.has("UNREAD");
+      el("viewer-mark-unread").disabled = !writable || labels.has("UNREAD");
+      el("viewer-archive").disabled = !writable || !labels.has("INBOX");
+    }
+    if (chosen.action === "archive") {
+      el("mail-action-dialog").close();
+      if (el("mail-viewer").open) el("mail-viewer").close();
+      load(true);
+    }
+  } catch (error) {
+    el("mail-action-result").textContent = String(error.message).slice(0,220);
+  } finally {
+    el("mail-action-confirm").disabled = false;
+  }
+});
+
+el("viewer-create-task").addEventListener("click", async () => {
+  if (!currentViewerMessage) return;
+  el("viewer-create-task").disabled = true;
+  try {
+    const result = await fetchMailAgent("/api/v1/mail/tasks/from-message",{
+      message_id:currentViewerMessage.id
+    });
+    el("viewer-action-note").textContent = result.status === "already_recorded"
+      ? "المهمة مسجلة بالفعل في OKAL." : "تم إنشاء Task محلي من الرسالة.";
+    load(true);
+  } catch (error) {
+    el("viewer-action-note").textContent = String(error.message).slice(0,200);
+  } finally {
+    el("viewer-create-task").disabled = false;
+  }
+});
+el("viewer-reply-generate").addEventListener("click", async () => {
+  if (!currentViewerMessage) return;
+  el("viewer-reply-generate").disabled = true;
+  el("viewer-reply-state").textContent = "جارٍ إنشاء مسودة على Ollama المحلي...";
+  try {
+    const draft = await fetchMailAgent("/api/v1/mail/reply-drafts/generate",{
+      message_id: currentViewerMessage.id,
+      language:el("viewer-reply-language").value || "ar"
+    });
+    currentReplyDraft = draft.draft_id;
+    el("viewer-reply-to").textContent =
+      "To: " + draft.recipient + " · Subject: " + draft.subject;
+    el("viewer-reply-body").value = draft.body;
+    el("viewer-reply-save").disabled = false;
+    el("viewer-reply-copy").disabled = false;
+    el("viewer-reply-state").textContent = "مسودة محفوظة محليًا — لم يتم إرسالها.";
+  } catch (error) {
+    el("viewer-reply-state").textContent = String(error.message).slice(0,220);
+  } finally {
+    el("viewer-reply-generate").disabled = false;
+  }
+});
+el("viewer-reply-save").addEventListener("click", async () => {
+  if (!currentReplyDraft) return;
+  el("viewer-reply-save").disabled = true;
+  try {
+    const result = await fetchMailAgent("/api/v1/mail/reply-drafts/revise",{
+      draft_id:currentReplyDraft,body:el("viewer-reply-body").value
+    });
+    currentReplyDraft = result.draft_id;
+    el("viewer-reply-state").textContent =
+      "تم حفظ مسودة جديدة محليًا؛ لا إرسال تلقائي.";
+  } catch (error) {
+    el("viewer-reply-state").textContent = String(error.message).slice(0,200);
+  } finally {
+    el("viewer-reply-save").disabled = false;
+  }
+});
+el("viewer-reply-copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(el("viewer-reply-body").value);
+    el("viewer-reply-state").textContent = "تم نسخ نص الرد؛ لم يتم إرساله.";
+  } catch (_) {
+    el("viewer-reply-state").textContent = "استخدم تحديد النص وCtrl+C.";
+  }
+});
 
 // Human-readable, safe diagnostics only. Never expose provider payloads,
 // private subjects, tokens or arbitrary exception strings in the UI.
