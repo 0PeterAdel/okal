@@ -904,3 +904,19 @@ window.addEventListener("pagehide", lock);
 
 // Default single-user loopback mode auto-opens; protected mode falls back to pairing.
 window.addEventListener("DOMContentLoaded", () => load(true));
+
+// Re-read the local snapshot after the Gmail history worker updates SQLite.
+// Never invoke Gmail from this timer. Preserve the owner's current selection
+// and never replace an open message or a Delete approval dialog mid-review.
+function refreshLocalInboxIfIdle() {
+  if (busy || selectedInfo.size ||
+      el("inbox-panel").hidden ||
+      el("mail-viewer").open || el("trash-dialog").open ||
+      document.hidden) return;
+  load(true);
+}
+if (typeof window.setInterval === "function")
+  window.setInterval(refreshLocalInboxIfIdle, 90000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshLocalInboxIfIdle();
+});
