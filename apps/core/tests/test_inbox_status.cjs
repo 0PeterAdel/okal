@@ -205,7 +205,7 @@ test("all-category selection is separate from Gmail Delete approval", () => {
   ]});
   for (let groupIndex=0;groupIndex<3;groupIndex++) {
     const row=get("triage-groups").children[groupIndex].children[1];
-    row.handlers.click({target:{closest(){return null;}},ctrlKey:groupIndex>0});
+    row.handlers.click({target:{closest(){return null;}},ctrlKey:true});
   }
   assert.match(get("trash-count").textContent,/3 من 3/);
   assert.equal(get("trash-selected").disabled,false);
@@ -227,7 +227,7 @@ test("Information row click, Ctrl+Click and Shift+Click behave like a desktop li
   const click = (row, options = {}) => row.handlers.click({
     ...options, target: { closest() { return null; } },
   });
-  click(rows[0]);
+  click(rows[0],{ctrlKey:true});
   assert.equal(rows[0].children.at(-1).children[0].checked, true);
   assert.equal(rows[1].children.at(-1).children[0].checked, false);
   click(rows[2], {ctrlKey:true});
@@ -263,7 +263,7 @@ test("Shift+Click ranges honor 20-item ceiling and protected labels never select
   }));
   context.renderTriage({items});
   const rows = get("triage-groups").children[0].children.slice(1);
-  rows[0].handlers.click({target:{closest(){return null;}}});
+  rows[0].handlers.click({target:{closest(){return null;}},ctrlKey:true});
   rows[23].handlers.click({target:{closest(){return null;}},shiftKey:true});
   assert.match(get("trash-help").textContent, /20 رسالة/);
   assert.match(get("trash-count").textContent, /1 من 24/);
@@ -321,7 +321,9 @@ test("GitHub PR notifications collapse into one closed expandable cluster", () =
 test("on-demand original MIME viewer stays sandboxed and remote images opt-in", async () => {
   const fake = {
     id:"aa", subject:"Real message", from:"sender@example.com",
-    to:"owner@example.com", date:"Sunday", html:
+    to:"owner@example.com", date:"Sunday",
+    ai_summary:"ملخص مهم", ai_suggested_action:"راجع تفاصيل المشروع",
+    ai_category:"action", html:
       '<p>Hello</p><img src="data:image/png;base64,QQ=="><img src="https://tracker.test/pixel"><script>alert(1)</script>',
     text:"Hello",attachments:[{name:"report.pdf",mime_type:"application/pdf"}],
     gmail_link:"https://mail.google.com/mail/#all/aa",
@@ -333,6 +335,8 @@ test("on-demand original MIME viewer stays sandboxed and remote images opt-in", 
   await context.openMailViewer("aa");
   assert.equal(get("mail-viewer").open,true);
   assert.equal(get("viewer-title").textContent,"Real message");
+  assert.equal(get("viewer-ai-summary").textContent,"ملخص مهم");
+  assert.match(get("viewer-ai-action").textContent,/راجع تفاصيل المشروع/);
   assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
   assert.match(get("viewer-frame").srcdoc,/script-src &#39;none&#39;/);
   assert.match(get("viewer-attachments").children[0].textContent,/report.pdf/);
@@ -356,7 +360,7 @@ test("preview surfaces actual safe Gmail lock reason instead of generic OAuth wa
     subject:"Notice", summary:"",link:"#inbox-panel",
   }]});
   const row = get("triage-groups").children[0].children[1];
-  row.handlers.click({target:{closest(){return null;}}});
+  row.handlers.click({target:{closest(){return null;}},ctrlKey:true});
   await get("trash-selected").handlers.click();
   assert.equal(attempts,3);
   assert.match(get("trash-help").textContent,/المزامنة التلقائية/);
@@ -373,7 +377,7 @@ test("preview surfaces provider and protection errors without exposing arbitrary
     subject:"Review",summary:"",link:"#inbox-panel",
   }]});
   get("triage-groups").children[0].children[1].handlers.click({
-    target:{closest(){return null;}}
+    target:{closest(){return null;}},ctrlKey:true
   });
   await get("trash-selected").handlers.click();
   assert.match(get("trash-help").textContent,/اتغير عنوانها أو علاماتها/);
@@ -383,22 +387,23 @@ test("preview surfaces provider and protection errors without exposing arbitrary
   assert.match(get("trash-help").textContent,/HTTP 409/);
 });
 
-test("Delete previews exact native subjects then requires local PIN and consent", async () => {
+test("Delete previews native subjects then requires one explicit confirmation click", async () => {
   const digest="a".repeat(64);
+  const ticket="A".repeat(43);
   let previewed=false,deleted=false;
   const {context,get}=harness(async (url,options)=>{
     if (url==="/api/v1/mail/trash/preview") {
       const payload=JSON.parse(options.body);
       assert.equal(payload.ids.join(","),"aa,bb");
       previewed=true;
-      return response({count:2,approval_digest:digest,items:[
+      return response({count:2,approval_digest:digest,confirmation_token:ticket,items:[
         {id:"aa",subject:"Action",sender:"Manager"},
         {id:"bb",subject:"Info",sender:"Updates"},
       ]});
     }
     if (url==="/api/v1/mail/trash") {
       const payload=JSON.parse(options.body);
-      assert.equal(payload.pin,"my-super-secure-PIN");
+      assert.equal(payload.confirmation_token,ticket);
       assert.equal(payload.approval_digest,digest);
       assert.equal(payload.confirmed,true);
       assert.equal(previewed,true);
@@ -430,8 +435,7 @@ test("Delete previews exact native subjects then requires local PIN and consent"
   assert.equal(deleted,false);
   assert.equal(get("trash-dialog").open,true);
   assert.equal(get("trash-preview-list").children.length,2);
-  get("trash-pin").value="my-super-secure-PIN";
-  await get("trash-confirm-form").handlers.submit({preventDefault(){}});
+   await get("trash-confirm-form").handlers.submit({preventDefault(){}});
   assert.equal(deleted,true);
   assert.equal(get("trash-dialog").open,false);
 });
