@@ -21,11 +21,11 @@ BANNED = {"TRASH", "SPAM", "SENT", "DRAFT"}
 
 
 def _inputs(ids, action):
-    if action not in ACTIONS:
+    if not isinstance(action, str) or action not in ACTIONS:
         raise MailError("unsupported_gmail_action")
     if (not isinstance(ids, list) or not 1 <= len(ids) <= 20
-            or len(set(ids)) != len(ids)
-            or any(not isinstance(mid, str) or not MID.fullmatch(mid) for mid in ids)):
+            or any(not isinstance(mid, str) or not MID.fullmatch(mid) for mid in ids)
+            or len(set(ids)) != len(ids)):
         raise MailError("invalid_action_message_ids")
     return sorted(ids)
 
