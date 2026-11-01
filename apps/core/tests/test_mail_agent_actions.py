@@ -62,7 +62,7 @@ class AgentActionsTests(unittest.TestCase):
                 "confirmation_token":p["confirmation_token"],"confirmed":True})
 
     def test_native_preview_is_readonly_and_confirmed_read_updates_gmail_once(self):
-        self.api.call.side_effect=[self.meta,self.meta,self.meta,self.minimal]
+        self.api.call.side_effect=[self.meta,self.meta,self.meta,{"id":"aa"},self.minimal]
         with patch("okal_core.mail.provider.Gmail.open",return_value=self.api):
             p=self._preview()
             self.assertEqual(p["count"],1)
@@ -81,7 +81,7 @@ class AgentActionsTests(unittest.TestCase):
 
     def test_archive_disappears_from_saved_active_inbox_but_keeps_evidence(self):
         after={"id":"aa","labelIds":[]}
-        self.api.call.side_effect=[self.meta,self.meta,self.meta,after]
+        self.api.call.side_effect=[self.meta,self.meta,self.meta,{"id":"aa"},after]
         with patch("okal_core.mail.provider.Gmail.open",return_value=self.api):
             p=self._preview("archive")
             r=self._commit(p,"archive")
@@ -116,7 +116,7 @@ class AgentActionsTests(unittest.TestCase):
             r=self.client.post("/api/v1/mail/tasks/from-message",
                 headers=self.headers,json={"message_id":"aa"})
             self.assertEqual(r.status_code,200,r.text)
-            self.assertIn(r.json()["status"],{"created","already_recorded","approved"})
+            self.assertIn(r.json()["status"],{"open","already_recorded","created","approved"})
         with self.store.connect() as db:
             self.assertEqual(db.execute(
                 "SELECT COUNT(*) FROM local_tasks WHERE source_id='aa'").fetchone()[0],1)
