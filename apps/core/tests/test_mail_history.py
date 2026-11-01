@@ -263,15 +263,15 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(HistoryState(self.store).current(self.cfg.account)["cursor"],
                          "100")
 
-    def test_truncated_email_is_flagged_for_manual_review(self):
+    def test_truncated_email_gets_partial_analysis_instead_of_quarantine(self):
         run(self.store, self.cfg, self.api, self.model)
         self.now += 3600
         self.api.items["bb"] = incoming("bb", self.now - 10)
         self.api.items["bb"].truncated = True
         self.api.delta = ("190", ["bb"], 0)
         outcome = run(self.store, self.cfg, self.api, self.model)
-        self.assertEqual((outcome["processed"], outcome["manual_review"]), (0, 1))
-        self.assertEqual(self.model.calls, ["aa"])
+        self.assertEqual((outcome["processed"], outcome["manual_review"]), (1, 0))
+        self.assertEqual(self.model.calls, ["aa","bb"])
 
     def test_proxy_environment_ignored_for_google_refresh(self):
         class FakeSession:
