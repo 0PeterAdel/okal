@@ -7,13 +7,11 @@ validated, versioned provider changes through ingest().
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
-import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 PROVIDERS = frozenset({"google", "microsoft", "icloud", "caldav", "local"})
 ACTIONS = frozenset({"read", "summarize", "propose", "create", "update", "delete"})
-CONTROL = re.compile(r"[\\x00-\\x1f\\x7f-\\x9f]")
 MAX_EVENTS_PER_BATCH = 200
 ZONE = ZoneInfo("Africa/Cairo")
 
@@ -25,7 +23,7 @@ class CalendarConflict(ValueError):
 def _text(value, field, maximum, *, nullable=False):
     if nullable and value is None:
         return ""
-    if not isinstance(value, str) or not value or len(value) > maximum or CONTROL.search(value):
+    if not isinstance(value, str) or not value or len(value) > maximum or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value):
         raise ValueError("invalid_calendar_" + field)
     return value
 
