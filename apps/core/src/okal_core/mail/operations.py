@@ -7,6 +7,7 @@ Saved AI evidence is not mutated. Gmail stays the source of truth.
 from hashlib import sha256
 import json
 import re
+from uuid import uuid4
 
 from .contracts import MailError
 from .viewer import allowed_source, _header
@@ -32,11 +33,13 @@ def _inputs(ids, action):
 
 def init_ledger(db):
     db.execute("""CREATE TABLE IF NOT EXISTS mail_action_events(
-        account TEXT NOT NULL, message_id TEXT NOT NULL,
-        action TEXT NOT NULL, status TEXT NOT NULL,
-        created_at INTEGER NOT NULL, verified_at INTEGER,
-        PRIMARY KEY(account,message_id,action)
+        id TEXT PRIMARY KEY, account TEXT NOT NULL, message_id TEXT NOT NULL,
+        action TEXT NOT NULL, status TEXT NOT NULL
+            CHECK(status IN ('attempting','confirmed')),
+        created_at INTEGER NOT NULL, verified_at INTEGER
     )""")
+    db.execute("""CREATE INDEX IF NOT EXISTS mail_action_attempts
+        ON mail_action_events(account,message_id,action,status)""")
 
 
 def native(api, mid, saved, action):
@@ -74,7 +77,8 @@ def preview(store, cfg, api, ids, action):
             if "mail_action_events" in tables:
                 prior = db.execute(
                     "SELECT status FROM mail_action_events WHERE account=? "
-                    "AND message_id=? AND action=?", (account, mid, action)
+                    "AND message_id=? AND action=? AND status='attempting' "
+                    "LIMIT 1", (account, mid, action)
                 ).fetchone()
                 if prior:
                     raise MailError("action_already_attempted_review_gmail")
@@ -105,14 +109,15 @@ def apply(store, cfg, api, ids, action, digest):
             init_ledger(db)
             exists = db.execute(
                 "SELECT 1 FROM mail_action_events WHERE account=? "
-                "AND message_id=? AND action=?",
+                "AND message_id=? AND action=? AND status='attempting' LIMIT 1",
                 (cfg.account.casefold(), mid, action)
             ).fetchone()
             if exists:
                 raise MailError("action_already_attempted_review_gmail")
+            event_id = uuid4().hex
             db.execute(
-                "INSERT INTO mail_action_events VALUES(?,?,?,'attempting',?,NULL)",
-                (cfg.account.casefold(), mid, action, int(store.clock()))
+                "INSERT INTO mail_action_events VALUES(?,?,?,?, 'attempting',?,NULL)",
+                (event_id,cfg.account.casefold(),mid,action,int(store.clock()))
             )
         try:
             api.call(api.service.users().messages().modify(
@@ -136,8 +141,8 @@ def apply(store, cfg, api, ids, action, digest):
         with store.connect() as db, db:
             db.execute(
                 "UPDATE mail_action_events SET status='confirmed',verified_at=? "
-                "WHERE account=? AND message_id=? AND action=? AND status='attempting'",
-                (int(store.clock()), cfg.account.casefold(), mid, action)
+                "WHERE id=? AND status='attempting'",
+                (int(store.clock()),event_id)
             )
         succeeded.append(mid)
     return {"status":"confirmed", "action": action, "count": len(succeeded),
