@@ -9,8 +9,10 @@ on:
       - feat/core-pro-dashboard-multiselect
       - feat/inbox-selection-clusters-inline-reader
       - feat/inbox-confirm-delete-message-details
+      - feat/core-mail-agent-actions-v1
   pull_request:
     branches:
+      - feat/inbox-confirm-delete-message-details
       - feat/inbox-selection-clusters-inline-reader
       - feat/core-local-task-planning
       - feat/core-ai-morning-editor
