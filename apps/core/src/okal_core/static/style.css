@@ -394,3 +394,11 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 #mail-action-result {font-size:13px;min-height:20px;line-height:1.6;}
 @media(max-width:650px){.reply-tools button{flex:1}
   .viewer-reply-panel{padding:12px;}}
+
+/* Exact, readable original-message send approval; never editable in preview. */
+.mail-send-body { white-space:pre-wrap;overflow-wrap:anywhere;
+  background:var(--surface-raised);border:1px solid var(--line-strong);
+  border-radius:12px;padding:15px;max-height:42dvh;overflow:auto;
+  font-family:inherit;font-size:13px;line-height:1.75; }
+#mail-send-result {font-size:12px;line-height:1.65;min-height:24px;}
+#mail-send-confirm {min-height:48px;width:100%;margin-top:12px;}
