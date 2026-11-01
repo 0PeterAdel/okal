@@ -193,7 +193,10 @@ def parse_full(row):
                     raise MailError("body_requires_attachment_fetch_manual_review")
                 encoded = body.get("data", "")
                 encoded_bytes += len(encoded)
-                if encoded_bytes > 1024 * 1024:
+                # Large HTML newsletters often contain formatting/quoted
+                # thread history. Decode within a hard 4 MiB MIME budget and
+                # keep only a bounded representative text excerpt in RAM.
+                if encoded_bytes > 4 * 1024 * 1024:
                     raise MailError("message_exceeds_size_budget")
                 decoded = base64.b64decode(
                     encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True
@@ -236,8 +239,12 @@ def parse_full(row):
             subject=h("subject", "(no subject)")[:500],
             rfc_id=h("message-id")[:500],
             labels=row.get("labelIds", []),
-            body=text[:8000],
-            truncated=len(text) > 8000
+            # Never label ordinary long email as unreadable: send the
+            # bounded text to the map/reduce analyst. Very large mail gets
+            # an explicit partial-coverage marker in its summary.
+            body=text[:96000],
+            body_total_chars=len(text),
+            truncated=len(text) > 96000
             or any(
                 len(headers.get(name, "")) > limit
                 for name, limit in (
