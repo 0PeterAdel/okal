@@ -812,35 +812,56 @@ const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
 
 // A single Gmail message can contain a complete <html><head><body> tree.
 // Keep in-email styles while avoiding nested document wrappers inside srcdoc.
+// Keep the sender's own <html>, <head>, <body> attributes and newsletter
+// media-query CSS. Stripping the body/head tags caused fixed-width LinkedIn
+// and Alison templates to fall back to raw links, text and broken tables.
 function nativeMailBody(message) {
-  if (!message.html) return "<pre>" + escapeHtml(message.text ||
-    "محتوى الرسالة غير متوفر بصيغة مقروءة") + "</pre>";
-  return message.html
-    .replace(/<!doctype[^>]*>/gi, "")
-    .replace(/<\/?(?:html|head|body)\b[^>]*>/gi, "");
+  const source = message.html || ("<pre>" + escapeHtml(message.text ||
+    "محتوى الرسالة غير متوفر بصيغة مقروءة") + "</pre>");
+  // Do not allow meta refresh or <base> to navigate/redirect the untrusted
+  // document. Sandbox and CSP also disallow script, form and top navigation.
+  return source
+    .replace(/<base\b[^>]*>/gi, "")
+    .replace(/<meta\b(?=[^>]*\bhttp-equiv\s*=\s*["']?refresh\b)[^>]*>/gi, "");
 }
 
 function viewerDocument(message, remote) {
-  // Never load external pixels automatically. Explicit checkbox applies to
-  // this opened message only, with referrers/cookies suppressed by sandbox.
-  const imagePolicy = remote ? "data: https:" : "data:";
+  // Remote images are a per-message opt-in. The original HTML stays inside
+  // an opaque-origin, no-script iframe, never inserted in the parent DOM.
+  const imagePolicy = remote ? "data: https: http:" : "data:";
   const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; " +
     "font-src data:; media-src data:; img-src " + imagePolicy + "; " +
     "style-src 'unsafe-inline'; base-uri 'none'; form-action 'none';";
-  const head = '<!doctype html><html><head><meta charset="utf-8">' +
+  const securityHead = '<meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<meta http-equiv="Content-Security-Policy" content="' + escapeHtml(csp) + '">' +
     '<meta name="referrer" content="no-referrer"><style>' +
-    'html{max-width:100%;min-width:0;overflow-x:auto}' +
-    'body{margin:0!important;padding:16px;color:#111;background:#fff;' +
-    'font-family:system-ui,Arial,sans-serif;font-size:14px;line-height:1.6;' +
-    'overflow-wrap:anywhere;max-width:100%;box-sizing:border-box}' +
-    'img,svg,video,canvas{max-width:100%!important;height:auto!important}' +
-    'table{max-width:100%!important}td,th{overflow-wrap:anywhere}' +
+    'html{max-width:100%;overflow-x:auto}body{max-width:100%;box-sizing:border-box;' +
+    'overflow-wrap:break-word}img{max-width:100%!important}' +
+    'table{max-width:100%}td,th{overflow-wrap:break-word}' +
     'pre{white-space:pre-wrap;overflow-wrap:anywhere}' +
-    '@media(max-width:600px){body{padding:9px;font-size:13px}}' +
-    '</style></head><body>';
-  return head + nativeMailBody(message) + "</body></html>";
+    '@media(max-width:600px){body{margin:0!important;padding:8px!important}}' +
+    '</style>';
+  const original = nativeMailBody(message);
+  // Full email document: insert CSP BEFORE any sender-owned tags/resources,
+  // preserving sender's head styles, body bgcolor and table layout.
+  if (/<html\b/i.test(original)) {
+    const html = original.replace(/<!doctype[^>]*>/gi, "");
+    let withCsp;
+    if (/<head\b/i.test(html)) {
+      withCsp = html.replace(/<head\b[^>]*>/i, (head) => head + securityHead);
+    } else {
+      withCsp = html.replace(/<html\b[^>]*>/i,
+        (head) => head + "<head>" + securityHead + "</head>");
+    }
+    return "<!doctype html>" + withCsp;
+  }
+  // Templates with a body root keep all sender-owned body attributes.
+  if (/<body\b/i.test(original))
+    return "<!doctype html><html><head>" + securityHead +
+      "</head>" + original + "</html>";
+  return "<!doctype html><html><head>" + securityHead +
+    "</head><body>" + original + "</body></html>";
 }
 
 let viewerFocus = false;
