@@ -575,6 +575,73 @@ test("Owner may remember image permission across messages; default remains priva
   assert.equal(get("viewer-remote-images").checked,false);
 });
 
+test("native reader Trash still previews and confirms after opening hides its inbox card", async () => {
+  const mail={
+    id:"aa",subject:"Original GitHub alert",from:"notifications@github.com",
+    to:"owner@example.com",date:"Today",labels:["INBOX","UNREAD"],
+    html:"<p>Original</p>",ai_summary:"Review",ai_category:"action",
+    ai_suggested_action:"",attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"
+  };
+  const calls=[];
+  const digest="a".repeat(64),ticket="T".repeat(43);
+  const {context,get}=harness(async (url,options)=>{
+    calls.push(url);
+    if(url==="/api/v1/mail/messages/aa") return response(mail);
+    if(url==="/api/v1/mail/trash/preview") {
+      assert.deepEqual(JSON.parse(options.body).ids,["aa"]);
+      return response({count:1,approval_digest:digest,confirmation_token:ticket,
+        items:[{id:"aa",subject:"Original GitHub alert",sender:"notifications@github.com"}]});
+    }
+    if(url==="/api/v1/mail/trash") {
+      const body=JSON.parse(options.body);
+      assert.deepEqual(body.ids,["aa"]);
+      assert.equal(body.confirmation_token,ticket);
+      assert.equal(body.approval_digest,digest);
+      assert.equal(body.confirmed,true);
+      return response({status:"confirmed_trash",moved:1});
+    }
+    return response({});
+  });
+  context.renderTriage({items:[{
+    id:"aa",subject:"Original GitHub alert",sender:"GitHub",
+    labels:["INBOX","UNREAD"],category:"action",
+    summary:"Review",link:"https://mail.google.com/mail/#all/aa"
+  }]});
+  await context.openMailViewer("aa");
+  assert.match(get("triage-count").textContent,/0 رسالة/);
+  assert.equal(get("trash-count").textContent.includes("من 0"),true);
+  assert.equal(get("viewer-delete").disabled,false);
+  await get("viewer-delete").handlers.click();
+  assert.equal(get("trash-dialog").open,true);
+  assert.equal(get("trash-preview-list").children.length,1);
+  assert.equal(calls.filter(x=>x==="/api/v1/mail/trash").length,0);
+  await get("trash-confirm-form").handlers.submit({preventDefault(){}});
+  assert.equal(calls.filter(x=>x==="/api/v1/mail/trash").length,1);
+  assert.equal(get("trash-dialog").open,false);
+  assert.equal(get("mail-viewer").open,false);
+});
+
+test("native reader respects protected labels despite local Seen filtering", async () => {
+  const mail={
+    id:"aa",subject:"Protected",from:"owner@example.com",to:"owner@example.com",
+    date:"Today",labels:["INBOX","STARRED"],
+    html:"<p>Do not trash</p>",ai_summary:"Review",ai_category:"action",
+    ai_suggested_action:"",attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"
+  };
+  const calls=[];
+  const {context,get}=harness(async url=>{
+    calls.push(url);
+    if(url==="/api/v1/mail/trash/preview") throw Error("protected message preview");
+    return response(mail);
+  });
+  await context.openMailViewer("aa");
+  assert.equal(get("viewer-delete").disabled,true);
+  await get("viewer-delete").handlers.click();
+  assert.ok(!calls.includes("/api/v1/mail/trash/preview"));
+});
+
 test("Mail Agent previews Gmail action and writes only after explicit confirmation", async () => {
   const events=[];
   const original={id:"aa",subject:"Native subject",from:"sender@example.com",
