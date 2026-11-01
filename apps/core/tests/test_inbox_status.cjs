@@ -30,7 +30,10 @@ function harness(fetcher) {
   const context = vm.createContext({
     document: { getElementById: get, createElement: node, addEventListener() {} },
     window: { addEventListener() {} },
-    URLSearchParams, AbortController, setTimeout, fetch: fetcher,
+    URLSearchParams, AbortController, setTimeout,
+    fetch: (url, options) => url === "/api/v1/mail/viewed"
+      ? response({status:"viewed_locally",hidden_from_smart_inbox:true})
+      : fetcher(url,options),
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/okal_core/static/app.js"), "utf8"), context);
   return { context, get };
