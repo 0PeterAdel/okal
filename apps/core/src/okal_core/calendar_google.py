@@ -418,6 +418,15 @@ def sync_calendar(store, account="default", calendar_id="primary", service=None,
                 last_success=excluded.last_success,event_count=excluded.event_count""",
                 (account, calendar_id, new_cursor, int(store.clock()), len(events)),
             )
+            db.execute("""CREATE TABLE IF NOT EXISTS calendar_google_attempts (
+                account_id TEXT NOT NULL, calendar_id TEXT NOT NULL,
+                last_attempt INTEGER NOT NULL, last_error TEXT NOT NULL,
+                PRIMARY KEY(account_id,calendar_id)
+            )""")
+            db.execute("""INSERT INTO calendar_google_attempts VALUES(?,?,?,'')
+                ON CONFLICT(account_id,calendar_id) DO UPDATE SET
+                last_attempt=excluded.last_attempt,last_error=''""",
+                (account, calendar_id, int(store.clock())))
         return {
             "account_alias": account, "calendar_id": calendar_id,
             "result": "full_sync" if full else "history_delta",

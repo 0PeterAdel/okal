@@ -183,6 +183,25 @@ class ProviderTests(unittest.TestCase):
         result = normalize(event, "Africa/Cairo")
         self.assertEqual(result["instance_id"], "2026-11-03T10:00:00+02:00")
 
+    def test_redacted_sync_failure_and_success_clears_error(self):
+        from okal_core.calendar_google import credential_file, record_sync_failure
+        write_private(credential_file(self.store, "default"), {
+            "token": "PRIVATE_DO_NOT_ECHO", "scopes": [],
+        })
+        record_sync_failure(
+            self.store, "default", "primary", "some sensitive OAuth response"
+        )
+        current = status(self.store)
+        self.assertEqual(
+            current["last_attempts"][0]["last_error"],
+            "google_calendar_sync_failed"
+        )
+        self.assertNotIn("PRIVATE", json.dumps(current))
+        self.sync(FakeService({
+            "items": [fixture()], "nextSyncToken": "ok-after-error",
+        }))
+        self.assertEqual(status(self.store)["last_attempts"][0]["last_error"], "")
+
     def test_stored_token_never_in_status_api_response(self):
         from okal_core.calendar_google import credential_file
         write_private(credential_file(self.store, "private"), {

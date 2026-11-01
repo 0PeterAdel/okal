@@ -66,7 +66,14 @@ def main(store, argv):
         return 0
     except (CalendarGoogleError, OSError, ValueError) as exc:
         if args.action == "sync":
-            # A failed provider read must be visible on later no-network status.
-            record_sync_failure(store, args.account, args.calendar, exc)
+            # Never let invalid user input turn error reporting into traceback.
+            try:
+                record_sync_failure(store, args.account, args.calendar, exc)
+            except (CalendarGoogleError, OSError, ValueError):
+                pass
         print(f"Calendar operation failed: {exc}", file=sys.stderr)
+        return 1
+    except Exception:
+        # Provider library errors can include HTTP response text; don't echo it.
+        print("Calendar operation failed: google_calendar_provider_error", file=sys.stderr)
         return 1
