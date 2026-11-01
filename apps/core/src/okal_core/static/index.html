@@ -224,7 +224,10 @@
         <dialog id="mail-viewer" class="okal-dialog mail-viewer" aria-labelledby="viewer-title">
           <div class="dialog-header">
             <div><p class="overline">ORIGINAL GMAIL MESSAGE</p><h2 id="viewer-title">قراءة الرسالة داخل OKAL</h2></div>
-            <button id="viewer-close" class="btn-secondary" type="button">إغلاق</button>
+            <div class="viewer-header-buttons">
+              <button id="viewer-focus-toggle" class="btn-secondary" type="button" aria-pressed="false">توسيع القراءة</button>
+              <button id="viewer-close" class="btn-secondary" type="button">إغلاق</button>
+            </div>
           </div>
           <section class="viewer-ai" aria-label="ملخص AI والإجراءات المقترحة">
             <p class="overline">OKAL AI INSIGHT · ملخص محفوظ وليس محتوى Gmail الأصلي</p>
@@ -282,11 +285,12 @@
             <p><strong>بتاريخ:</strong> <span id="viewer-date"></span></p>
           </div>
           <div class="viewer-tools">
-            <label><input id="viewer-remote-images" type="checkbox" /> تحميل الصور الخارجية (ممكن تُبلّغ المرسل بفتح الرسالة)</label>
+            <label><input id="viewer-remote-images" type="checkbox" /> تحميل صور الرسالة الخارجية (قد تُبلّغ المرسل بفتح البريد)</label>
+            <span id="viewer-image-status" role="status" aria-live="polite" class="viewer-image-status">صور Gmail الداخلية تظهر تلقائيًا؛ الصور الخارجية محجوبة لحماية الخصوصية.</span>
             <a id="viewer-gmail" href="#inbox-panel" target="_blank" rel="noopener noreferrer">فتح في Gmail</a>
           </div>
           <p id="viewer-note" class="muted">HTML داخل صندوق معزول؛ JavaScript والروابط التلقائية ممنوعة.</p>
-          <iframe id="viewer-frame" sandbox="" referrerpolicy="no-referrer" title="محتوى البريد الأصلي المعزول"></iframe>
+          <iframe id="viewer-frame" sandbox="" referrerpolicy="no-referrer" title="محتوى البريد الأصلي المعزول" loading="eager"></iframe>
           <div id="viewer-attachments" class="viewer-attachments"></div>
         </dialog>
 
