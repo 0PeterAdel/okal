@@ -11,14 +11,18 @@
 - Current Gmail state is reconciled from history and the existing bounded native metadata checks (up to 50 older messages in a sync cycle). Read messages not yet analyzed are skipped instead of consuming Ollama work.
 - The private database gains `mail_local_seen` and `mail_gmail_unread` tables. No destructive migrations.
 
-## Displaying remote images
+## Displaying remote images — owner-requested always-on behavior
 
-- Previously the screenshot showed the hosted image checkbox **unchecked**: OKAL was blocking remote images by design. The native Gmail read endpoint cannot guarantee third-party pictures without making requests to those external hosts.
-- Click **عرض صور الرسالة** for an explicit per-message opt-in. If you want the app to remember it, tick **تذكّر سماحي بتحميل الصور الخارجية**. This stores **a boolean in private SQLite**, never auth tokens or mail data in browser storage.
-- The preference persists on the single user's Core service and auto-loads remote images in later emails, unless you revoke it. Third-party hosts can learn that an image URL was requested, and Firefox blockers or expired URLs may still prevent display.
-- Internal CID/Content-Location images render locally from the authenticated Gmail MIME payload if available. The official **فتح في Gmail** link is a faithful fallback where embedded assets cannot be recovered.
-- No server-side proxy or raw email URL fetch is performed. No new OAuth, Gmail writes or paid inference API.
+- **Current default:** opening an original Gmail message in OKAL automatically allows remote HTTP(S) images. There is no longer a Load Images button or remember-permission checkbox. The reader does not fetch images for unopened inbox rows.
+- **Privacy:** image hosts and trackers may learn that the message was opened. This is an explicit owner-requested behavior, not a privacy-preserving default. The existing private SQLite image setting is ignored by the reader; it is retained for backwards database compatibility, not exposed in UI.
+- The original sender HTML stays inside a script-disabled, opaque-origin sandbox; scripts, forms, automatic navigation, fonts and network APIs are still blocked by CSP. Safe deferred `data-src`, `data-original` and `data-srcset` image URLs are activated for the opened message.
+- CID / Content-Location images still render from Gmail MIME locally where possible. Third-party hosts, expired URLs, Firefox tracking protection or browser extensions can still prevent an image from appearing. `فتح في Gmail` remains the fallback. No server-side image proxy or third-party URL fetch was added.
 
+## Native reader Trash after Viewed
+
+- Opening a saved message marks it locally Viewed and hides it from Smart Inbox. The reader's Trash button now uses the verified *native Gmail message labels*, not the removed list row, to decide whether to offer a delete preview.
+- Starred, Important, Sent, Draft, Spam, Trash or non-Inbox messages are not offered for Trash. The server independently checks its saved source, current Gmail metadata, protective labels and the action permission.
+- Clicking reader Trash opens the **same read-only native preview and explicit confirmation dialog** as batch Trash. Only the confirmation triggers a Gmail move to recoverable Trash; no permanent delete and no automatic retry on uncertain outcome.
 ## Owner rollout
 
 ```bash
