@@ -69,6 +69,7 @@ def create_app(
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
                 "/api/v1/mail/viewed",
+                "/api/v1/mail/image-preference",
                 "/api/v1/mail/tasks/from-message",
                 "/api/v1/tasks/create", "/api/v1/tasks/edit",
                 "/api/v1/tasks/transition",
@@ -328,6 +329,18 @@ def create_app(
                 404 if code.startswith("viewer_source_") else 422,
                 code
             ) from None
+
+    @app.post("/api/v1/mail/image-preference")
+    async def set_mail_image_preference(request: Request):
+        """Explicit owner choice, private SQLite only, never remote fetch."""
+        from .mail.private import config
+        from .mail.inbox_visibility import save_image_preference
+        payload=await action_payload(request,{"allow_remote_images"})
+        if type(payload["allow_remote_images"]) is not bool:
+            raise HTTPException(400,"invalid_remote_image_preference")
+        return save_image_preference(
+            store,config(store).account,payload["allow_remote_images"]
+        )
 
     @app.post("/api/v1/mail/viewed")
     async def mark_local_mail_viewed(request: Request):
