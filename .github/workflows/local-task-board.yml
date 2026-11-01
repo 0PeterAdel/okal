@@ -8,6 +8,7 @@ on:
       - feat/core-ai-morning-editor
       - feat/core-pro-dashboard-multiselect
       - feat/inbox-selection-clusters-inline-reader
+      - feat/inbox-confirm-delete-message-details
   pull_request:
     branches:
       - feat/core-local-task-planning
