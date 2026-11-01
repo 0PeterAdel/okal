@@ -33,7 +33,7 @@ class ReadProjectionTests(unittest.TestCase):
                 "labels":["UNREAD","INBOX"],"received_ms":1799999999000,
                 "attachment_count":0}),Insight(
                 source_id="aa",category="action",
-                summary="Review workflow","suggested_action":"Open GitHub"
+                summary="Review workflow",suggested_action="Open GitHub"
               ).model_dump_json()))
         self.client=TestClient(create_app(self.store,require_read_key=False),
             base_url="http://127.0.0.1:8766",
