@@ -323,33 +323,27 @@ test("GitHub PR notifications collapse into one closed expandable cluster", () =
   assert.match(get("trash-count").textContent,/0 من 3/);
 });
 
-test("on-demand original MIME viewer stays sandboxed and remote images opt-in", async () => {
-  const fake = {
-    id:"aa", subject:"Real message", from:"sender@example.com",
-    to:"owner@example.com", date:"Sunday",
-    ai_summary:"ملخص مهم", ai_suggested_action:"راجع تفاصيل المشروع",
-    ai_category:"action", html:
-      '<p>Hello</p><img src="data:image/png;base64,QQ=="><img src="https://tracker.test/pixel"><script>alert(1)</script>',
-    text:"Hello",attachments:[{name:"report.pdf",mime_type:"application/pdf"}],
-    gmail_link:"https://mail.google.com/mail/#all/aa",
-  };
-  const {context,get}=harness(async (url) => {
+test("original Gmail viewer enables hosted images immediately and retains sandbox", async () => {
+  const fake={id:"aa",subject:"Real message",from:"sender@example.com",
+    to:"owner@example.com",date:"Sunday",labels:["INBOX"],
+    ai_summary:"ملخص مهم",ai_suggested_action:"راجع تفاصيل المشروع",
+    ai_category:"action",
+    html:'<p>Hello</p><img src="https://tracker.test/pixel"><script>alert(1)</script>',
+    attachments:[{name:"report.pdf",mime_type:"application/pdf"}],
+    gmail_link:"https://mail.google.com/mail/#all/aa"};
+  const {context,get}=harness(async url=>{
     assert.equal(url,"/api/v1/mail/messages/aa");
     return response(fake);
   });
   await context.openMailViewer("aa");
-  assert.equal(get("mail-viewer").open,true);
   assert.equal(get("viewer-title").textContent,"Real message");
-  assert.equal(get("viewer-ai-summary").textContent,"ملخص مهم");
-  assert.match(get("viewer-ai-action").textContent,/راجع تفاصيل المشروع/);
-  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
   assert.match(get("viewer-frame").srcdoc,/script-src &#39;none&#39;/);
   assert.match(get("viewer-attachments").children[0].textContent,/report.pdf/);
-  get("viewer-remote-images").checked=true;
-  get("viewer-remote-images").handlers.change();
-  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:;/);
+  const html=fs.readFileSync(path.join(__dirname,"../src/okal_core/static/index.html"),"utf8");
+  assert.doesNotMatch(html,/id="viewer-(?:remote-images|remember-images|load-images)"/);
+  assert.match(get("viewer-image-status").textContent,/تلقائيًا/);
   get("viewer-close").handlers.click();
-  assert.equal(get("mail-viewer").open,false);
   assert.equal(get("viewer-frame").srcdoc,"");
 });
 
@@ -445,8 +439,7 @@ test("Delete previews native subjects then requires one explicit confirmation cl
   assert.equal(get("trash-dialog").open,false);
 });
 
-test("Native newsletter respects image privacy and single-scroll focus reader", async () => {
-  let reads=0;
+test("Native newsletter automatically loads external images and keeps fullscreen reader", async () => {
   const mail={
     id:"aa",subject:"Newsletter",from:"courses@example.com",to:"owner@example.com",
     date:"Today",labels:["INBOX"],
@@ -456,52 +449,40 @@ test("Native newsletter respects image privacy and single-scroll focus reader", 
     ai_summary:"Review",ai_suggested_action:"",ai_category:"information",
     gmail_link:"https://mail.google.com/mail/#all/aa",attachments:[]
   };
-  const {context,get}=harness(async (url)=>{
+  let reads=0;
+  const {context,get}=harness(async url=>{
     assert.equal(url,"/api/v1/mail/messages/aa");
     reads++;
     return response(mail);
   });
   await context.openMailViewer("aa");
   assert.equal(reads,1);
-  assert.equal(get("viewer-remote-images").checked,false);
-  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
-  assert.doesNotMatch(get("viewer-frame").srcdoc,/img-src data: https:/);
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
   assert.match(get("viewer-frame").srcdoc,/script-src &#39;none&#39;/);
   assert.equal((get("viewer-frame").srcdoc.match(/<html\b/g)||[]).length,1);
   assert.match(get("viewer-frame").srcdoc,/<style>td{color:red}<\/style>/);
   assert.match(get("viewer-frame").srcdoc,/<body bgcolor="#f7f7f7">/);
   assert.match(get("viewer-frame").srcdoc,/<html lang="en">/);
-  assert.equal(get("viewer-load-images").disabled,false);
-  assert.equal(get("viewer-load-images").attributes["aria-pressed"],"false");
-  assert.match(get("viewer-image-status").textContent,/محجوبة/);
-  // No explicit remote consent => the browser CSP forbids external pixels.
   get("viewer-focus-toggle").handlers.click();
   assert.equal(get("viewer-focus-toggle").attributes["aria-pressed"],"true");
-  assert.match(get("viewer-focus-toggle").textContent,/الرجوع/);
-  get("viewer-load-images").handlers.click();
-  assert.equal(get("viewer-remote-images").checked,true);
-  assert.equal(get("viewer-load-images").attributes["aria-pressed"],"true");
-  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
-  assert.match(get("viewer-image-status").textContent,/تم السماح/);
   get("viewer-frame").handlers.load();
-  assert.doesNotMatch(get("viewer-image-status").textContent,/جارٍ تحميل/);
+  assert.doesNotMatch(get("viewer-image-status").textContent,/جارٍ/);
   get("mail-viewer").close();
-  assert.equal(get("viewer-remote-images").checked,false);
-  assert.equal(get("viewer-load-images").attributes["aria-pressed"],"false");
   assert.equal(get("viewer-focus-toggle").attributes["aria-pressed"],"false");
   await context.openMailViewer("aa");
   assert.equal(reads,2);
-  assert.equal(get("viewer-remote-images").checked,false);
-  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
 });
 
-test("Lazy marketing images stay inert until owner explicitly presses Load Images", async () => {
+test("Marketing lazy image and safe responsive srcset activate without buttons", async () => {
   const mail={
     id:"aa",subject:"LinkedIn summary",from:"notification@example.com",
     to:"owner@example.com",date:"Today",labels:["INBOX"],
-    html:'<html><head><style>.hero{width:600px}</style></head>'+
-      '<body bgcolor="#ffffff"><img data-src="https://cdn.example/logo.png" '+
-      'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">'+
+    html:'<html><head><style>.hero{width:600px}</style></head><body bgcolor="#fff">'+
+      '<picture><source data-srcset="https://cdn.example/one.png 1x, https://cdn.example/two.png 2x">'+
+      '<img data-original="https://cdn.example/hero.jpg?x=1&amp;y=2" '+
+      'src="data:image/gif;base64,AA==">'+
+      '<img data-lazy-src="javascript:alert(1)"></picture>'+
       '<meta http-equiv="refresh" content="0;url=https://evil.example/"></body></html>',
     inline_images:0,skipped_inline_images:0,external_images_detected:true,
     ai_summary:"Update",ai_suggested_action:"",ai_category:"information",
@@ -509,46 +490,33 @@ test("Lazy marketing images stay inert until owner explicitly presses Load Image
   };
   const {context,get}=harness(async () => response(mail));
   await context.openMailViewer("aa");
-  const before=get("viewer-frame").srcdoc;
-  assert.match(before,/data-src="https:\/\/cdn.example\/logo.png"/);
-  assert.doesNotMatch(before,/\ssrc="https:\/\/cdn.example\/logo.png"/);
-  assert.doesNotMatch(before,/http-equiv="refresh"/);
-  assert.match(before,/img-src data:;/);
-  get("viewer-load-images").handlers.click();
-  const after=get("viewer-frame").srcdoc;
-  assert.match(after,/\ssrc="https:\/\/cdn.example\/logo.png"/);
-  assert.match(after,/img-src data: https: http:/);
-  get("viewer-load-images").handlers.click();
-  assert.equal(get("viewer-remote-images").checked,false);
-  assert.match(get("viewer-frame").srcdoc,/img-src data:;/);
+  const html=get("viewer-frame").srcdoc;
+  assert.match(html,/img-src data: https: http:/);
+  assert.match(html,/\ssrc="https:\/\/cdn.example\/hero.jpg\?x=1&amp;y=2"/);
+  assert.ok(!html.includes("&amp;amp;"));
+  assert.match(html,/srcset="https:\/\/cdn.example\/one.png 1x, https:\/\/cdn.example\/two.png 2x"/);
+  assert.doesNotMatch(html,/\ssrc="javascript:/);
+  assert.match(html,/data-lazy-src="javascript:alert\(1\)"/);
+  assert.doesNotMatch(html,/http-equiv="refresh"/);
 });
 
-test("Consented deferred picture sources keep signed CDN query params and reject unsafe URLs", async () => {
+test("Legacy remote-image preference never disables user-requested default", async () => {
   const mail={
-    id:"aa",subject:"Responsive newsletter",from:"news@example.com",
-    to:"owner@example.com",date:"Today",labels:["INBOX"],
-    html:'<html><body><picture><source data-srcset="https://cdn.example/one.png 1x, https://cdn.example/two.png 2x">' +
-      '<img data-original="https://cdn.example/hero.jpg?x=1&amp;y=2" src="data:image/gif;base64,AA==">' +
-      '<img data-lazy-src="javascript:alert(1)"></picture></body></html>',
-    external_images_detected:true,inline_images:0,skipped_inline_images:0,
-    ai_summary:"News",ai_suggested_action:"",ai_category:"information",
-    gmail_link:"https://mail.google.com/mail/#all/aa",attachments:[]
+    id:"aa",subject:"Newsletter",from:"example@example.com",to:"owner@example.com",
+    date:"Today",labels:["INBOX"],remote_image_preference:false,
+    html:'<img src="https://images.example.net/pic.png">',
+    ai_summary:"Hello",ai_category:"information",attachments:[],
+    gmail_link:"https://mail.google.com/mail/#all/aa"
   };
-  const {context,get}=harness(async () => response(mail));
+  const calls=[];
+  const {context,get}=harness(async url=>{
+    calls.push(url);
+    if(url==="/api/v1/mail/image-preference") throw Error("obsolete settings write");
+    return response(mail);
+  });
   await context.openMailViewer("aa");
-  const before=get("viewer-frame").srcdoc;
-  assert.ok(before.includes('data-original="https://cdn.example/hero.jpg?x=1&amp;y=2"'));
-  assert.ok(!before.includes('src="https://cdn.example/hero.jpg'));
-  assert.ok(before.includes("img-src data:;"));
-  get("viewer-load-images").handlers.click();
-  const after=get("viewer-frame").srcdoc;
-  assert.ok(after.includes('src="https://cdn.example/hero.jpg?x=1&amp;y=2"'));
-  assert.ok(!after.includes("&amp;amp;"));
-  assert.ok(after.includes('srcset="https://cdn.example/one.png 1x, https://cdn.example/two.png 2x"'));
-  assert.doesNotMatch(after, /\ssrc="javascript:/);
-  assert.ok(after.includes('data-lazy-src="javascript:alert(1)"'));
-  get("viewer-load-images").handlers.click();
-  assert.ok(get("viewer-frame").srcdoc.includes("img-src data:;"));
+  assert.match(get("viewer-frame").srcdoc,/img-src data: https: http:/);
+  assert.ok(!calls.includes("/api/v1/mail/image-preference"));
 });
 
 test("Viewing a saved Gmail email removes it immediately from active Smart Inbox", async () => {
