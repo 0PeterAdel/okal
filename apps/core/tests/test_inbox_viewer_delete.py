@@ -77,6 +77,26 @@ class InboxViewerDeleteTests(unittest.TestCase):
         with self.assertRaisesRegex(MailError,"viewer_invalid_message_id"):
             allowed_source(self.store,self.cfg.account,"../x")
 
+    def test_original_message_reads_charset_and_attachment_backed_body(self):
+        arabic = "صباح الخير، عندك اجتماع الساعة 4"
+        raw = base64.urlsafe_b64encode(arabic.encode("windows-1256")).decode()
+        original = self.fake_mail()
+        original["payload"]["parts"] = [{
+            "mimeType":"text/plain",
+            "headers":[{"name":"Content-Type",
+                        "value":"text/plain; charset=windows-1256"}],
+            "body":{"size":len(arabic.encode("windows-1256")),
+                    "attachmentId":"textBody123"},
+        }]
+        self.gmail.call.side_effect=[original,{"data":raw}]
+        with patch("okal_core.mail.viewer.Gmail.open",return_value=self.gmail):
+            out=read_native(self.store,"aa")
+        self.assertEqual(out["text"],arabic)
+        self.assertEqual(out["ai_summary"],"محتاج مراجعة")
+        self.assertEqual(out["ai_category"],"action")
+        self.assertEqual(out["ai_suggested_action"],"")
+        self.assertEqual(self.gmail.call.call_count,2)
+
     def test_full_read_never_confuses_changed_native_subject(self):
         changed = self.fake_mail()
         changed["payload"]["headers"][0]["value"] = "Changed"
@@ -160,6 +180,31 @@ class InboxViewerDeleteTests(unittest.TestCase):
                           "confirmation_token":fresh["confirmation_token"]})
                 self.assertEqual(replay.status_code,409)
                 self.assertEqual(self.gmail.move_to_trash.call_count,1)
+
+    def test_preview_ticket_expires_and_cannot_authorize_trash(self):
+        now=[1800000000]
+        self.store.clock=lambda:now[0]
+        native={"id":"aa","labelIds":["INBOX"],"payload":{"headers":[
+            {"name":"Subject","value":"Original <body>"}
+        ]}}
+        self.gmail.call.return_value=native
+        headers={"Origin":"http://127.0.0.1:8766",
+                 "Sec-Fetch-Site":"same-origin"}
+        with patch("okal_core.mail.provider.Gmail.open",return_value=self.gmail):
+            with TestClient(create_app(self.store,require_read_key=False),
+                            base_url="http://127.0.0.1:8766",
+                            client=("127.0.0.1",12501)) as client:
+                preview=client.post("/api/v1/mail/trash/preview",
+                    headers=headers,json={"ids":["aa"]}).json()
+                now[0] += 121
+                result=client.post("/api/v1/mail/trash",headers=headers,
+                    json={"ids":["aa"],"confirmed":True,
+                          "approval_digest":preview["approval_digest"],
+                          "confirmation_token":preview["confirmation_token"]})
+                self.assertEqual(result.status_code,409)
+                self.assertEqual(result.json()["detail"],
+                                 "trash_confirmation_expired_or_invalid")
+                self.gmail.move_to_trash.assert_not_called()
 
     def test_protected_mode_rejects_unpaired_delete_even_with_preview_token(self):
         headers={"Origin":"http://127.0.0.1:8766",
