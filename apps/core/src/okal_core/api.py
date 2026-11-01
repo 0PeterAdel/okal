@@ -51,6 +51,7 @@ def create_app(
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
         "/api/v1/morning", "/api/v1/planner",
+        "/api/v1/tasks/history",
     }
 
     def public_local_read(path, method):
@@ -719,6 +720,12 @@ def create_app(
         """Read-only task board, with locally scheduled reminder status."""
         from .task_planner import TaskPlanner
         return TaskPlanner(store).list("open",100)
+
+    @app.get("/api/v1/tasks/history")
+    def local_task_history():
+        """Read-only local complete/dismissed task list, for reopen buttons."""
+        from .task_planner import TaskPlanner
+        return TaskPlanner(store).list("all",100)
 
     @app.get("/api/v1/planner")
     def local_agenda():
