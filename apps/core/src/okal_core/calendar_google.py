@@ -248,7 +248,7 @@ def normalize(item, default_timezone, prior=None):
         if prior is None:
             return None
         return {
-            "id": event_id, "instance_id": instance_id, "title": prior["title"],
+            "id": event_id, "instance_id": instance_id or None, "title": prior["title"],
             "start": prior["start_utc"], "end": prior["end_utc"],
             "timezone": prior["timezone"], "all_day": bool(prior["all_day"]),
             "busy": bool(prior["busy"]), "cancelled": True,
@@ -262,7 +262,7 @@ def normalize(item, default_timezone, prior=None):
     if not isinstance(updated, str):
         raise CalendarGoogleError("missing_google_calendar_updated_timestamp")
     return {
-        "id": event_id, "instance_id": instance_id,
+        "id": event_id, "instance_id": instance_id or None,
         "title": str(item.get("summary") or "(بدون عنوان)")[:250],
         "start": start, "end": end, "timezone": tz, "all_day": all_day,
         "busy": item.get("transparency") != "transparent",
