@@ -1,0 +1,287 @@
+"""Local operator commands. HTTP read tokens never grant these capabilities."""
+
+import argparse
+from datetime import datetime
+import json
+from pathlib import Path
+import sys
+
+from .contracts import Config, Draft, MailError
+from .private import config, locked, read_private, root, write_private
+from .state import MailState
+from .history import local_status
+
+
+def emit(value):
+    # Escapes terminal controls and bidi overrides in untrusted mail/model output.
+    print(json.dumps(value, ensure_ascii=True, indent=2))
+
+
+def instant(value):
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise MailError("timestamp_needs_timezone")
+    return int(parsed.timestamp())
+
+
+def main(store, argv):
+    p = argparse.ArgumentParser(
+        prog="okal mail",
+        description="Local Gmail operator; no automatic account writes",
+    )
+    commands = p.add_subparsers(dest="command", required=True)
+    c = commands.add_parser("configure")
+    c.add_argument("--file", type=Path, required=True)
+    c = commands.add_parser("authorize")
+    c.add_argument("--client", type=Path, required=True)
+    c.add_argument("--enable-send", action="store_true")
+    c.add_argument("--enable-trash", action="store_true",
+                   help="Re-authorize Gmail with gmail.modify; broader than read-only")
+    c = commands.add_parser("trash", help="Review chosen emails; moves to recoverable Trash")
+    c.add_argument("--ids", nargs="+", required=True)
+    c.add_argument("--apply", action="store_true",
+                   help="Owner-only interactive approval, no silent writes")
+    commands.add_parser("status")
+    c = commands.add_parser("sync")
+    c.add_argument("mode", choices=("on", "off", "now", "status"))
+    commands.add_parser("doctor")
+    c = commands.add_parser("assistant", help="Local Inbox Actions preview; never fetches Gmail or sends")
+    c.add_argument("--view", choices=("summary", "queue"), default="summary")
+    c.add_argument("--limit", type=int, default=60)
+    c = commands.add_parser("digest")
+    c.add_argument("--start")
+    c.add_argument("--end")
+    c = commands.add_parser("sources")
+    c.add_argument("job_id")
+    c = commands.add_parser("search")
+    c.add_argument("query")
+    c.add_argument("--limit", type=int, default=20)
+    c = commands.add_parser("read")
+    c.add_argument("message_id")
+    c = commands.add_parser("followup")
+    c.add_argument("message_id")
+    c = commands.add_parser("draft")
+    c.add_argument(
+        "--file",
+        type=Path,
+        required=True,
+        help="private JSON: recipient, subject, body",
+    )
+    c = commands.add_parser("reply")
+    c.add_argument("message_id")
+    c.add_argument("--instruction", required=True)
+    commands.add_parser("drafts")
+    for name in ("preview", "send", "reconcile"):
+        c = commands.add_parser(name)
+        c.add_argument("draft_id")
+    c = commands.add_parser("schedule")
+    c.add_argument("at", help="HH:MM in configured timezone, or off")
+    commands.add_parser("pause-sending")
+    c = commands.add_parser("prune")
+    c.add_argument("--confirm-delete-old-digests", action="store_true", required=True)
+    args = p.parse_args(argv)
+    model = None
+    api = None
+    try:
+        if args.command == "assistant":
+            # Pure local read while the background sync holds operation.lock.
+            # Do not make an owner dashboard request contend with Gmail/Ollama.
+            from .assistant import proposals
+
+            cfg = config(store)
+            emit(proposals(store, cfg.account, args.limit,
+                           include_items=args.view == "queue"))
+            return 0
+        with locked(store):
+            if args.command == "trash":
+                from .provider import Gmail
+                from .trash import preview as trash_preview, apply as trash_apply
+
+                cfg = config(store)
+                if args.apply and not cfg.trash_enabled:
+                    raise MailError("trash_permission_disabled_reauthorize")
+                api = Gmail.open(store, cfg, trashing=args.apply)
+                review = trash_preview(store, cfg, api, args.ids)
+                emit(review)
+                if not args.apply:
+                    emit({"next": "Rerun with --apply ONLY after reviewing exact subjects on your private device."})
+                    return 0
+                if not sys.stdin.isatty() or not sys.stdout.isatty():
+                    raise MailError("trash_interactive_owner_terminal_required")
+                answer = input(
+                    "Confirm ONLY recoverable Gmail Trash for these exact messages. "
+                    "Type TRASH followed by the full approval digest: "
+                )
+                if answer != "TRASH " + review["approval_digest"]:
+                    raise MailError("trash_cancelled_owner_did_not_approve")
+                emit(trash_apply(
+                    store, cfg, api, args.ids, review["approval_digest"]
+                ))
+                return 0
+            if args.command == "configure":
+                cfg = Config.model_validate(read_private(args.file))
+                if cfg.send_enabled or cfg.trash_enabled or cfg.daily_at:
+                    raise MailError("configure_with_sending_and_schedule_off")
+                path = root(store) / "config.json"
+                if path.exists():
+                    old = config(store)
+                    if old.account.casefold() != cfg.account.casefold():
+                        raise MailError(
+                            "account_change_requires_separate_state_directory"
+                        )
+                    if old.send_enabled:
+                        raise MailError(
+                            "pause_and_reauthorize_readonly_before_reconfigure"
+                        )
+                write_private(path, cfg.model_dump())
+                emit({"configured": True, "sending": False, "schedule": False})
+                return 0
+            state = MailState(store)
+            if args.command == "sync" and args.mode in {"on", "off"}:
+                cfg = config(store)
+                cfg.sync_enabled = args.mode == "on"
+                write_private(root(store) / "config.json", cfg.model_dump())
+                emit({"sync_enabled": cfg.sync_enabled,
+                      "poll_seconds": 300,
+                      "restart_core_service_if_worker_was_not_running": True})
+                return 0
+            if args.command == "sync" and args.mode == "status":
+                cfg = config(store)
+                emit(local_status(store, cfg.account))
+                return 0
+            if args.command == "status":
+                emit(
+                    {
+                        "configured": (root(store) / "config.json").exists(),
+                        "jobs": state.jobs(),
+                        "drafts": state.drafts(),
+                        "schedule": state.schedule_status(),
+                        "sync": local_status(store, config(store).account)
+                        if (root(store) / "config.json").exists() else None,
+                    }
+                )
+                return 0
+            cfg = config(store)
+            if args.command == "authorize":
+                from .provider import authorize
+
+                authorize(store, cfg, args.client, args.enable_send, args.enable_trash)
+                emit({"authorized": True, "send_enabled": args.enable_send,
+                      "trash_enabled": args.enable_trash,
+                      "warning": "gmail.modify provider scope permits more operations than OKAL exposes; only recoverable Trash is implemented"})
+            elif args.command in {"schedule", "pause-sending"}:
+                if args.command == "schedule":
+                    cfg = Config.model_validate(
+                        {
+                            **cfg.model_dump(),
+                            "daily_at": None if args.at == "off" else args.at,
+                        }
+                    )
+                else:
+                    cfg.send_enabled = False
+                write_private(root(store) / "config.json", cfg.model_dump())
+                emit(
+                    {
+                        "daily_at": cfg.daily_at,
+                        "send_enabled": cfg.send_enabled,
+                        "note": "pause-sending is local; reauthorize read-only to remove the Google send scope",
+                    }
+                )
+            elif args.command == "sources":
+                emit(state.sources(args.job_id))
+            elif args.command == "draft":
+                emit(
+                    {
+                        "draft_id": state.new_draft(
+                            cfg.account, Draft.model_validate(read_private(args.file))
+                        )
+                    }
+                )
+            elif args.command == "drafts":
+                emit(state.drafts())
+            elif args.command == "preview":
+                emit(state.preview(args.draft_id))
+            elif args.command == "prune":
+                emit(state.prune(int(store.clock()) - cfg.retention_days * 86400))
+            else:
+                from .provider import Gmail
+                from .inference import LocalModel
+                from . import workflows
+
+                api = Gmail.open(store, cfg, sending=args.command == "send")
+                if args.command in {"digest", "doctor", "reply"} or (args.command == "sync" and args.mode == "now"):
+                    model = LocalModel(cfg)
+                if args.command == "sync" and args.mode == "now":
+                    from .history import run as run_sync
+                    emit(run_sync(store, cfg, api, model))
+                elif args.command == "doctor":
+                    model.verify()
+                    emit(
+                        {
+                            "account_matches": True,
+                            "local_model_matches": True,
+                            "send_enabled": cfg.send_enabled,
+                            "daily_at": cfg.daily_at,
+                            "live_digest_quality_tested": False,
+                        }
+                    )
+                elif args.command == "digest":
+                    end = instant(args.end) if args.end else int(store.clock())
+                    start = (
+                        instant(args.start)
+                        if args.start
+                        else state.progress(cfg.account)
+                    )
+                    start = start if start is not None else end - 86400
+                    emit(workflows.digest(store, cfg, api, model, start, end))
+                elif args.command == "search":
+                    emit(workflows.search(api, args.query, args.limit))
+                elif args.command == "read":
+                    emit(api.get(args.message_id).model_dump())
+                elif args.command == "followup":
+                    emit(workflows.followup(api, args.message_id))
+                elif args.command == "reply":
+                    emit(
+                        {
+                            "draft_id": workflows.reply_draft(
+                                store,
+                                cfg,
+                                api,
+                                model,
+                                args.message_id,
+                                args.instruction,
+                            )
+                        }
+                    )
+                elif args.command == "send":
+                    if not sys.stdin.isatty() or not sys.stdout.isatty():
+                        raise MailError("interactive_terminal_required_for_send")
+                    preview = state.preview(args.draft_id)
+                    emit(preview)
+                    expected = "SEND " + preview["approval_digest"]
+                    answer = input(
+                        "After reviewing the exact content, type SEND followed by the full approval_digest: "
+                    )
+                    if answer != expected:
+                        raise MailError("send_cancelled")
+                    emit(
+                        workflows.send_reviewed(
+                            store, cfg, api, args.draft_id, preview["approval_digest"]
+                        )
+                    )
+                elif args.command == "reconcile":
+                    emit(workflows.reconcile(store, cfg, api, args.draft_id))
+        return 0
+    except MailError as exc:
+        print("Mail: " + str(exc), file=sys.stderr)
+    except Exception:
+        print(
+            "Mail: setup_or_operation_failed; check private config, dependencies and authorization",
+            file=sys.stderr,
+        )
+    finally:
+        if model:
+            model.close()
+        if api:
+            api.close()
+    return 1

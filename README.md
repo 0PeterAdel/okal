@@ -1,5 +1,10 @@
 # Okal
 
+Backend-first mail trial: [Gmail runbook](docs/MAIL-BACKEND.md) and
+[upstream/dependency review](docs/MAIL-UPSTREAM-REVIEW.md), tracked in
+[issue #40](https://github.com/0PeterAdel/okal/issues/40). Optional local CLI
+onboarding; no account or sending is enabled by installing this branch.
+
 **One local personal assistant for mail, planning, social content and freelance opportunities.**
 
 Okal is being refocused around daily routines, not a general-purpose AI operating
@@ -9,10 +14,13 @@ use the same authenticated API.
 
 ## Status: repository transition
 
-Existing voice, Studio and agent pilots remain experimental. The new center,
-automatic startup and mobile connection are **planned, not implemented by this
-reset**. Existing installation commands do not install the new architecture.
-Do not enable competing schedulers.
+Existing voice, Studio and agent pilots remain experimental. R1a adds a small
+[local read-only core inbox](docs/CORE-INBOX.md): persistent summaries, token
+authentication and a responsive screen. Its demo data is explicitly synthetic.
+It does not connect Gmail, run models, send messages or pair a phone. Automatic
+startup is an opt-in unit awaiting owner-device acceptance; full R1 is not done.
+Existing voice installation commands do not install this core. Do not enable
+competing schedulers.
 
 Tracking: [issue #36](https://github.com/0PeterAdel/okal/issues/36).
 The architecture proposal requires review before adoption.
@@ -20,6 +28,7 @@ The architecture proposal requires review before adoption.
 ## Start here
 
 - [Personal assistant plan and delivery gates](wiki/Personal-Assistant-Plan.md)
+- [Core inbox trial, API and recovery](docs/CORE-INBOX.md)
 - [Preserved branches and local safety checks](docs/REPOSITORY-RESET.md)
 - [Proposed ADR-013](wiki/Architecture-Decision-Records.md#adr-013--daily-personal-assistant-reset)
 - [Wiki navigation](wiki/Home.md)
