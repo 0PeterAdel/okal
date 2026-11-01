@@ -110,7 +110,6 @@ class ProviderTests(unittest.TestCase):
     def test_first_sync_then_incremental_with_cancellation_tombstone(self):
         one = FakeService({"items": [fixture()], "nextSyncToken": "cursor-1"})
         self.assertEqual(self.sync(one)["result"], "full_sync")
-        self.assertEqual(self.store.connect is not None, True)
         second = FakeService({
             "items": [{"id": "google-1", "status": "cancelled",
                        "updated": "2026-11-02T02:00:00Z"}],
@@ -133,8 +132,12 @@ class ProviderTests(unittest.TestCase):
         result = self.sync(service)
         self.assertEqual(result["received"], 2)
         self.assertEqual(service.calls[1]["pageToken"], "next")
-        self.assertEqual(self.store.connect is not None, True)
-        self.assertEqual(status(self.store)["last_sync"][0]["event_count"], 2)
+        with self.store.connect() as db:
+            count = db.execute(
+                "SELECT event_count FROM calendar_google_sync "
+                "WHERE account_id='default' AND calendar_id='primary'"
+            ).fetchone()["event_count"]
+        self.assertEqual(count, 2)
 
     def test_partial_api_failure_does_not_save_cursor_or_events(self):
         service = FakeService(
