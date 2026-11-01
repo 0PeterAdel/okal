@@ -10,8 +10,10 @@ on:
       - feat/inbox-selection-clusters-inline-reader
       - feat/inbox-confirm-delete-message-details
       - feat/core-mail-agent-actions-v1
+      - feat/core-local-planner-reminders-v1
   pull_request:
     branches:
+      - feat/core-mail-agent-actions-v1
       - feat/inbox-confirm-delete-message-details
       - feat/inbox-selection-clusters-inline-reader
       - feat/core-local-task-planning
