@@ -890,6 +890,25 @@ function setViewerFocus(value) {
     ? "الرجوع للتفاصيل" : "توسيع القراءة";
   el("viewer-focus-toggle").setAttribute("aria-pressed", String(viewerFocus));
 }
+// Only the owner's explicit choice persists. By default no external
+// message images load, preventing tracking pixels from firing invisibly.
+const IMAGE_CONSENT_KEY = "okal_gmail_remote_image_consent_v1";
+function savedImageConsent() {
+  try { return localStorage.getItem(IMAGE_CONSENT_KEY)==="yes"; }
+  catch (_) { return false; }
+}
+function setSavedImageConsent(allowed) {
+  try { localStorage.setItem(IMAGE_CONSENT_KEY, allowed?"yes":"no"); }
+  catch (_) { /* storage unavailable; per-message toggle still works */ }
+}
+el("viewer-remember-images").addEventListener("change", () => {
+  setSavedImageConsent(el("viewer-remember-images").checked);
+  if (currentViewerMessage && el("viewer-remember-images").checked) {
+    el("viewer-remote-images").checked = true;
+    refreshViewerDocument();
+  }
+});
+
 function syncViewerImageButton() {
   const external = currentViewerMessage?.external_images_detected === true;
   const enabled = el("viewer-remote-images").checked;
@@ -967,6 +986,7 @@ async function openMailViewer(item) {
   el("viewer-attachments").replaceChildren();
   el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
   el("viewer-remote-images").checked = false;
+  el("viewer-remember-images").checked = savedImageConsent();
   el("viewer-load-images").disabled = true;
   el("viewer-load-images").textContent = "عرض صور الرسالة";
   el("viewer-load-images").setAttribute("aria-pressed","false");
@@ -1032,7 +1052,30 @@ async function openMailViewer(item) {
         el("viewer-attachments").append(image);
       }
     }
+    // A prior explicit 'remember' grant enables hosted images for this
+    // opened email only. Even with permission, remote hosts can refuse them.
+    el("viewer-remote-images").checked =
+      savedImageConsent() && data.external_images_detected === true;
     refreshViewerDocument();
+    // Mark local Viewed only after original Gmail was read successfully.
+    // This is a local-only operation; Gmail labels remain unchanged.
+    try {
+      const seenResponse = await fetch("/api/v1/mail/viewed", {
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json",
+                 ...(token?{Authorization:"Bearer "+token}:{})},
+        body:JSON.stringify({message_id:id})
+      });
+      if (seenResponse.ok && requestGeneration === viewerGeneration)
+        await load(true);
+      else if (!seenResponse.ok)
+        el("viewer-action-note").textContent =
+          "الرسالة اتفتحت لكن لم تُحفظ علامة Viewed؛ راجع حالة OKAL.";
+    } catch (_) {
+      if (requestGeneration === viewerGeneration)
+        el("viewer-action-note").textContent =
+          "تعذر حفظ Viewed محليًا؛ الرسالة ستظل ظاهرة حتى مزامنة القراءة.";
+    }
   } catch (_) {
     if (requestGeneration !== viewerGeneration || !el("mail-viewer").open) return;
     el("viewer-ai-summary").textContent =
