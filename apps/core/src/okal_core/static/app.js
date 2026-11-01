@@ -902,21 +902,32 @@ function setViewerFocus(value) {
 }
 // Only the owner's explicit choice persists. By default no external
 // message images load, preventing tracking pixels from firing invisibly.
-const IMAGE_CONSENT_KEY = "okal_gmail_remote_image_consent_v1";
-function savedImageConsent() {
-  try { return localStorage.getItem(IMAGE_CONSENT_KEY)==="yes"; }
-  catch (_) { return false; }
-}
-function setSavedImageConsent(allowed) {
-  try { localStorage.setItem(IMAGE_CONSENT_KEY, allowed?"yes":"no"); }
-  catch (_) { /* storage unavailable; per-message toggle still works */ }
-}
-el("viewer-remember-images").addEventListener("change", () => {
-  setSavedImageConsent(el("viewer-remember-images").checked);
-  if (currentViewerMessage && el("viewer-remember-images").checked) {
-    el("viewer-remote-images").checked = true;
-    refreshViewerDocument();
-  }
+// Only an explicit owner choice is stored in private OKAL SQLite; never
+// persist tokens, email data or settings in browser storage.
+el("viewer-remember-images").addEventListener("change", async () => {
+  const checkbox = el("viewer-remember-images");
+  const allowed = checkbox.checked;
+  checkbox.disabled = true;
+  try {
+    const response = await fetch("/api/v1/mail/image-preference",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json",
+        ...(token?{Authorization:"Bearer "+token}:{})},
+      body:JSON.stringify({allow_remote_images:allowed})
+    });
+    if (!response.ok) throw new Error("image_preference_not_saved");
+    if (currentViewerMessage) {
+      currentViewerMessage.remote_image_preference=allowed;
+      if (allowed) {
+        el("viewer-remote-images").checked=true;
+        refreshViewerDocument();
+      }
+    }
+  } catch (_) {
+    checkbox.checked=!allowed;
+    el("viewer-image-status").textContent =
+      "تعذر حفظ تفضيل الصور محليًا، ولم يتم تغيير موافقتك.";
+  } finally {checkbox.disabled=false;}
 });
 
 function syncViewerImageButton() {
@@ -996,7 +1007,7 @@ async function openMailViewer(item) {
   el("viewer-attachments").replaceChildren();
   el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
   el("viewer-remote-images").checked = false;
-  el("viewer-remember-images").checked = savedImageConsent();
+  el("viewer-remember-images").checked = false;
   el("viewer-load-images").disabled = true;
   el("viewer-load-images").textContent = "عرض صور الرسالة";
   el("viewer-load-images").setAttribute("aria-pressed","false");
@@ -1062,10 +1073,13 @@ async function openMailViewer(item) {
         el("viewer-attachments").append(image);
       }
     }
-    // A prior explicit 'remember' grant enables hosted images for this
-    // opened email only. Even with permission, remote hosts can refuse them.
+    // Owner's explicit preference comes only from private Core SQLite.
+    // External image hosts can still refuse access.
+    el("viewer-remember-images").checked =
+      data.remote_image_preference === true;
     el("viewer-remote-images").checked =
-      savedImageConsent() && data.external_images_detected === true;
+      data.remote_image_preference === true &&
+      data.external_images_detected === true;
     refreshViewerDocument();
     // Mark local Viewed only after original Gmail was read successfully.
     // This is a local-only operation; Gmail labels remain unchanged.
