@@ -6,11 +6,12 @@ the user explicitly opts in for the current viewed message. CID inline images
 are resolved via authenticated Gmail attachment reads and embedded as data URLs.
 """
 import base64
+from html import unescape
 from email.header import decode_header, make_header
 from email.message import Message as EmailMessage
 import json
 import re
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from .contracts import MailError
 from .private import config
@@ -173,7 +174,9 @@ def read_native(store, mid):
         date = _header(headers, "Date")
         plain, html = "", ""
         images = {}
+        location_images = {}
         attachments = []
+        skipped_images = 0
         used, count = 0, 0
         stack = [payload]
         while stack:
@@ -195,10 +198,13 @@ def read_native(store, mid):
             elif kind == "text/plain" and not plain:
                 plain = _mime_text(api, mid, part, MAX_TEXT)
             elif kind in SAFE_IMAGE:
-                content_id = _header(part.get("headers", []), "Content-ID").strip("<>")
+                part_headers = part.get("headers", [])
+                content_id = _header(part_headers, "Content-ID").strip("<>")
+                content_location = _header(part_headers, "Content-Location").strip()
                 estimated = int(body.get("size") or 0)
                 if estimated > MAX_IMAGE or used + estimated > MAX_EMBEDDED_TOTAL:
-                    if not content_id:
+                    skipped_images += 1
+                    if not content_id and not content_location:
                         attachments.append({
                             "name": str(part.get("filename") or "Large image")[:180],
                             "mime_type": kind, "inline": False,
@@ -218,13 +224,17 @@ def read_native(store, mid):
                 else:
                     continue
                 if used + len(raw) > MAX_EMBEDDED_TOTAL:
+                    skipped_images += 1
                     continue
                 used += len(raw)
                 data_url = ("data:" + kind + ";base64," +
                             base64.b64encode(raw).decode("ascii"))
                 if content_id:
-                    images[content_id.casefold()] = data_url
-                else:
+                    images[unquote(unescape(content_id)).casefold()] = data_url
+                if (content_location and len(content_location) <= 1000
+                        and content_location.startswith(("https://", "http://"))):
+                    location_images[unescape(content_location)] = data_url
+                if not content_id and not content_location:
                     attachments.append({
                         "name": str(part.get("filename") or "Attached image")[:180],
                         "mime_type": kind, "inline": False, "data_url": data_url,
@@ -235,20 +245,35 @@ def read_native(store, mid):
                     "mime_type": kind[:100], "inline": False,
                 })
 
-        # Replace CID image links with the fetched, verified MIME image bytes.
-        # Images that are not present remain broken, not remote.
+        # Resolve quoted, unquoted and URL-encoded CID images inside
+        # sandboxed HTML (including inline CSS url(cid:...)). This also
+        # handles Content-ID: <foo@domain> and cid:foo%40domain variants.
         def replace_cid(match):
-            cid = match.group(2).strip("<>").casefold()
-            data_url = images.get(cid)
-            if not data_url:
-                return match.group(0)
-            return match.group(1) + data_url + match.group(3)
+            original = match.group(0)
+            cid = unquote(unescape(match.group(1))).strip("<>").casefold()
+            return images.get(cid, original)
+
+        # Some multipart/related senders reference the image by its exact
+        # Content-Location URL instead of cid:. Local bytes take priority
+        # over requesting a remote URL, even with remote images disabled.
+        def replace_location(match):
+            original = match.group(0)
+            url = unescape(match.group("url"))
+            image = location_images.get(url)
+            return (match.group("prefix") + image + match.group("quote")
+                    if image else original)
 
         if html:
             html = re.sub(
-                r'(?i)(["\'])cid:([^"\'\s<>]+)(["\'])',
+                r'(?i)cid:(<[^<>]{1,512}>|[^\\s"\\\'<>),;]{1,512})',
                 replace_cid, html
             )
+            if location_images:
+                html = re.sub(
+                    r'(?i)(?P<prefix>\\b(?:src|background)\\s*=\\s*'
+                    r'(?P<quote>["\\\']))(?P<url>https?://[^"\\\']+)(?P=quote)',
+                    replace_location, html
+                )
         if len(html.encode("utf-8")) > 8_000_000:
             raise MailError("viewer_html_with_images_too_large")
         commentary = saved_analysis(store, account, mid)
@@ -258,7 +283,13 @@ def read_native(store, mid):
             "date": date, "html": html, "text": plain,
             "labels": [label for label in mail.get("labelIds", [])
                        if isinstance(label,str)][:40],
-            "inline_images": len(images), "attachments": attachments[:30],
+            "inline_images": len(images) + len(location_images),
+            "skipped_inline_images": skipped_images,
+            "external_images_detected": bool(re.search(
+                r'(?i)(?:src|background)\\s*=\\s*["\\\']?https?://|url\\(\\s*["\\\']?https?://',
+                html
+            )),
+            "attachments": attachments[:30],
             "remote_images_blocked_by_default": True,
             "source": "native_gmail_full_message_read_on_demand",
             "gmail_link": "https://mail.google.com/mail/?authuser=" +
