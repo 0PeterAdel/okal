@@ -82,6 +82,34 @@ def allowed_source(store, account, mid):
     raise MailError("viewer_source_not_in_local_inbox")
 
 
+def saved_analysis(store, account, mid):
+    """Keep AI commentary clearly separate from the original Gmail message."""
+    from .contracts import Insight
+
+    with store.connect() as db:
+        row = db.execute(
+            "SELECT insight FROM mail_sync_insights WHERE account=? "
+            "AND message_id=? ORDER BY rowid DESC LIMIT 1",
+            (account, mid),
+        ).fetchone()
+    if row is None:
+        return {
+            "ai_summary": "الرسالة محتاجة مراجعة يدوية؛ مفيش تلخيص AI موثوق محفوظ.",
+            "ai_suggested_action": "", "ai_category": "manual_review",
+        }
+    try:
+        insight = Insight.model_validate_json(row["insight"])
+        if insight.source_id != mid:
+            raise ValueError("invalid_source")
+        return {
+            "ai_summary": insight.summary[:900],
+            "ai_suggested_action": insight.suggested_action[:400],
+            "ai_category": insight.category,
+        }
+    except (ValueError, TypeError):
+        raise MailError("viewer_saved_ai_source_invalid") from None
+
+
 def read_native(store, mid):
     cfg = config(store)
     account = cfg.account.casefold()
@@ -189,7 +217,9 @@ def read_native(store, mid):
             )
         if len(html.encode("utf-8")) > 8_000_000:
             raise MailError("viewer_html_with_images_too_large")
+        commentary = saved_analysis(store, account, mid)
         return {
+            **commentary,
             "id": mid, "subject": subject, "from": sender, "to": recipient,
             "date": date, "html": html, "text": plain,
             "inline_images": len(images), "attachments": attachments[:30],
