@@ -65,7 +65,11 @@ def create_app(
         # auto-opens: enforce browser same-origin + JSON + fresh preview ticket.
         return (
             request.url.path in {
-                "/api/v1/mail/trash", "/api/v1/mail/trash/preview"
+                "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
+                "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
+                "/api/v1/mail/tasks/from-message",
+                "/api/v1/mail/reply-drafts/generate",
+                "/api/v1/mail/reply-drafts/revise"
             }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
@@ -421,6 +425,180 @@ def create_app(
                 else 409
             )
             raise HTTPException(status, code) from None
+
+    async def action_payload(request, required):
+        body = await request.body()
+        if len(body) > 3000:
+            raise HTTPException(413, "mail_agent_request_too_large")
+        try:
+            payload = json.loads(body)
+        except (ValueError, UnicodeError):
+            raise HTTPException(400, "mail_agent_invalid_json") from None
+        if not isinstance(payload, dict) or set(payload) != set(required):
+            raise HTTPException(400, "mail_agent_invalid_fields")
+        return payload
+
+    def action_failure(exc):
+        code = str(exc)
+        return HTTPException(
+            423 if code == "mail_operation_already_running"
+            else 401 if code == "authorization_required"
+            else 403 if code in {"gmail_modify_scope_required",
+                                "scope_or_send_permission_mismatch"}
+            else 409, code,
+        )
+
+    @app.post("/api/v1/mail/actions/preview")
+    async def mail_action_preview(request: Request):
+        """Read native Gmail metadata; issue one-use action-bound approval."""
+        from .mail.contracts import MailError
+        from .mail.private import config, locked
+        from .mail.provider import Gmail
+        from .mail.operations import preview
+
+        payload = await action_payload(request, {"ids", "action"})
+        try:
+            with locked(store):
+                cfg = config(store)
+                api = Gmail.open(store, cfg)
+                try:
+                    result = preview(store, cfg, api,
+                                     payload["ids"], payload["action"])
+                    result["confirmation_token"] = approvals.issue(
+                        [result["action"], *payload["ids"]],
+                        result["approval_digest"]
+                    )
+                    result["expires_seconds"] = 120
+                    return result
+                finally:
+                    api.close()
+        except MailError as exc:
+            raise action_failure(exc) from None
+
+    @app.post("/api/v1/mail/actions/commit")
+    async def mail_action_commit(request: Request):
+        from .mail.contracts import MailError
+        from .mail.private import config, locked
+        from .mail.provider import Gmail
+        from .mail.operations import apply
+
+        payload = await action_payload(request,
+            {"ids","action","approval_digest","confirmation_token","confirmed"})
+        ids = payload["ids"]
+        action = payload["action"]
+        digest = payload["approval_digest"]
+        ticket = payload["confirmation_token"]
+        if (payload["confirmed"] is not True or not isinstance(ids, list)
+            or not isinstance(action, str)
+            or not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}",digest)
+            or not isinstance(ticket, str) or not 40 <= len(ticket) <= 90):
+            raise HTTPException(400, "mail_action_invalid_approval")
+        try:
+            with locked(store):
+                cfg = config(store)
+                if not cfg.trash_enabled:
+                    raise MailError("gmail_modify_scope_required")
+                api = Gmail.open(store, cfg, trashing=True)
+                try:
+                    if not approvals.consume([action, *ids], digest, ticket):
+                        raise MailError("mail_action_confirmation_expired")
+                    return apply(store, cfg, api, ids, action, digest)
+                finally:
+                    api.close()
+        except MailError as exc:
+            raise action_failure(exc) from None
+
+    @app.post("/api/v1/mail/tasks/from-message")
+    async def mail_to_local_task(request: Request):
+        """Explicit one-click local task: idempotent, no external writes."""
+        from .mail.private import config
+        from .mail.contracts import MailError
+        from .tasks import TaskBoard
+
+        payload = await action_payload(request, {"message_id"})
+        mid = payload["message_id"]
+        if not isinstance(mid, str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid):
+            raise HTTPException(400, "invalid_message_id")
+        try:
+            cfg = config(store)
+            return TaskBoard(store).from_mail(
+                cfg.account, mid, approve=True
+            )
+        except (ValueError, MailError) as exc:
+            raise action_failure(exc) from None
+
+    @app.post("/api/v1/mail/reply-drafts/generate")
+    async def generate_local_mail_reply(request: Request):
+        """Explicit, pinned local Ollama; saves draft to SQLite, NEVER sends."""
+        from .mail.private import config, locked
+        from .mail.contracts import MailError
+        from .mail.provider import Gmail
+        from .mail.inference import LocalModel
+        from .mail.viewer import allowed_source
+        from .mail.workflows import reply_draft
+        from .mail.state import MailState
+        payload = await action_payload(request, {"message_id","language"})
+        mid, language = payload["message_id"], payload["language"]
+        if (not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid)
+                or language not in {"ar","en"}):
+            raise HTTPException(400,"invalid_reply_request")
+        try:
+            with locked(store):
+                cfg = config(store)
+                if allowed_source(store,cfg.account.casefold(),mid) is None:
+                    raise MailError("reply_manual_review_required")
+                api = Gmail.open(store,cfg)
+                model = LocalModel(cfg)
+                try:
+                    language_instruction = (
+                        "Draft a concise professional Egyptian Arabic reply. "
+                        "Do not invent any commitments, dates or prices. "
+                        "No send; owner will inspect and edit."
+                        if language == "ar" else
+                        "Draft a concise professional English reply. "
+                        "Do not invent commitments, dates or prices. "
+                        "No send; owner will inspect and edit."
+                    )
+                    draft_id = reply_draft(store,cfg,api,model,mid,language_instruction)
+                    row = MailState(store).draft(draft_id)
+                    saved = json.loads(row["payload"])
+                    return {
+                        "status":"draft_saved_local_only","draft_id":draft_id,
+                        "recipient":saved["recipient"],
+                        "subject":saved["subject"],"body":saved["body"],
+                        "sent":False,"owner_review_required":True,
+                    }
+                finally:
+                    model.close()
+                    api.close()
+        except MailError as exc:
+            raise action_failure(exc) from None
+
+    @app.post("/api/v1/mail/reply-drafts/revise")
+    async def revise_local_mail_reply(request: Request):
+        """Owner edits a new local draft; original and previous draft preserved."""
+        from .mail.contracts import Draft, MailError
+        from .mail.private import config
+        from .mail.state import MailState
+        payload = await action_payload(request, {"draft_id","body"})
+        key, text = payload["draft_id"], payload["body"]
+        if (not isinstance(key,str) or not re.fullmatch(r"[a-f0-9]{32}",key)
+                or not isinstance(text,str) or not 1 <= len(text) <= 8000):
+            raise HTTPException(400,"invalid_reply_revision")
+        try:
+            cfg = config(store)
+            state = MailState(store)
+            old = state.draft(key)
+            if old["account"] != cfg.account.casefold():
+                raise MailError("wrong_draft_account")
+            previous = Draft.model_validate_json(old["payload"])
+            new_draft = previous.model_copy(update={"body":text})
+            new_draft = Draft.model_validate(new_draft.model_dump())
+            updated = state.new_draft(cfg.account,new_draft)
+            return {"status":"revised_draft_saved_local_only","draft_id":updated,
+                    "sent":False}
+        except (MailError,ValueError) as exc:
+            raise action_failure(exc) from None
 
     @app.get("/api/v1/mail/assistant")
     def mail_assistant():
