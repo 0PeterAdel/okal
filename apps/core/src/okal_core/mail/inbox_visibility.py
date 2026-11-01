@@ -20,6 +20,35 @@ def initialize(db):
     )""")
 
 
+def image_preference(store,account):
+    """Owner's explicit opt-in stored on local Core, not browser storage."""
+    with store.connect() as db:
+        tables={r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )}
+        if "mail_viewer_prefs" not in tables:
+            return False
+        row=db.execute("SELECT remote_images FROM mail_viewer_prefs WHERE account=?",
+                       (account.casefold(),)).fetchone()
+    return bool(row[0]) if row else False
+
+
+def save_image_preference(store,account,allowed):
+    if type(allowed) is not bool:
+        raise ValueError("invalid_remote_image_preference")
+    with store.connect() as db,db:
+        db.execute("""CREATE TABLE IF NOT EXISTS mail_viewer_prefs(
+            account TEXT PRIMARY KEY,remote_images INTEGER NOT NULL
+                CHECK(remote_images IN(0,1)),updated_at INTEGER NOT NULL
+        )""")
+        db.execute("""INSERT INTO mail_viewer_prefs VALUES(?,?,?)
+            ON CONFLICT(account) DO UPDATE SET remote_images=excluded.remote_images,
+                updated_at=excluded.updated_at""",
+                (account.casefold(),int(allowed),int(store.clock())))
+    return {"remote_images":allowed,"saved_locally":True,
+            "tracking_risk":"remote_hosts_may_track_opens"}
+
+
 def mark_viewed(store, account, mid):
     if not isinstance(mid,str) or not MID.fullmatch(mid):
         raise ValueError("invalid_local_seen_message_id")
