@@ -7,6 +7,7 @@ are resolved via authenticated Gmail attachment reads and embedded as data URLs.
 """
 import base64
 from email.header import decode_header, make_header
+from email.message import Message as EmailMessage
 import json
 import re
 from urllib.parse import quote
@@ -36,9 +37,42 @@ def _decode_b64(value, maximum):
     return out
 
 
-def _text(data, maximum):
+def _text(data, maximum, mime_charset="utf-8"):
     raw = _decode_b64(data, maximum)
-    return raw.decode("utf-8", errors="replace")
+    charset = (mime_charset or "utf-8").strip().lower()
+    if not re.fullmatch(r"[a-z0-9._-]{1,50}", charset):
+        charset = "utf-8"
+    try:
+        return raw.decode(charset, errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def _mime_text(api, mid, part, maximum):
+    body = part.get("body", {})
+    size = body.get("size", 0)
+    if not isinstance(size, int) or size < 0 or size > maximum:
+        raise MailError("viewer_part_exceeds_budget")
+    data = body.get("data")
+    if data is None and body.get("attachmentId"):
+        attachment_id = body["attachmentId"]
+        if not isinstance(attachment_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,1024}", attachment_id
+        ):
+            raise MailError("viewer_invalid_attachment_id")
+        remote = api.call(
+            api.service.users().messages().attachments().get(
+                userId="me", messageId=mid, id=attachment_id,
+            ),
+            missing="viewer_text_part_unavailable",
+        )
+        data = remote.get("data")
+    if data is None:
+        return ""
+    header = EmailMessage()
+    content_type = _header(part.get("headers", []), "Content-Type")
+    header["Content-Type"] = content_type or part.get("mimeType", "text/plain")
+    return _text(data, maximum, header.get_content_charset("utf-8"))
 
 
 def _header(headers, label):
@@ -156,10 +190,10 @@ def read_native(store, mid):
             body = part.get("body", {})
             if not isinstance(body, dict):
                 continue
-            if kind == "text/html" and not html and body.get("data"):
-                html = _text(body["data"], MAX_HTML)
-            elif kind == "text/plain" and not plain and body.get("data"):
-                plain = _text(body["data"], MAX_TEXT)
+            if kind == "text/html" and not html:
+                html = _mime_text(api, mid, part, MAX_HTML)
+            elif kind == "text/plain" and not plain:
+                plain = _mime_text(api, mid, part, MAX_TEXT)
             elif kind in SAFE_IMAGE:
                 content_id = _header(part.get("headers", []), "Content-ID").strip("<>")
                 estimated = int(body.get("size") or 0)
