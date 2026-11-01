@@ -61,7 +61,10 @@ class DashboardContractTests(unittest.TestCase):
         self.assertEqual(self.dom.scripts, ["/app.js"])
         self.assertIn('href="/style.css"', self.html)
         self.assertNotIn("fonts.googleapis.com", self.html)
-        self.assertNotIn("<iframe", self.html.lower())
+        # An original Gmail message is displayed only in a sandboxed frame.
+        self.assertIn('sandbox=""', self.html)
+        self.assertIn('id="viewer-frame"', self.html)
+        self.assertIn("script-src 'none'", self.js)
         self.assertIn("skip-link", self.html)
 
     def test_svg_icons_are_self_hosted_and_symbols_exist(self):
@@ -91,7 +94,10 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("width=device-width", self.html)
         self.assertNotIn("innerHTML", self.js)
         self.assertIn("selectedInfo.size", self.js)
-        self.assertIn("mail trash --ids", self.js)
+        self.assertIn("/api/v1/mail/trash/preview", self.js)
+        self.assertIn("/api/v1/mail/trash", self.js)
+        self.assertIn("approval_digest", self.js)
+        self.assertIn('id="trash-pin"', self.html)
 
 
 if __name__ == "__main__":
