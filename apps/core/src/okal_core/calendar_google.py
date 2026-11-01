@@ -87,6 +87,34 @@ def _init(db):
     )""")
 
 
+def record_sync_failure(store, account, calendar_id, error):
+    """Persist only a stable error code; never provider JSON or OAuth details."""
+    validate_account(account)
+    validate_calendar_id(calendar_id)
+    known = {
+        "google_calendar_provider_request_failed",
+        "google_calendar_reauthorization_required",
+        "google_calendar_missing_sync_token",
+        "google_calendar_event_budget_exceeded",
+        "google_calendar_event_page_budget_exceeded",
+        "google_calendar_sync_token_expired",
+        "calendar_sync_already_running",
+    }
+    code = str(error)
+    if code not in known:
+        code = "google_calendar_sync_failed"
+    with store.connect() as db, db:
+        db.execute("""CREATE TABLE IF NOT EXISTS calendar_google_attempts (
+            account_id TEXT NOT NULL, calendar_id TEXT NOT NULL,
+            last_attempt INTEGER NOT NULL, last_error TEXT NOT NULL,
+            PRIMARY KEY(account_id,calendar_id)
+        )""")
+        db.execute("""INSERT INTO calendar_google_attempts VALUES(?,?,?,?)
+            ON CONFLICT(account_id,calendar_id) DO UPDATE SET
+            last_attempt=excluded.last_attempt,last_error=excluded.last_error""",
+            (account, calendar_id, int(store.clock()), code))
+
+
 def status(store, account="default"):
     """No credentials, refresh tokens, user profile or cursors in returned data."""
     validate_account(account)
@@ -98,6 +126,16 @@ def status(store, account="default"):
                FROM calendar_google_sync WHERE account_id=? ORDER BY calendar_id""",
             (account,),
         ))
+    with store.connect() as db:
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='calendar_google_attempts'"
+        ).fetchone()
+        attempts = [dict(x) for x in db.execute(
+            "SELECT calendar_id,last_attempt,last_error "
+            "FROM calendar_google_attempts WHERE account_id=? ORDER BY calendar_id",
+            (account,)
+        )] if exists else []
     return {
         "account_alias": account,
         "authorization": "configured_not_verified" if found else "not_configured",
@@ -106,6 +144,7 @@ def status(store, account="default"):
              "event_count": x["event_count"]} for x in rows
         ] if found else [],
         "read_only_scopes": True,
+        "last_attempts": attempts if found else [],
         "connected": bool(found and rows),
         "external_writes": False,
     }
@@ -413,15 +452,26 @@ class CalendarWorker:
                 try:
                     service = _service(self.store, account)
                     calendars = list_calendars(service)
-                    for item in calendars[:20]:
-                        if item["access"] in {"reader", "writer", "owner"}:
+                except Exception as exc:
+                    record_sync_failure(
+                        self.store, account, "primary",
+                        "google_calendar_reauthorization_required"
+                        if isinstance(exc, CalendarGoogleError) and
+                           str(exc) == "google_calendar_reauthorization_required"
+                        else "google_calendar_provider_request_failed"
+                    )
+                    continue
+                for item in calendars[:20]:
+                    if self.stop_event.is_set():
+                        break
+                    if item["access"] in {"reader", "writer", "owner"}:
+                        try:
                             sync_calendar(
                                 self.store, account=account, calendar_id=item["id"],
                                 service=service, calendar_timezone=item["timezone"]
                             )
-                except Exception:
-                    # Operator can inspect 'calendar status' / manual sync.
-                    continue
+                        except Exception as exc:
+                            record_sync_failure(self.store, account, item["id"], exc)
             if self.stop_event.wait(self.period):
                 return
 

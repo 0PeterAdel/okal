@@ -6,6 +6,7 @@ import sys
 from .calendar_google import (
     CalendarGoogleError, _service, authorize, configured_accounts,
     list_calendars, status, sync_calendar, validate_calendar_id,
+    record_sync_failure,
 )
 
 
@@ -64,5 +65,8 @@ def main(store, argv):
             emit({"results": results, "external_writes": False})
         return 0
     except (CalendarGoogleError, OSError, ValueError) as exc:
+        if args.action == "sync":
+            # A failed provider read must be visible on later no-network status.
+            record_sync_failure(store, args.account, args.calendar, exc)
         print(f"Calendar operation failed: {exc}", file=sys.stderr)
         return 1
