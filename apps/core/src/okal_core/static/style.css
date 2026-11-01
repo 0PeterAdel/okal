@@ -373,3 +373,24 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .mail-viewer { width:96vw; max-height:92dvh; }
   .viewer-actions button { flex:1; min-width:130px; }
 }
+
+/* Mail Agent V1 — native Gmail actions and private editable reply. */
+.viewer-reply-panel {margin:14px 0;border:1px solid var(--line-strong);
+  padding:14px 16px;border-radius:14px;background:var(--surface-raised);}
+.viewer-reply-panel summary {font-weight:700;cursor:pointer;min-height:36px;
+  color:var(--ink);}
+.viewer-reply-panel .muted {font-size:12px;line-height:1.65;}
+.reply-tools {display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  margin:12px 0;}
+.reply-tools select {min-height:40px;border-radius:8px;
+  background:var(--surface);color:var(--ink);
+  border:1px solid var(--line-strong);padding:7px 12px;}
+#viewer-reply-body {display:block;box-sizing:border-box;width:100%;min-height:140px;
+  padding:12px 14px;resize:vertical;border-radius:10px;
+  border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--ink);line-height:1.75;}
+#viewer-reply-body:focus-visible,.reply-tools select:focus-visible {
+  outline:3px solid var(--focus);outline-offset:2px;}
+#mail-action-result {font-size:13px;min-height:20px;line-height:1.6;}
+@media(max-width:650px){.reply-tools button{flex:1}
+  .viewer-reply-panel{padding:12px;}}
