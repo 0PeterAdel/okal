@@ -810,28 +810,79 @@ let pendingMailSend = null;
 const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g,
   (ch) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 
+// A single Gmail message can contain a complete <html><head><body> tree.
+// Keep in-email styles while avoiding nested document wrappers inside srcdoc.
+function nativeMailBody(message) {
+  if (!message.html) return "<pre>" + escapeHtml(message.text ||
+    "محتوى الرسالة غير متوفر بصيغة مقروءة") + "</pre>";
+  return message.html
+    .replace(/<!doctype[^>]*>/gi, "")
+    .replace(/<\/?(?:html|head|body)\b[^>]*>/gi, "");
+}
+
 function viewerDocument(message, remote) {
+  // Never load external pixels automatically. Explicit checkbox applies to
+  // this opened message only, with referrers/cookies suppressed by sandbox.
   const imagePolicy = remote ? "data: https:" : "data:";
   const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; " +
     "font-src data:; media-src data:; img-src " + imagePolicy + "; " +
     "style-src 'unsafe-inline'; base-uri 'none'; form-action 'none';";
   const head = '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<meta http-equiv="Content-Security-Policy" content="' + escapeHtml(csp) + '">' +
     '<meta name="referrer" content="no-referrer"><style>' +
-    'body{margin:20px;color:#111;background:white;font-family:system-ui,Arial,sans-serif;' +
-    'font-size:15px;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}' +
-    'table{max-width:100%;}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body>';
-  const body = message.html || "<pre>" + escapeHtml(message.text ||
-    "محتوى الرسالة غير متوفر بصيغة مقروءة") + "</pre>";
-  return head + body + "</body></html>";
+    'html{max-width:100%;min-width:0;overflow-x:auto}' +
+    'body{margin:0!important;padding:16px;color:#111;background:#fff;' +
+    'font-family:system-ui,Arial,sans-serif;font-size:14px;line-height:1.6;' +
+    'overflow-wrap:anywhere;max-width:100%;box-sizing:border-box}' +
+    'img,svg,video,canvas{max-width:100%!important;height:auto!important}' +
+    'table{max-width:100%!important}td,th{overflow-wrap:anywhere}' +
+    'pre{white-space:pre-wrap;overflow-wrap:anywhere}' +
+    '@media(max-width:600px){body{padding:9px;font-size:13px}}' +
+    '</style></head><body>';
+  return head + nativeMailBody(message) + "</body></html>";
 }
 
+let viewerFocus = false;
+function setViewerFocus(value) {
+  viewerFocus = Boolean(value);
+  if (viewerFocus) el("mail-viewer").classList.add("reader-focus");
+  else el("mail-viewer").classList.remove("reader-focus");
+  el("viewer-focus-toggle").textContent = viewerFocus
+    ? "الرجوع للتفاصيل" : "توسيع القراءة";
+  el("viewer-focus-toggle").setAttribute("aria-pressed", String(viewerFocus));
+}
+function imageDisplayStatus(message, remote, pending=false) {
+  const internal = Number(message.inline_images) || 0;
+  const skipped = Number(message.skipped_inline_images) || 0;
+  const external = message.external_images_detected === true;
+  const parts = [];
+  if (internal) parts.push("صور داخلية: " + internal);
+  if (skipped) parts.push(skipped + " صورة داخلية كبيرة لم تُحمّل؛ افتحها في Gmail");
+  if (external) parts.push(remote
+    ? "تم السماح بطلب الصور الخارجية لهذه الرسالة فقط؛ ظهورها يعتمد على المصدر"
+    : "فيه صور خارجية محجوبة؛ فعّل المربع لعرضها (قد يحدث تتبع)");
+  else parts.push("لا توجد صور خارجية مؤكدة في الرسالة");
+  if (pending) parts.push("جارٍ تحميل محتوى الرسالة...");
+  return parts.join(" · ");
+}
 function refreshViewerDocument() {
   if (!currentViewerMessage) return;
-  el("viewer-frame").srcdoc = viewerDocument(
+  const remote = el("viewer-remote-images").checked;
+  el("viewer-image-status").textContent =
+    imageDisplayStatus(currentViewerMessage, remote, true);
+  // Content is still inert inside sandboxed iframe, no parent DOM injection.
+  el("viewer-frame").srcdoc = viewerDocument(currentViewerMessage, remote);
+}
+el("viewer-frame").addEventListener("load", () => {
+  if (!currentViewerMessage || !el("mail-viewer").open) return;
+  el("viewer-image-status").textContent = imageDisplayStatus(
     currentViewerMessage, el("viewer-remote-images").checked
   );
-}
+});
+el("viewer-focus-toggle").addEventListener("click", () => {
+  setViewerFocus(!viewerFocus);
+});
 
 async function openMailViewer(item) {
   const id = typeof item === "string" ? item : item?.id;
@@ -861,6 +912,9 @@ async function openMailViewer(item) {
   el("viewer-attachments").replaceChildren();
   el("viewer-note").textContent = "بنقرأ Gmail مباشرة عند الطلب؛ مش ملخص AI.";
   el("viewer-remote-images").checked = false;
+  el("viewer-image-status").textContent =
+    "صور Gmail الداخلية تظهر تلقائيًا؛ الصور الخارجية محجوبة لحماية الخصوصية.";
+  setViewerFocus(false);
   currentViewerMessage = null;
   const requestGeneration = ++viewerGeneration;
   el("mail-viewer").showModal();
@@ -903,7 +957,7 @@ async function openMailViewer(item) {
     el("viewer-date").textContent = data.date || "غير معروف";
     el("viewer-gmail").href = data.gmail_link;
     el("viewer-note").textContent = "محتوى Gmail الأصلي في إطار معزول. " +
-      "الصور الداخلية متاحة، والصور الخارجية تحتاج موافقتك بسبب احتمالية التتبع.";
+      "الصور الداخلية المحمّلة متاحة، والخارجية تحتاج موافقتك بسبب احتمالية التتبع.";
     for (const attachment of data.attachments || []) {
       el("viewer-attachments").append(text("p",
         "مرفق: " + attachment.name + " (" + attachment.mime_type + ")" +
@@ -953,6 +1007,9 @@ el("mail-viewer").addEventListener("close", () => {
     el(id).textContent = "";
   el("viewer-attachments").replaceChildren();
   el("viewer-frame").srcdoc = "";
+  el("viewer-image-status").textContent = "";
+  el("viewer-remote-images").checked = false;
+  setViewerFocus(false);
 });
 el("viewer-remote-images").addEventListener("change", refreshViewerDocument);
 el("viewer-copy-summary").addEventListener("click", async () => {
