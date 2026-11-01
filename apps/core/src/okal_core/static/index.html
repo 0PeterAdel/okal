@@ -168,6 +168,18 @@
             <div><p class="overline">ORIGINAL GMAIL MESSAGE</p><h2 id="viewer-title">قراءة الرسالة داخل OKAL</h2></div>
             <button id="viewer-close" class="btn-secondary" type="button">إغلاق</button>
           </div>
+          <section class="viewer-ai" aria-label="ملخص AI والإجراءات المقترحة">
+            <p class="overline">OKAL AI INSIGHT · ملخص محفوظ وليس محتوى Gmail الأصلي</p>
+            <span id="viewer-category" class="viewer-category">جارٍ التحميل</span>
+            <p id="viewer-ai-summary">بنفتح الرسالة الأصلية ونجيب الملخص المحفوظ.</p>
+            <p id="viewer-ai-action" class="muted"></p>
+          </section>
+          <div class="viewer-actions" role="group" aria-label="إجراءات الرسالة">
+            <button id="viewer-copy-summary" class="btn-secondary" type="button" disabled>نسخ الملخص</button>
+            <button id="viewer-select" class="btn-secondary" type="button" disabled>إضافة للتحديد</button>
+            <button id="viewer-delete" class="btn-danger-soft" type="button" disabled>نقل إلى Trash</button>
+            <span id="viewer-action-note" class="muted" role="status"></span>
+          </div>
           <div class="viewer-meta">
             <p><strong>من:</strong> <span id="viewer-from"></span></p>
             <p><strong>إلى:</strong> <span id="viewer-to"></span></p>
@@ -190,10 +202,8 @@
           <p class="muted">راجع العناوين الحقيقية من Gmail. سيتم نقلها إلى Trash القابل للاسترجاع، وليس حذفها نهائيًا.</p>
           <div id="trash-preview-list" class="preview-list"></div>
           <form id="trash-confirm-form">
-            <label for="trash-pin">Delete PIN (مختلف عن مفتاح قراءة OKAL)</label>
-            <input id="trash-pin" type="password" autocomplete="off" required minlength="12" maxlength="128" placeholder="PIN الحذف الذي ضبطته محليًا" />
             <p id="trash-result" role="status" aria-live="polite"></p>
-            <button id="trash-confirm" class="btn-danger-soft" type="submit">تأكيد النقل الفعلي إلى Gmail Trash</button>
+            <button id="trash-confirm" class="btn-danger-soft" type="submit">تأكيد نقل الرسائل المحددة إلى Gmail Trash</button>
           </form>
         </dialog>
 
