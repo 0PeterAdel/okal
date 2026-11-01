@@ -91,10 +91,11 @@ test("local dashboard auto-opens without a key and uses only local read endpoint
           : { mail: configured });
   });
   await context.load(true);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
   assert.equal(calls[2], "/api/v1/morning");
   assert.equal(calls[3], "/api/v1/mail/assistant");
-  assert.equal(calls[4], "/api/v1/tasks");
+  assert.equal(calls[4], "/api/v1/planner");
+  assert.equal(calls[5], "/api/v1/tasks");
   assert.match(get("morning-text").textContent, /عندك مهمة/);
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
   assert.equal(get("inbox-panel").hidden, false);
@@ -186,7 +187,7 @@ test("approved local tasks render dates and untrusted titles as text", () => {
   const row = get("tasks-list").children[0];
   assert.equal(row.children[0].textContent, "<svg onload=alert(1)>");
   assert.match(row.children[1].textContent, /الموعد المؤكد/);
-  assert.equal(row.children.at(-1).href,
+  assert.equal(row.children.find((child)=>child.href).href,
                "https://mail.google.com/mail/#all/ab");
   context.lock();
   assert.equal(get("tasks-list").children.length, 0);
