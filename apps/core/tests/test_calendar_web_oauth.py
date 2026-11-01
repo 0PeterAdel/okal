@@ -187,10 +187,11 @@ class BrowserOAuthTests(unittest.TestCase):
                     headers={"Sec-Fetch-Site": "cross-site"},
                     follow_redirects=False,
                 )
-                self.assertEqual(done.status_code, 303, done.text)
+                self.assertEqual(done.status_code, 200, done.text)
                 sync.assert_called_once_with(self.store, "default")
-                self.assertEqual(done.headers["location"], "/#integrations")
-                self.assertFalse("code" in done.headers["location"])
+                self.assertIn("calendar-oauth-return.js", done.text)
+                self.assertNotIn(AUTH_CODE, done.text)
+                self.assertNotIn(STATE, done.text)
                 self.assertEqual(client.get(
                     "/api/v1/calendar/oauth/callback",
                     params={"state": STATE, "code": AUTH_CODE},
@@ -224,8 +225,8 @@ class BrowserOAuthTests(unittest.TestCase):
                     headers={"Sec-Fetch-Site": "cross-site"},
                 )
                 self.assertEqual(bad_issuer.status_code, 400)
-                self.assertEqual(bad_issuer.json()["detail"],
-                                 "invalid_calendar_oauth_issuer")
+                self.assertIn("لم يكتمل ربط Google Calendar", bad_issuer.text)
+                self.assertNotIn(AUTH_CODE, bad_issuer.text)
                 duplicate = client.get(
                     callback,
                     params=[("state", STATE), ("code", AUTH_CODE),
@@ -242,8 +243,7 @@ class BrowserOAuthTests(unittest.TestCase):
                     headers={"Sec-Fetch-Site": "cross-site"},
                 )
                 self.assertEqual(unknown.status_code, 400)
-                self.assertEqual(unknown.json()["detail"],
-                                 "unsupported query parameter")
+                self.assertIn("لم يكتمل ربط Google Calendar", unknown.text)
                 self.assertEqual(fake.exchanged, 0)
                 sync.assert_not_called()
                 self.assertFalse(credential_file(self.store, "default").exists())
@@ -283,7 +283,7 @@ class BrowserOAuthTests(unittest.TestCase):
                         },
                         follow_redirects=False,
                     )
-                    self.assertEqual(completed.status_code, 303, completed.text)
+                    self.assertEqual(completed.status_code, 200, completed.text)
                 self.assertEqual(sync.call_count, 2)
 
     def test_callback_exemption_never_allows_untrusted_origin_or_subresource(self):
@@ -328,7 +328,61 @@ class BrowserOAuthTests(unittest.TestCase):
                              "Sec-Fetch-Dest": "document"},
                     follow_redirects=False,
                 )
-                self.assertEqual(accepted.status_code, 303, accepted.text)
+                self.assertEqual(accepted.status_code, 200, accepted.text)
+
+    def test_cross_site_redirect_chain_lands_only_on_inert_dashboard_html(self):
+        self.gmail()
+        with TestClient(
+            create_app(self.store), base_url="http://127.0.0.1:8766",
+            client=("127.0.0.1", 1234),
+        ) as client:
+            # Firefox sometimes retains a cross-site classification on 303.
+            # The dashboard is a non-mutating HTML shell, NOT an API.
+            document_headers = {
+                "Origin": "null",
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            }
+            landed = client.get("/", headers=document_headers)
+            self.assertEqual(landed.status_code, 200, landed.text)
+            self.assertIn('id="integrations"', landed.text)
+            self.assertEqual(client.get(
+                "/api/v1/calendar/status", headers=document_headers,
+            ).status_code, 403)
+            self.assertEqual(client.post(
+                "/api/v1/calendar/oauth/start", json={},
+                headers={**document_headers,
+                         "Content-Type": "application/json"},
+            ).status_code, 403)
+            self.assertEqual(client.get(
+                "/app.js", headers=document_headers,
+            ).status_code, 403)
+            self.assertEqual(client.get("/", headers={
+                **document_headers, "Sec-Fetch-Mode": "cors",
+            }).status_code, 403)
+            self.assertEqual(client.get("/", headers={
+                **document_headers, "Origin": "https://evil.example",
+            }).status_code, 403)
+
+    def test_oauth_result_pages_have_no_provider_code_and_script_is_local(self):
+        self.gmail()
+        with TestClient(
+            create_app(self.store), base_url="http://127.0.0.1:8766",
+            client=("127.0.0.1", 1234),
+        ) as client:
+            page = client.get("/api/v1/calendar/oauth/callback",
+                              params={"state": "unused_state", "code": AUTH_CODE})
+            self.assertEqual(page.status_code, 400)
+            self.assertIn("العودة إلى OKAL", page.text)
+            self.assertNotIn(AUTH_CODE, page.text)
+            response = client.get("/calendar-oauth-return.js")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('window.location.replace("/#calendar-connected")',
+                          response.text)
+            self.assertIn("script-src 'self'", response.headers[
+                "content-security-policy"])
+            self.assertNotIn(AUTH_CODE, response.text)
 
     def test_protected_mode_requires_authenticated_start(self):
         self.gmail()
