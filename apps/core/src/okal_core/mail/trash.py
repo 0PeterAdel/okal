@@ -57,8 +57,10 @@ def _read_record(store, account, mid):
         insight = Insight.model_validate_json(row["insight"])
         if metadata["id"] != mid or insight.source_id != mid:
             raise ValueError()
-        if insight.category != "information":
-            raise MailError("trash_only_information_category")
+        # Selection is independent of classification. Only the owner may
+        # authorize Trash; AI category must not silently protect or delete mail.
+        if insight.category not in {"action", "information", "low_priority"}:
+            raise MailError("trash_unknown_classification")
         if not isinstance(metadata["subject"], str):
             raise ValueError()
         if not isinstance(metadata["labels"], list):
