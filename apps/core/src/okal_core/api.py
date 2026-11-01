@@ -277,11 +277,13 @@ def create_app(
         items = []
         for row in recent_evidence(store, cfg.account, 60):
             m, i = row["metadata"], row["insight"]
+            from .mail.owner_voice import owner_voice
             items.append({
                 "id": m["id"], "subject": m["subject"], "sender": m["sender"],
                 "received_ms": m["received_ms"], "labels": m["labels"],
-                "category": i["category"], "summary": i["summary"],
-                "suggested_action": i["suggested_action"],
+                "category": i["category"],
+                "summary": owner_voice(i["summary"], cfg.owner_name),
+                "suggested_action": owner_voice(i["suggested_action"], cfg.owner_name),
                 "has_unread_attachments": m["attachment_count"] > 0,
                 "link": "https://mail.google.com/mail/?authuser="
                 + quote(cfg.account, safe="")
