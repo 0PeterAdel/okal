@@ -22,11 +22,13 @@ def next_due(cfg, now):
 
 
 class Worker:
-    def __init__(self, store, run=None, sync_run=None):
+    def __init__(self, store, run=None, sync_run=None, desktop_alert=None):
         self.store = store
         self.stop_event = threading.Event()
         self.run = run or self.live_run
         self.sync_run = sync_run or self.live_sync_run
+        from .desktop_alerts import desktop_new_mail_notice
+        self.desktop_alert = desktop_alert or desktop_new_mail_notice
         self.thread = None
 
     def live_run(self, cfg, start, end):
@@ -72,7 +74,7 @@ class Worker:
                 history = HistoryState(self.store)
                 if history.due(cfg.account, now):
                     try:
-                        self.sync_run(cfg)
+                        outcome = self.sync_run(cfg)
                     except MailError as exc:
                         # Persist a safe error code (e.g. authorization_required)
                         # without exposing provider bodies or refreshing in a browser.
@@ -81,6 +83,18 @@ class Worker:
                     except Exception:
                         history.failure(cfg.account, "sync_failed_check_local_doctor")
                         log.warning("Gmail sync failed; inspect local mail sync status")
+                    else:
+                        # Notification is strictly optional and runs AFTER the
+                        # successful checkpoint; failures never poison Gmail sync.
+                        if cfg.notify_new_mail:
+                            try:
+                                from .desktop_alerts import maybe_notify
+                                maybe_notify(
+                                    self.store, outcome, enabled=True,
+                                    deliver=self.desktop_alert,
+                                )
+                            except Exception:
+                                log.warning("Local mail notification unavailable")
             signature = f"{cfg.account.casefold()}:{cfg.timezone}:{cfg.daily_at}"
             with self.store.connect() as db, db:
                 previous = db.execute(
