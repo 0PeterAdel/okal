@@ -446,6 +446,37 @@ def sync_calendar(store, account="default", calendar_id="primary", service=None,
         }
 
 
+def _sync_with_window_fallback(store, account, item, service):
+    """Full incremental sync first; bounded current-window repair on data errors.
+
+    Historical invalid records must remain visible as a saved error. Repair
+    never grants full-checkpoint status and must never hide a provider failure.
+    """
+    try:
+        return sync_calendar(
+            store, account=account, calendar_id=item["id"],
+            service=service, calendar_timezone=item["timezone"],
+        )
+    except Exception as exc:
+        record_sync_failure(store, account, item["id"], exc)
+        if str(exc) not in {
+            "google_calendar_event_nonpositive_interval",
+            "google_calendar_event_overlong_interval",
+            "invalid_calendar_event_interval",
+        }:
+            return None
+    try:
+        from .calendar_window_recovery import recover_window
+        return recover_window(
+            store, account=account, calendar=item["id"],
+            service=service, days=7,
+        )
+    except Exception:
+        # The historical failure is still tracked in calendar_google_attempts;
+        # worker must keep running and retry safely at the next tick.
+        return None
+
+
 def sync_authorized_account(store, account="default"):
     """Immediately read permitted calendars after browser consent.
 
@@ -468,13 +499,7 @@ def sync_authorized_account(store, account="default"):
     for item in calendars[:20]:
         if item["access"] not in {"reader", "writer", "owner"}:
             continue
-        try:
-            sync_calendar(
-                store, account=account, calendar_id=item["id"],
-                service=service, calendar_timezone=item["timezone"]
-            )
-        except Exception as exc:
-            record_sync_failure(store, account, item["id"], exc)
+        _sync_with_window_fallback(store, account, item, service)
 
 
 class CalendarWorker:
@@ -516,13 +541,9 @@ class CalendarWorker:
                     if self.stop_event.is_set():
                         break
                     if item["access"] in {"reader", "writer", "owner"}:
-                        try:
-                            sync_calendar(
-                                self.store, account=account, calendar_id=item["id"],
-                                service=service, calendar_timezone=item["timezone"]
-                            )
-                        except Exception as exc:
-                            record_sync_failure(self.store, account, item["id"], exc)
+                        _sync_with_window_fallback(
+                            self.store, account, item, service
+                        )
             if self.stop_event.wait(self.period):
                 return
 
