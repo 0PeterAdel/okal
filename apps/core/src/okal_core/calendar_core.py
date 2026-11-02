@@ -57,7 +57,10 @@ def _clean_event(item):
     start = _instant(item.get("start"), "start")
     end = _instant(item.get("end"), "end")
     updated = _instant(item.get("updated"), "updated")
-    if not start < end or end - start > timedelta(days=366):
+    # Timed zero-duration events are valid instantaneous markers, not booked
+    # intervals. All-day events still require an exclusive end date.
+    if (end < start or end - start > timedelta(days=366)
+            or (end == start and item.get("all_day", False))):
         raise ValueError("invalid_calendar_event_interval")
     for field in ("all_day", "busy", "cancelled"):
         if type(item.get(field, False)) is not bool:
@@ -68,7 +71,7 @@ def _clean_event(item):
         "start_ts": int(start.timestamp()), "end_ts": int(end.timestamp()),
         "updated_us": int(updated.timestamp() * 1_000_000),
         "timezone": tz, "all_day": item.get("all_day", False),
-        "busy": item.get("busy", True), "cancelled": item.get("cancelled", False),
+        "busy": (item.get("busy", True) and end > start), "cancelled": item.get("cancelled", False),
     }
     result["digest"] = hashlib.sha256(
         json.dumps(result, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -165,9 +168,9 @@ class CalendarCore:
                 """SELECT provider,account_id,calendar_id,event_id,instance_id,
                     title,start_utc,end_utc,timezone,all_day,busy,start_ts,end_ts
                     FROM calendar_source_events
-                    WHERE cancelled=0 AND start_ts<? AND end_ts>?
+                    WHERE cancelled=0 AND ((start_ts<? AND end_ts>?) OR (start_ts=end_ts AND start_ts>=? AND start_ts<?))
                     ORDER BY start_ts,provider,account_id,calendar_id,event_id
-                    LIMIT ?""", (end_ts, start_ts, limit)
+                    LIMIT ?""", (end_ts, start_ts, start_ts, end_ts, limit)
             )]
         for row in rows:
             row["all_day"] = bool(row["all_day"])
