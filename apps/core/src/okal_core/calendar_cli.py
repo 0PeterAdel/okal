@@ -23,6 +23,18 @@ SAFE_SYNC_ERRORS = frozenset({
     "google_calendar_event_overlong_interval",
     "invalid_calendar_event_interval",
     "google_calendar_sync_failed",
+    "invalid_calendar_recovery_window",
+    "calendar_not_accessible_select_id_from_calendars",
+    "google_calendar_invalid_response",
+    "duplicate_google_calendar_event_in_snapshot",
+    "google_calendar_pagination_invalid",
+    "invalid_google_calendar_event",
+    "invalid_google_calendar_time",
+    "invalid_google_calendar_all_day_interval",
+    "missing_google_calendar_updated_timestamp",
+    "invalid_calendar_event_fields",
+    "invalid_calendar_event_title",
+    "invalid_calendar_event_id",
 })
 
 
@@ -59,6 +71,12 @@ def main(store, argv):
     )
     audit.add_argument("--account", default="default")
     audit.add_argument("--days", type=int, choices=range(1, 15), default=7)
+    recover = actions.add_parser(
+        "recover-window", help="Restore current Google events locally only; do not advance sync cursor"
+    )
+    recover.add_argument("--account", default="default")
+    recover.add_argument("--calendar", default="primary")
+    recover.add_argument("--days", type=int, choices=range(1, 15), default=7)
     args = parser.parse_args(argv)
     try:
         if args.action == "accounts":
@@ -73,6 +91,12 @@ def main(store, argv):
         elif args.action == "audit":
             from .calendar_audit import audit_google_calendar
             emit(audit_google_calendar(store, args.account, days=args.days))
+        elif args.action == "recover-window":
+            from .calendar_window_recovery import recover_window
+            emit(recover_window(
+                store, account=args.account, calendar=args.calendar,
+                days=args.days,
+            ))
         elif args.action == "sync":
             service = _service(store, args.account)
             calendars = list_calendars(service)
@@ -130,7 +154,7 @@ def main(store, argv):
                 record_sync_failure(store, args.account, args.calendar, exc)
             except (CalendarGoogleError, OSError, ValueError):
                 pass
-        code = safe_sync_error(exc) if args.action == "sync" else str(exc)
+        code = safe_sync_error(exc) if args.action in {"sync", "recover-window"} else str(exc)
         print(f"Calendar operation failed: {code}", file=sys.stderr)
         return 1
     except Exception:
