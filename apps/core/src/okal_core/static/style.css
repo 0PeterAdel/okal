@@ -633,3 +633,25 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 @media(max-width:760px){.day-plan-task-row{grid-template-columns:1fr 1fr}
   .day-plan-task-row label{grid-column:1/-1}
   .day-plan-panel{padding:12px}}
+
+/* FullCalendar Standard MIT, locally installed. Source coverage never verified. */
+.fullcalendar-shell{margin:14px 0 18px;border:1px solid var(--line-strong);
+  border-radius:15px;padding:14px;background:var(--surface-raised);min-width:0}
+.fullcalendar-shell h4{font-size:18px;margin:0 0 4px}
+.fullcalendar-shell .muted{font-size:12px;line-height:1.8}
+#fullcalendar-view{min-height:130px;overflow-x:auto;max-width:100%}
+#fullcalendar-view:empty{min-height:0}
+#fullcalendar-view .fc{font-family:inherit;--fc-page-bg-color:var(--surface-raised);
+  --fc-neutral-bg-color:var(--surface);--fc-border-color:var(--line-strong);
+  --fc-today-bg-color:var(--accent-soft);--fc-event-bg-color:var(--accent);
+  --fc-button-bg-color:var(--surface);--fc-button-border-color:var(--line-strong);
+  --fc-button-text-color:var(--ink);--fc-button-hover-bg-color:var(--surface-hover);
+  --fc-button-active-bg-color:var(--accent-soft);--fc-button-active-border-color:var(--accent)}
+#fullcalendar-view .fc .fc-toolbar-title{font-size:17px;line-height:1.6}
+#fullcalendar-view .fc .fc-button{min-height:38px;font-size:12px}
+#fullcalendar-view .fc .fc-event{cursor:default;max-width:100%}
+#fullcalendar-view .fc .fc-event-title{overflow-wrap:anywhere;white-space:normal}
+@media(max-width:680px){.fullcalendar-shell{padding:8px}
+  #fullcalendar-view .fc .fc-header-toolbar{display:flex;flex-wrap:wrap;gap:6px}
+  #fullcalendar-view .fc .fc-toolbar-chunk{max-width:100%}
+  #fullcalendar-view .fc .fc-toolbar-title{font-size:14px}}
