@@ -63,11 +63,11 @@ def _plan(store, payload):
     day = _choose_day(store, payload["date"])
     begin = _hhmm(payload["work_start"])
     finish = _hhmm(payload["work_end"])
-    if (datetime.combine(day, finish, CAIRO)
-            - datetime.combine(day, begin, CAIRO)) not in (
-            timedelta(hours=n) for n in range(1, 13)):
-        # No overnight work shifts in the first review-only planner.
-        # Use explicit daytime intervals of 1 to 12 exact hours.
+    # No overnight shifts in this first slice; each preview has explicitly
+    # selected, quarter-hour-aligned limits, lasting 1–12 hours.
+    span_minutes = (finish.hour * 60 + finish.minute
+                    - begin.hour * 60 - begin.minute)
+    if not 60 <= span_minutes <= 720:
         raise ValueError("invalid_daily_work_window")
     day_start = int(datetime.combine(day, begin, CAIRO).timestamp())
     day_end = int(datetime.combine(day, finish, CAIRO).timestamp())
@@ -87,6 +87,7 @@ def _plan(store, payload):
                 not re.fullmatch(r"[a-f0-9]{32}", key) or key in selections or
                 type(task["minutes"]) is not int or
                 task["minutes"] not in CHOICES or
+                not isinstance(task["priority"], str) or
                 task["priority"] not in PRIORITY):
             raise ValueError("invalid_day_task_estimate")
         selections[key] = task
