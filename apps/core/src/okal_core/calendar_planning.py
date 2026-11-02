@@ -154,9 +154,13 @@ def _cache_evidence(store, window_start, window_end, now):
         events_in_window = db.execute(
             "SELECT COUNT(*) FROM calendar_source_events "
             "WHERE provider='google' AND cancelled=0 "
-            "AND start_ts<? AND end_ts>?",
-            (window_end, window_start),
+            "AND ((start_ts<? AND end_ts>?) OR "
+            "(start_ts=end_ts AND start_ts>=? AND start_ts<?))",
+            (window_end, window_start, window_start, window_end),
         ).fetchone()[0] if "calendar_source_events" in tables else 0
+        recoveries = list(db.execute(
+            "SELECT last_success FROM calendar_google_window_recovery"
+        )) if "calendar_google_window_recovery" in tables else []
         cached_total = db.execute(
             "SELECT COUNT(*) FROM calendar_source_events "
             "WHERE provider='google' AND cancelled=0"
@@ -168,6 +172,10 @@ def _cache_evidence(store, window_start, window_end, now):
         "recent_calendar_count": sum(seconds <= SYNC_STALE_SECONDS for seconds in age),
         "stale_calendar_count": sum(seconds > SYNC_STALE_SECONDS for seconds in age),
         "recorded_sync_failures": failures,
+        "recent_partial_window_recoveries": sum(
+            0 <= now - row[0] <= SYNC_STALE_SECONDS for row in recoveries
+        ),
+        "partial_window_recovery_count": len(recoveries),
         "cached_google_events_in_window": events_in_window,
         "cached_google_events_total": cached_total,
         # No owner-approved inventory of all enabled calendars/tasks exists yet.
@@ -208,6 +216,8 @@ def unified_plan(store, days=7):
         warnings.append("no_calendar_sync_checkpoints")
     if evidence["cached_google_events_in_window"] == 0:
         warnings.append("zero_cached_google_events_in_window")
+    if evidence["partial_window_recovery_count"]:
+        warnings.append("partial_week_window_only_not_full_sync")
     if evidence["stale_calendar_count"]:
         warnings.append("some_google_calendars_stale")
     if evidence["recorded_sync_failures"]:
