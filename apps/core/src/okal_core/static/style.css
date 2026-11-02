@@ -202,6 +202,31 @@ main{padding:clamp(23px,3vw,42px);max-width:1600px;margin:auto;min-width:0}
 .task-card a{font-size:11px}
 .assistant-groups .triage-column{padding:10px;border:1px solid var(--line);border-radius:12px}
 .assistant-groups .triage-message{margin:0}
+/* Unified calendar reads only local task and provider projections. */
+.calendar-panel{border:1px solid var(--line);background:var(--surface);
+  border-radius:var(--radius-lg);min-width:0;overflow:hidden;padding-bottom:18px}
+.calendar-panel .panel-head .muted{margin:8px 0 0}
+.calendar-view-switch{display:flex;gap:8px;flex-wrap:wrap}
+.calendar-view-switch [aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.calendar-coverage{margin:0 20px 14px;padding:12px 14px;border:1px solid var(--line-strong);
+  border-radius:10px;color:var(--amber);background:var(--surface-raised);font-size:12px;
+  overflow-wrap:anywhere}
+.calendar-layout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);
+  gap:20px;padding:0 20px}
+.calendar-layout h4{font-size:14px;margin:4px 0 12px}
+.calendar-items,.calendar-conflicts,.calendar-slots{display:grid;gap:8px}
+.calendar-entry,.calendar-conflict,.calendar-slot{background:var(--surface-raised);
+  border:1px solid var(--line);border-radius:11px;padding:12px 14px;min-width:0}
+.calendar-entry{border-inline-start:3px solid var(--blue)}
+.calendar-entry.local-task{border-inline-start-color:var(--accent)}
+.calendar-entry h5{font-size:14px;margin:5px 0;overflow-wrap:anywhere}
+.calendar-entry p,.calendar-conflict,.calendar-slot{font-size:12px;line-height:1.7}
+.calendar-entry p{margin:3px 0;color:var(--muted)}
+.calendar-insights>.muted{margin:-6px 0 12px}
+.calendar-insights h4:not(:first-child){margin-top:20px}
+@media(max-width:900px){.calendar-layout{grid-template-columns:1fr}}
+@media(max-width:620px){.calendar-layout{padding:0 13px}.calendar-coverage{margin-inline:13px}
+  .calendar-view-switch{width:100%}.calendar-view-switch button{flex:1}}
 .activity-panel{padding-bottom:18px}
 .activity-panel>p{padding:0 24px;margin:0 0 12px}
 .items{padding:0 18px;display:grid;gap:10px}
