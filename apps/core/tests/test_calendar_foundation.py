@@ -102,6 +102,24 @@ class CalendarFoundationTests(unittest.TestCase):
             self.cal.ingest("google", "a", "primary", [event(), event()])
         self.assertEqual(self.cal.agenda()["count"], 0)
 
+    def test_instant_timed_event_is_visible_but_not_busy(self):
+        self.cal.ingest("google", "a", "primary", [
+            event(id="instant", start="2026-11-02T11:00:00+02:00",
+                  end="2026-11-02T11:00:00+02:00")
+        ])
+        result = self.cal.agenda()
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["items"][0]["start_ts"],
+                         result["items"][0]["end_ts"])
+        self.assertFalse(result["items"][0]["busy"])
+        self.assertEqual(self.cal.availability()["busy_intervals_utc"], [])
+        with self.assertRaisesRegex(ValueError, "invalid_calendar_event_interval"):
+            self.cal.ingest("google", "a", "primary", [
+                event(id="zero-all-day", all_day=True,
+                      end="2026-11-02T11:00:00+02:00",
+                      start="2026-11-02T11:00:00+02:00")
+            ])
+
     def test_busy_merges_overlaps_excluding_transparent_events(self):
         self.cal.ingest("google", "a", "primary", [
             event(id="a"),

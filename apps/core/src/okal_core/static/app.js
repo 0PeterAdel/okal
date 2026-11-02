@@ -504,12 +504,29 @@ function renderUnifiedCalendar(data) {
   const coverage = data.coverage;
   const notes = ["عرض محلي فقط، لا يؤكد تفرغك ولا ينشئ أحداثًا في Google."];
   if (coverage.last_sync === null) {
-    notes.push("لم تكتمل مزامنة Google Calendar بنجاح بعد.");
+    notes.push("لم تكتمل أي مزامنة Google Calendar بنجاح بعد.");
   } else if (!coverage.recent_successful_sync) {
-    notes.push("بيانات Google المحفوظة قديمة؛ الاقتراحات غير متاحة.");
+    notes.push("آخر مزامنة محفوظة قديمة: " + cairoDate(coverage.last_sync));
   } else {
-    notes.push("آخر مزامنة Google محفوظة: " + cairoDate(coverage.last_sync));
+    notes.push("آخر مزامنة ناجحة لأحد التقويمات: " + cairoDate(coverage.last_sync));
   }
+  const evidence = coverage.source_evidence;
+  if (evidence) {
+    notes.push("تقويمات لها سجل مزامنة: " + evidence.synced_calendar_count +
+      " · تقويمات مزامنتها حديثة: " + evidence.recent_calendar_count +
+      " · أحداث Google المحفوظة في النطاق: " +
+      evidence.cached_google_events_in_window + ".");
+    if (evidence.cached_google_events_in_window === 0)
+      notes.push("لا توجد أحداث Google محفوظة في هذه الفترة؛ ده لا يعني إن تقويم Google نفسه فارغ.");
+    if (evidence.stale_calendar_count)
+      notes.push("فيه تقويمات محفوظة مزامنتها قديمة.");
+    if (evidence.recorded_sync_failures)
+      notes.push("فيه فشل مسجل في مزامنة تقويم واحد أو أكثر.");
+    if (evidence.partial_window_recovery_count)
+      notes.push("فيه تقويمات مسترجعة لفترة محدودة فقط؛ المزامنة التاريخية لم تُكتمل.");
+  }
+  if (coverage.coverage_verified === false)
+    notes.push("لم يتم تأكيد تغطية كل التقويمات والمصادر؛ أوقات الفراغ غير متاحة حتى التحقق.");
   if (coverage.calendar_limit_reached || coverage.task_limit_reached)
     notes.push("تم بلوغ حد العرض، وقد توجد مواعيد أو مهام إضافية.");
   if (coverage.conflicts_truncated)
@@ -532,12 +549,16 @@ function renderUnifiedCalendar(data) {
     const when = item.kind === "local_task" ? "آخر موعد · " +
       cairoDate(item.start_ts) :
       (item.all_day ? "يوم كامل · " + cairoDate(item.start_ts, false) :
-        cairoDate(item.start_ts) + " — " + cairoDate(item.end_ts));
+        item.start_ts === item.end_ts
+          ? "حدث لحظي · " + cairoDate(item.start_ts) + " · بدون مدة محجوزة"
+          : cairoDate(item.start_ts) + " — " + cairoDate(item.end_ts));
     entry.append(text("p", label), text("h5", item.title), text("p", when));
     list.append(entry);
   }
   if (!data.items.length)
-    list.append(text("p", "لا توجد أحداث أو مهام بموعد في النطاق المحدد.", "muted"));
+    list.append(text("p",
+      "لا توجد أحداث أو مهام بموعد في النسخة المحلية لهذه الفترة. افتح Google Calendar أو راجع مزامنة كل التقويمات.",
+      "muted"));
 
   const conflictList = el("calendar-conflicts");
   conflictList.replaceChildren();
@@ -558,7 +579,9 @@ function renderUnifiedCalendar(data) {
     conflictList.append(text("p",
       "توجد تعارضات محتملة أخرى؛ راجع التقويم الأصلي.", "muted"));
   if (!data.conflicts.length)
-    conflictList.append(text("p", "لم يُرصد تداخل في البيانات المحفوظة المعروضة.", "muted"));
+    conflictList.append(text("p",
+      "لا تعارضات مرصودة في العناصر المحفوظة، لكن المصدر قد يكون ناقصًا.",
+      "muted"));
 
   const slots = el("calendar-slots");
   slots.replaceChildren();
@@ -567,7 +590,11 @@ function renderUnifiedCalendar(data) {
       " — " + cairoDate(slot.end_ts), "calendar-slot"));
   }
   if (!data.candidate_slots.length)
-    slots.append(text("p", "لا توجد فترات مرشحة من البيانات الحالية.", "muted"));
+    slots.append(text("p",
+      data.candidate_slots_status === "disabled_unverified_calendar_sources"
+        ? "تم إيقاف اقتراح أوقات الفراغ: لم نتحقق بعد من اكتمال التقويمات المتصلة."
+        : "لا توجد فترات مرشحة من البيانات الحالية.",
+      "muted"));
 }
 async function loadUnifiedCalendar(options, active) {
   const request = ++calendarRequestSequence;

@@ -133,6 +133,56 @@ def _candidate_slots(calendar_items, first_day, days, now):
     return slots
 
 
+def _cache_evidence(store, window_start, window_end, now):
+    """Aggregate calendar cache status without returning account IDs or titles.
+
+    One recent calendar checkpoint cannot establish that the owner synced every
+    calendar visible in their Google Calendar UI.
+    """
+    with store.connect() as db:
+        tables = {
+            row[0] for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        rows = list(db.execute(
+            "SELECT last_success FROM calendar_google_sync"
+        )) if "calendar_google_sync" in tables else []
+        attempts = list(db.execute(
+            "SELECT last_error FROM calendar_google_attempts"
+        )) if "calendar_google_attempts" in tables else []
+        events_in_window = db.execute(
+            "SELECT COUNT(*) FROM calendar_source_events "
+            "WHERE provider='google' AND cancelled=0 "
+            "AND ((start_ts<? AND end_ts>?) OR "
+            "(start_ts=end_ts AND start_ts>=? AND start_ts<?))",
+            (window_end, window_start, window_start, window_end),
+        ).fetchone()[0] if "calendar_source_events" in tables else 0
+        recoveries = list(db.execute(
+            "SELECT last_success FROM calendar_google_window_recovery"
+        )) if "calendar_google_window_recovery" in tables else []
+        cached_total = db.execute(
+            "SELECT COUNT(*) FROM calendar_source_events "
+            "WHERE provider='google' AND cancelled=0"
+        ).fetchone()[0] if "calendar_source_events" in tables else 0
+    age = [max(0, now - row[0]) for row in rows]
+    failures = sum(bool(row[0]) for row in attempts)
+    return {
+        "synced_calendar_count": len(rows),
+        "recent_calendar_count": sum(seconds <= SYNC_STALE_SECONDS for seconds in age),
+        "stale_calendar_count": sum(seconds > SYNC_STALE_SECONDS for seconds in age),
+        "recorded_sync_failures": failures,
+        "recent_partial_window_recoveries": sum(
+            0 <= now - row[0] <= SYNC_STALE_SECONDS for row in recoveries
+        ),
+        "partial_window_recovery_count": len(recoveries),
+        "cached_google_events_in_window": events_in_window,
+        "cached_google_events_total": cached_total,
+        # No owner-approved inventory of all enabled calendars/tasks exists yet.
+        "desired_sources_verified": False,
+    }
+
+
 def unified_plan(store, days=7):
     """Build a bounded read-only day/week plan from a private SQLite snapshot."""
     if type(days) is not int or days not in (1, 7):
@@ -151,13 +201,27 @@ def unified_plan(store, days=7):
         key=lambda item: (item["start_ts"], item["kind"], str(item["id"])),
     )
     conflicts, conflicts_truncated = _conflicts(calendar_items, task_items)
+    evidence = _cache_evidence(store, start, end, now)
     calendar_limited = calendar["count"] >= MAX_CALENDAR_EVENTS
     tasks_limited = task_data["total_in_sample"] >= MAX_LOCAL_TASKS
 
     last_sync = calendar["cache_last_success"]
     age = max(0, now - last_sync) if last_sync is not None else None
     fresh = age is not None and age <= SYNC_STALE_SECONDS
-    warnings = ["availability_not_guaranteed_from_cached_sources"]
+    warnings = [
+        "availability_not_guaranteed_from_cached_sources",
+        "desired_calendar_sources_not_verified",
+    ]
+    if evidence["synced_calendar_count"] == 0:
+        warnings.append("no_calendar_sync_checkpoints")
+    if evidence["cached_google_events_in_window"] == 0:
+        warnings.append("zero_cached_google_events_in_window")
+    if evidence["partial_window_recovery_count"]:
+        warnings.append("partial_week_window_only_not_full_sync")
+    if evidence["stale_calendar_count"]:
+        warnings.append("some_google_calendars_stale")
+    if evidence["recorded_sync_failures"]:
+        warnings.append("google_calendar_sync_failures_recorded")
     if last_sync is None:
         warnings.append("no_successful_google_calendar_sync")
     elif not fresh:
@@ -182,10 +246,10 @@ def unified_plan(store, days=7):
             "potential_conflicts": len(conflicts),
         },
         "conflicts": conflicts,
-        "candidate_slots": (
-            _candidate_slots(calendar_items, today, days, now)
-            if fresh and not calendar_limited else []
-        ),
+        # Candidate slots are unsafe until the owner explicitly confirms all
+        # calendars and other busy sources. A timestamp is NOT such evidence.
+        "candidate_slots": [],
+        "candidate_slots_status": "disabled_unverified_calendar_sources",
         "coverage": {
             "provider_status": calendar["provider_status"],
             "last_sync": last_sync,
@@ -195,6 +259,8 @@ def unified_plan(store, days=7):
             "task_limit_reached": tasks_limited,
             "conflicts_truncated": conflicts_truncated,
             "availability_verified": False,
+            "coverage_verified": False,
+            "source_evidence": evidence,
             "warnings": warnings,
         },
         "external_reads": False,

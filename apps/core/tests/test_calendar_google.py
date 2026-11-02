@@ -183,6 +183,71 @@ class ProviderTests(unittest.TestCase):
         result = normalize(event, "Africa/Cairo")
         self.assertEqual(result["instance_id"], "2026-11-03T10:00:00+02:00")
 
+    def test_zero_duration_timed_google_event_preserved_without_busy_block(self):
+        zero = normalize(fixture(
+            end={"dateTime": "2026-11-03T10:00:00+02:00"},
+        ), "Africa/Cairo")
+        self.assertEqual(zero["start"], zero["end"])
+        result = self.sync(FakeService({
+            "items": [fixture(end={"dateTime": "2026-11-03T10:00:00+02:00"})],
+            "nextSyncToken": "valid-instant",
+        }))
+        self.assertEqual(result["result"], "full_sync")
+        with self.store.connect() as db:
+            row = db.execute(
+                "SELECT start_ts,end_ts,busy FROM calendar_source_events"
+            ).fetchone()
+        self.assertEqual(row["start_ts"], row["end_ts"])
+        self.assertFalse(row["busy"])
+        self.assertEqual(len(__import__("okal_core.calendar_core",
+                         fromlist=["CalendarCore"]).CalendarCore(self.store).agenda(7)["items"]), 1)
+
+    def test_reversed_google_event_fails_with_safe_reason(self):
+        with self.assertRaisesRegex(
+            CalendarGoogleError, "google_calendar_event_nonpositive_interval"
+        ):
+            normalize(fixture(
+                end={"dateTime": "2026-11-03T09:59:00+02:00"},
+            ), "Africa/Cairo")
+
+    def test_overlong_event_does_not_advance_calendar_sync_cursor(self):
+        self.sync(FakeService({
+            "items": [fixture()], "nextSyncToken": "original",
+        }))
+        long_event = fixture(
+            id="private-long-event",
+            start={"date": "2020-01-01"},
+            end={"date": "2022-01-01"},
+        )
+        with self.assertRaisesRegex(
+            CalendarGoogleError, "google_calendar_event_overlong_interval"
+        ):
+            self.sync(FakeService({
+                "items": [long_event, fixture(id="good-after-long")],
+                "nextSyncToken": "should-not-commit",
+            }))
+        with self.store.connect() as db:
+            checkpoint = db.execute(
+                "SELECT sync_token,event_count FROM calendar_google_sync "
+                "WHERE account_id='default' AND calendar_id='primary'"
+            ).fetchone()
+            inserted = db.execute(
+                "SELECT COUNT(*) FROM calendar_source_events "
+                "WHERE event_id='good-after-long'"
+            ).fetchone()[0]
+        self.assertEqual(tuple(checkpoint), ("original", 1))
+        self.assertEqual(inserted, 0)
+        # Later valid replay can recover and still preserve the checkpoint.
+        self.sync(FakeService({
+            "items": [fixture(id="good-after-long")],
+            "nextSyncToken": "committed-after-success",
+        }))
+        with self.store.connect() as db:
+            latest = db.execute(
+                "SELECT sync_token FROM calendar_google_sync"
+            ).fetchone()[0]
+        self.assertEqual(latest, "committed-after-success")
+
     def test_redacted_sync_failure_and_success_clears_error(self):
         from okal_core.calendar_google import credential_file, record_sync_failure
         write_private(credential_file(self.store, "default"), {
