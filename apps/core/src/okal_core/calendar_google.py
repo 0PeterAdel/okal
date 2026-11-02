@@ -4,7 +4,7 @@ OAuth is an operator-only CLI flow. HTTP GETs never call Google.
 Provider credentials and cursors must never appear in HTTP/LLM responses.
 """
 from contextlib import contextmanager
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import fcntl
 import json
 import os
@@ -99,6 +99,8 @@ def record_sync_failure(store, account, calendar_id, error):
         "google_calendar_event_page_budget_exceeded",
         "google_calendar_sync_token_expired",
         "calendar_sync_already_running",
+        "google_calendar_event_nonpositive_interval",
+        "google_calendar_event_overlong_interval",
     }
     code = str(error)
     if code not in known:
@@ -297,6 +299,15 @@ def normalize(item, default_timezone, prior=None):
     end, _, end_all_day = _event_time(item.get("end"), default_timezone)
     if all_day != end_all_day:
         raise CalendarGoogleError("invalid_google_calendar_all_day_interval")
+    # Google can return unusual intervals. Categorize privately without
+    # printing provider event identities, titles, timestamps, or OAuth data.
+    # Never guess a duration or silently drop an unrepresentable event.
+    start_instant = datetime.fromisoformat(start).astimezone(timezone.utc)
+    end_instant = datetime.fromisoformat(end).astimezone(timezone.utc)
+    if end_instant <= start_instant:
+        raise CalendarGoogleError("google_calendar_event_nonpositive_interval")
+    if end_instant - start_instant > timedelta(days=366):
+        raise CalendarGoogleError("google_calendar_event_overlong_interval")
     updated = item.get("updated")
     if not isinstance(updated, str):
         raise CalendarGoogleError("missing_google_calendar_updated_timestamp")
