@@ -28,7 +28,7 @@ function harness(fetcher) {
     return nodes.get(id);
   };
   const navLinks = [
-    "#overview", "#inbox-panel", "#task-section",
+    "#overview", "#inbox-panel", "#task-section", "#calendar-section",
     "#assistant-section", "#activity-section", "#integrations",
   ].map((href) => {
     const activeClasses = new Set();
@@ -113,14 +113,20 @@ test("local dashboard auto-opens without a key and uses only local read endpoint
         ? { items: [], counts: {}, total_in_sample: 0, state: "local_suggestion_preview" }
         : url === "/api/v1/tasks"
           ? { items: [], total_in_sample: 0, overdue_in_sample: 0 }
-          : { mail: configured });
+          : url.startsWith("/api/v1/calendar/plan?")
+            ? { window_days: 7, items: [], conflicts: [], candidate_slots: [],
+                counts: {calendar_events:0}, coverage: {last_sync:null,
+                  recent_successful_sync:false, calendar_limit_reached:false,
+                  task_limit_reached:false, conflicts_truncated:false} }
+            : { mail: configured });
   });
   await context.load(true);
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 7);
   assert.equal(calls[2], "/api/v1/morning");
   assert.equal(calls[3], "/api/v1/mail/assistant");
   assert.equal(calls[4], "/api/v1/planner");
   assert.equal(calls[5], "/api/v1/tasks");
+  assert.equal(calls[6], "/api/v1/calendar/plan?days=7");
   assert.match(get("morning-text").textContent, /عندك مهمة/);
   assert.match(get("sync").textContent, /لا يجلب بريدًا جديدًا/);
   assert.equal(get("inbox-panel").hidden, false);
@@ -858,4 +864,67 @@ test("dashboard copy reflects confirmation and removes obsolete PIN/voice promis
   assert.match(html, /aria-current="location"/);
   assert.match(css, /\.nav-item\[aria-current="location"\]/);
   assert.match(css, /#integration-status\{[^}]*overflow-wrap:anywhere/);
+});
+
+test("unified calendar keeps untrusted event names inert and labels candidate slots", () => {
+  const { context, get } = harness();
+  context.renderUnifiedCalendar({
+    window_days: 7,
+    items: [
+      { id: ["google","default","primary","r1",""], provider:"google",
+        kind:"calendar_event", title:"<svg onload=alert(1)>",
+        start_ts:1793617200, end_ts:1793620800, all_day:false },
+      { id:"task-1", kind:"local_task", title:"Deadline",
+        start_ts:1793619000, end_ts:null },
+    ],
+    conflicts: [
+      {kind:"deadline_during_busy_event", task_id:"task-1",
+       event:["google","default","primary","r1",""],start_ts:1793619000},
+    ],
+    candidate_slots:[{start_ts:1793610000,end_ts:1793611800,
+      status:"candidate_not_verified"}],
+    counts:{calendar_events:1,scheduled_local_tasks:1},
+    coverage:{last_sync:1793600000,recent_successful_sync:true,
+      calendar_limit_reached:false,task_limit_reached:false,conflicts_truncated:false},
+  });
+  assert.equal(get("calendar-items").children.length, 2);
+  assert.equal(get("calendar-items").children[0].children[1].textContent,
+    "<svg onload=alert(1)>");
+  assert.match(get("calendar-conflicts").children[0].textContent,/Deadline/);
+  assert.match(get("calendar-slots").children[0].textContent,/مرشح فقط/);
+  assert.match(get("calendar-coverage").textContent,/لا يؤكد تفرغك/);
+  assert.equal(get("calendar-week").attributes["aria-pressed"], "true");
+  context.lock();
+  assert.equal(get("calendar-items").children.length, 0);
+  assert.equal(get("calendar-conflicts").children.length, 0);
+});
+
+test("calendar day and week controls issue only bounded local reads", async () => {
+  const calls = [];
+  const { context, get } = harness(async (url) => {
+    calls.push(url);
+    return response({
+      window_days: Number(new URL("http://local"+url).searchParams.get("days")),
+      items:[],conflicts:[],candidate_slots:[],counts:{},
+      coverage:{last_sync:null,recent_successful_sync:false},
+    });
+  });
+  await get("calendar-day").handlers.click();
+  await get("calendar-week").handlers.click();
+  assert.equal(calls.join("|"),
+    "/api/v1/calendar/plan?days=1|/api/v1/calendar/plan?days=7");
+  assert.equal(get("calendar-day").attributes["aria-pressed"], "false");
+  assert.equal(get("calendar-week").attributes["aria-pressed"], "true");
+});
+
+test("unified calendar fails visibly when cached response is invalid", () => {
+  const { context, get } = harness();
+  assert.throws(() => context.renderUnifiedCalendar({items:[]}),
+    /invalid_unified_calendar_payload/);
+  context.renderUnifiedCalendar({
+    window_days:1,items:[],conflicts:[],candidate_slots:[],counts:{},
+    coverage:{last_sync:null,recent_successful_sync:false}
+  });
+  assert.match(get("calendar-coverage").textContent,/لم تكتمل مزامنة/);
+  assert.match(get("calendar-slots").children[0].textContent,/لا توجد فترات/);
 });

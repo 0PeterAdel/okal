@@ -8,6 +8,8 @@ let cursor = null;
 let controller = null;
 let generation = 0;
 let busy = false;
+let calendarWindowDays = 7;
+let calendarRequestSequence = 0;
 const selectedInfo = new Set();
 let selectableInfoIds = [];
 let selectionAnchor = null;
@@ -104,6 +106,11 @@ function resetMailStatus() {
   el("tasks-list").replaceChildren();
   el("tasks-count").textContent = "لم يتم التحميل";
   el("tasks-note").textContent = "مهام محلية بموافقتك؛ لا إنشاء أحداث في Google Calendar.";
+  calendarRequestSequence += 1;
+  el("calendar-count").textContent = "—";
+  el("calendar-coverage").textContent = "بيانات التقويم مخفية؛ اقرأ النسخة المحلية مجددًا.";
+  for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
+    el(id).replaceChildren();
 }
 
 function renderMorning(data) {
@@ -479,6 +486,120 @@ function renderPlanner(result) {
   el("planner-unscheduled").textContent = "بدون موعد · " +
     (counts.unscheduled || 0);
 }
+function cairoDate(seconds, withTime = true) {
+  const options = { timeZone: "Africa/Cairo", weekday: "short",
+    month: "short", day: "numeric" };
+  if (withTime) {
+    options.hour = "2-digit";
+    options.minute = "2-digit";
+  }
+  return new Intl.DateTimeFormat("ar-EG", options).format(
+    new Date(Number(seconds) * 1000));
+}
+function renderUnifiedCalendar(data) {
+  if (!data || !Array.isArray(data.items) ||
+      !Array.isArray(data.conflicts) || !Array.isArray(data.candidate_slots) ||
+      !data.coverage || !data.counts)
+    throw new Error("invalid_unified_calendar_payload");
+  const coverage = data.coverage;
+  const notes = ["عرض محلي فقط، لا يؤكد تفرغك ولا ينشئ أحداثًا في Google."];
+  if (coverage.last_sync === null) {
+    notes.push("لم تكتمل مزامنة Google Calendar بنجاح بعد.");
+  } else if (!coverage.recent_successful_sync) {
+    notes.push("بيانات Google المحفوظة قديمة؛ الاقتراحات غير متاحة.");
+  } else {
+    notes.push("آخر مزامنة Google محفوظة: " + cairoDate(coverage.last_sync));
+  }
+  if (coverage.calendar_limit_reached || coverage.task_limit_reached)
+    notes.push("تم بلوغ حد العرض، وقد توجد مواعيد أو مهام إضافية.");
+  if (coverage.conflicts_truncated)
+    notes.push("عدد التعارضات أكبر من حد التحليل المعروض.");
+  el("calendar-coverage").textContent = notes.join(" ");
+  el("calendar-count").textContent = String(data.items.length) + " عنصر";
+  el("calendar-day").setAttribute("aria-pressed", String(data.window_days === 1));
+  el("calendar-week").setAttribute("aria-pressed", String(data.window_days === 7));
+
+  const titles = new Map();
+  const list = el("calendar-items");
+  list.replaceChildren();
+  for (const item of data.items) {
+    titles.set(JSON.stringify(item.id), item.title);
+    const entry = document.createElement("article");
+    entry.className = "calendar-entry" +
+      (item.kind === "local_task" ? " local-task" : "");
+    const label = item.kind === "local_task" ? "مهمة محلية مؤكدة" :
+      "حدث محفوظ · " + String(item.provider);
+    const when = item.kind === "local_task" ? "آخر موعد · " +
+      cairoDate(item.start_ts) :
+      (item.all_day ? "يوم كامل · " + cairoDate(item.start_ts, false) :
+        cairoDate(item.start_ts) + " — " + cairoDate(item.end_ts));
+    entry.append(text("p", label), text("h5", item.title), text("p", when));
+    list.append(entry);
+  }
+  if (!data.items.length)
+    list.append(text("p", "لا توجد أحداث أو مهام بموعد في النطاق المحدد.", "muted"));
+
+  const conflictList = el("calendar-conflicts");
+  conflictList.replaceChildren();
+  for (const item of data.conflicts.slice(0, 8)) {
+    const first = item.kind === "deadline_during_busy_event" ?
+      titles.get(JSON.stringify(item.task_id)) :
+      titles.get(JSON.stringify(item.first));
+    const second = item.kind === "deadline_during_busy_event" ?
+      titles.get(JSON.stringify(item.event)) :
+      titles.get(JSON.stringify(item.second));
+    const prefix = item.kind === "deadline_during_busy_event" ?
+      "موعد تسليم أثناء حدث مشغول" : "تداخل محتمل";
+    conflictList.append(text("p", prefix + " · " +
+      (first || "عنصر محفوظ") + " / " + (second || "عنصر محفوظ") +
+      " · " + cairoDate(item.start_ts), "calendar-conflict"));
+  }
+  if (data.conflicts.length > 8)
+    conflictList.append(text("p",
+      "توجد تعارضات محتملة أخرى؛ راجع التقويم الأصلي.", "muted"));
+  if (!data.conflicts.length)
+    conflictList.append(text("p", "لم يُرصد تداخل في البيانات المحفوظة المعروضة.", "muted"));
+
+  const slots = el("calendar-slots");
+  slots.replaceChildren();
+  for (const slot of data.candidate_slots) {
+    slots.append(text("p", "وقت مرشح فقط · " + cairoDate(slot.start_ts) +
+      " — " + cairoDate(slot.end_ts), "calendar-slot"));
+  }
+  if (!data.candidate_slots.length)
+    slots.append(text("p", "لا توجد فترات مرشحة من البيانات الحالية.", "muted"));
+}
+async function loadUnifiedCalendar(options, active) {
+  const request = ++calendarRequestSequence;
+  try {
+    const response = await fetch(
+      "/api/v1/calendar/plan?days=" + calendarWindowDays, options);
+    if (active !== generation || request !== calendarRequestSequence) return;
+    if (!response.ok) throw new Error("calendar_read_failed");
+    const data = await response.json();
+    if (active !== generation || request !== calendarRequestSequence) return;
+    renderUnifiedCalendar(data);
+  } catch (error) {
+    if (active !== generation || request !== calendarRequestSequence ||
+        error.name === "AbortError") return;
+    el("calendar-coverage").textContent =
+      "تعذر قراءة الجدول المحلي؛ لا تعتبر المعلومات القديمة مؤكدة.";
+    for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
+      el(id).replaceChildren();
+    el("calendar-count").textContent = "غير متاح";
+  }
+}
+function changeCalendarWindow(days) {
+  calendarWindowDays = days;
+  const options = {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store", credentials: "same-origin",
+  };
+  return loadUnifiedCalendar(options, generation);
+}
+el("calendar-day").addEventListener("click", () => changeCalendarWindow(1));
+el("calendar-week").addEventListener("click", () => changeCalendarWindow(7));
+
 function taskCard(item,history=false) {
   const article=document.createElement("article");
   article.className="task-card";
@@ -731,6 +852,8 @@ async function load(reset) {
       el("tasks-list").replaceChildren();
       el("tasks-count").textContent = "تعذر تحميل المهام المحلية";
     }
+    await loadUnifiedCalendar(options, active);
+    if (active !== generation) return;
     if (reset) el("items").replaceChildren();
     for (const item of result.items) el("items").append(card(item));
     cursor = result.next_cursor;
@@ -803,6 +926,7 @@ const navigationSections = new Map([
   ["#overview", "نظرة عامة"],
   ["#inbox-panel", "البريد الذكي"],
   ["#task-section", "المهام"],
+  ["#calendar-section", "التقويم"],
   ["#assistant-section", "اقتراحات OKAL"],
   ["#activity-section", "السجل"],
   ["#integrations", "الاتصالات"],

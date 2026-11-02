@@ -33,6 +33,7 @@
         <a class="nav-item active" href="#overview" aria-current="location"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg></span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
         <a class="nav-item" href="#inbox-panel"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg></span><span>البريد الذكي</span><span class="nav-english">Inbox</span></a>
         <a class="nav-item" href="#task-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-checks"></use></svg></span><span>المهام</span><span class="nav-english">Tasks</span></a>
+        <a class="nav-item" href="#calendar-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-clock"></use></svg></span><span>التقويم</span><span class="nav-english">Calendar</span></a>
         <a class="nav-item" href="#assistant-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-spark"></use></svg></span><span>اقتراحات OKAL</span><span class="nav-english">Assistant</span></a>
         <a class="nav-item" href="#activity-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-clock"></use></svg></span><span>السجل</span><span class="nav-english">Activity</span></a>
       </nav>
@@ -182,6 +183,34 @@
               <div id="assistant-groups" class="assistant-groups"></div>
             </section>
           </div>
+
+          <section id="calendar-section" class="calendar-panel" aria-labelledby="unified-calendar-title">
+            <div class="panel-head">
+              <div>
+                <p class="overline">UNIFIED LOCAL AGENDA</p>
+                <h3 id="unified-calendar-title">تقويمك ومهامك في مكان واحد</h3>
+                <p class="muted">أحداث Google المحفوظة مع المهام المؤكدة. عرض للقراءة فقط بدون تعديل للمواعيد.</p>
+              </div>
+              <div class="calendar-view-switch" role="group" aria-label="نطاق التقويم">
+                <button type="button" class="btn-secondary" id="calendar-day" aria-pressed="false">اليوم</button>
+                <button type="button" class="btn-secondary" id="calendar-week" aria-pressed="true">7 أيام</button>
+              </div>
+            </div>
+            <p id="calendar-coverage" class="calendar-coverage" role="status" aria-live="polite">جارٍ قراءة بيانات التقويم المحفوظة...</p>
+            <div class="calendar-layout">
+              <div>
+                <h4>الجدول الموحد <span id="calendar-count" class="counter-pill">—</span></h4>
+                <div id="calendar-items" class="calendar-items"></div>
+              </div>
+              <div class="calendar-insights">
+                <h4>تعارضات محتملة</h4>
+                <div id="calendar-conflicts" class="calendar-conflicts"></div>
+                <h4>فترات مرشحة · 30 دقيقة</h4>
+                <p class="muted">الاقتراحات مبنية على البيانات المحفوظة وأوقات افتراضية من 09:00 إلى 18:00 بتوقيت القاهرة. ليست تأكيدًا للتفرغ.</p>
+                <div id="calendar-slots" class="calendar-slots"></div>
+              </div>
+            </div>
+          </section>
 
           <section id="activity-section" class="activity-panel" aria-labelledby="activity-title">
             <div class="panel-head"><div><p class="overline">RECENT ACTIVITY</p><h3 id="activity-title">الملخصات المحفوظة</h3></div><span class="text-meta">Local history</span></div>
