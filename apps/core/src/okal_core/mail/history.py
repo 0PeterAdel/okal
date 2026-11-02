@@ -371,10 +371,24 @@ def recent_evidence(store, account, limit=60):
 
 def briefing(account, start, end, observations, deleted=0,
              recovered=False, pending=False, quarantines=()):
+    """Bounded digest preview; all per-message insights persist separately.
+
+    Never make a long display string block the atomic history checkpoint.
+    Shortening ONLY the digest preview preserves full observations, source
+    identities, quarantines, and event/cursor accounting in HistoryState.commit.
+    """
     buckets = {"action": [], "information": [], "low_priority": []}
     for message, insight in observations:
         buckets[insight.category].append((message, insight))
-    label = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    def excerpt(value, limit):
+        value = str(value)
+        return value if len(value) <= limit else value[:limit - 1] + "…"
+
+    def label(timestamp):
+        return datetime.fromtimestamp(timestamp, timezone.utc).strftime(
+            "%Y-%m-%d %H:%M UTC")
+
     lines = [
         "OKAL • Gmail Briefing | موجز البريد الذكي",
         f"Coverage / الفترة: {label(start)} → {label(end)}",
@@ -385,24 +399,51 @@ def briefing(account, start, end, observations, deleted=0,
     titles = [("action", "🔴 يحتاج متابعة | Action required"),
               ("information", "📨 للعلم | For your information"),
               ("low_priority", "🔕 أولوية منخفضة | Low priority")]
+    omitted = {"action": 0, "information": 0, "low_priority": 0}
+    omitted_quarantines = 0
+
+    # Reserve 1000 characters for all safety/coverage warnings and the footer.
+    # Never truncate a source URL, invent a summary, or silently drop a count.
+    preview_limit = 11000
     for key, title in titles:
         group = buckets[key]
         if not group:
             continue
         lines += ["", f"{title} ({len(group)})"]
-        for m, insight in group:
-            lines.append(f"• {m.subject} — {m.sender}")
-            lines.append(f"  {insight.summary}")
+        for message, insight in group:
+            entry = [
+                f"• {excerpt(message.subject, 110)} — {excerpt(message.sender, 85)}",
+                f"  {excerpt(insight.summary, 170)}",
+            ]
             if insight.suggested_action:
-                lines.append(f"  Next / المقترح: {insight.suggested_action}")
-            if m.attachment_count:
-                lines.append(f"  ⚠ {m.attachment_count} unread attachment(s) / مرفقات غير محللة")
-            lines.append("  " + source_link(account, m.id))
+                entry.append(f"  Next / المقترح: {excerpt(insight.suggested_action, 100)}")
+            if message.attachment_count:
+                entry.append(f"  ⚠ {message.attachment_count} unread attachment(s) / مرفقات غير محللة")
+            entry.append("  " + source_link(account, message.id))
+            if len("\n".join([*lines, *entry])) <= preview_limit:
+                lines.extend(entry)
+            else:
+                omitted[key] += 1
+
     if quarantines:
-        lines.append("")
-        lines.append("⚠ تعذر تحليل بعض الرسائل | Manual review required")
-        for mid, code in quarantines:
-            lines.append("  " + code + " • " + source_link(account, mid))
+        lines += ["", "⚠ تعذر تحليل بعض الرسائل | Manual review required"]
+        for message_id, code in quarantines:
+            entry = ["  " + excerpt(code, 80) + " • " +
+                     source_link(account, message_id)]
+            if len("\n".join([*lines, *entry])) <= preview_limit:
+                lines.extend(entry)
+            else:
+                omitted_quarantines += 1
+
+    if any(omitted.values()) or omitted_quarantines:
+        lines += [
+            "⚠ Digest preview was compacted; check separate sync coverage warnings below.",
+            "Entries omitted from this PREVIEW / عناصر مختصرة من العرض فقط: " +
+            ", ".join(f"{key}={count}" for key, count in omitted.items()) +
+            f", manual_review={omitted_quarantines}.",
+            "All analyzed messages remain in the local evidence/triage ledger; "
+            "open the original Gmail message when detailed context is needed.",
+        ]
     if deleted:
         lines.append(f"⚠ {deleted} Gmail deletion or unavailable-message events; contents may be unavailable.")
     if pending:
@@ -412,6 +453,8 @@ def briefing(account, start, end, observations, deleted=0,
     lines.append("Source emails are untrusted; verify dates, amounts, links and commitments in Gmail.")
     body = "\n".join(lines)
     if len(body) > 12000:
+        # A guard against a future unbounded metadata source; never advance
+        # the cursor without a valid, explicitly bounded digest.
         raise MailError("digest_output_budget_exceeded_narrow_interval")
     return body
 
