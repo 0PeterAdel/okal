@@ -75,7 +75,7 @@ button:not(:disabled):active{filter:brightness(.94)}
   border-bottom:1px solid var(--line);background:rgba(11,17,26,.96);
   backdrop-filter:blur(12px)}
 .topbar-context{display:grid;gap:3px}
-.topbar-label{font-size:10px;letter-spacing:1.7px;color:var(--soft);font-weight:800;direction:ltr;text-align:right}
+.topbar-label{font-size:11px;letter-spacing:0;color:var(--muted);font-weight:700;direction:rtl;text-align:right}
 .topbar-label span{color:var(--accent)}
 .today-date{color:var(--muted);font-size:12px}
 .topbar-right{display:flex;align-items:center;gap:15px}
@@ -109,7 +109,7 @@ main{padding:clamp(23px,3vw,42px);max-width:1600px;margin:auto;min-width:0}
 .section-overline{color:#b3efdb;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .eyebrow-mark{width:19px;height:3px;background:var(--accent);border-radius:4px}
 .feature-tag{padding:3px 8px;font-size:9px;letter-spacing:1px;border-color:#3f7367}
-.morning-content{margin-top:22px}
+.morning-content{margin-top:0}
 .morning-heading{display:flex;align-items:center;gap:17px;margin-bottom:20px}
 .morning-orb{width:56px;height:56px;display:grid;place-items:center;flex-shrink:0;
   border-radius:18px;background:#2c5a4b;color:#d2ffec;font-size:31px}
@@ -124,7 +124,7 @@ main{padding:clamp(23px,3vw,42px);max-width:1600px;margin:auto;min-width:0}
 .subheading-en{font-size:.53em;color:var(--soft);direction:ltr;unicode-bidi:isolate;font-weight:500}
 .section-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .btn-primary,.btn-secondary,.btn-quiet,.btn-ghost,.btn-danger-soft{
-  border-radius:10px;min-height:42px;padding:9px 15px;font-size:12px;
+  border-radius:10px;min-height:44px;padding:9px 15px;font-size:12px;
   font-weight:700;border:1px solid transparent;transition:background-color .16s,color .16s,border-color .16s}
 .btn-primary{background:var(--accent);color:var(--accent-ink)}
 .btn-secondary{border-color:var(--line-strong);color:var(--ink);background:var(--surface-raised)}
@@ -136,7 +136,7 @@ main{padding:clamp(23px,3vw,42px);max-width:1600px;margin:auto;min-width:0}
   background:var(--surface);border-radius:var(--radius-sm);padding:14px 17px}
 .sync-led{margin-top:8px}
 #integration-status{font-size:12px;color:var(--muted);margin:0;line-height:1.7;
-  max-height:3.4em;overflow:hidden;overflow-wrap:anywhere}
+  overflow-wrap:anywhere}
 .mail-panel,.secondary-panel,.activity-panel{border:1px solid var(--line);background:var(--surface);
   border-radius:var(--radius-lg);min-width:0;overflow:hidden}
 .mail-panel-header,.panel-head{display:flex;align-items:center;justify-content:space-between;
@@ -246,8 +246,9 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .brand-symbol{width:39px;height:39px;flex-basis:39px;font-size:23px}
   .brand strong{font-size:20px}
   .sidebar-section-label,.sidebar-system,.sidebar-footer{display:none}
-  .side-nav{display:flex;gap:5px;overflow-x:auto;margin-top:12px}
-  .nav-item{white-space:nowrap;min-height:42px;padding:8px 11px}
+  .side-nav{display:flex;gap:7px;overflow-x:auto;margin-top:12px;
+    padding-bottom:5px;scroll-snap-type:x proximity;scrollbar-width:thin}
+  .nav-item{white-space:nowrap;min-height:44px;padding:9px 12px;flex:0 0 auto;scroll-snap-align:start}
   .nav-icon{display:none}
   .topbar{height:62px;position:static}
   .selection-toolbar{top:0}
@@ -365,7 +366,7 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   border:1px solid var(--line-strong); border-radius:20px; color:var(--accent); }
 .viewer-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   border-bottom:1px solid var(--line); padding:0 0 14px; }
-.viewer-actions button { min-height:40px; }
+.viewer-actions button { min-height:44px; }
 .viewer-actions #viewer-action-note { flex-basis:100%; font-size:11px; }
 .triage-message.is-selectable { cursor:pointer; }
 .triage-message.is-selectable:hover { border-color:var(--line-strong); }
@@ -428,7 +429,7 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 .task-form textarea{resize:vertical;}
 .task-form .btn-primary{min-height:44px;}
 .task-card-actions {display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
-.task-card-actions button {min-height:40px;font-size:12px;}
+.task-card-actions button {min-height:44px;font-size:12px;}
 .task-reminder-state {font-size:12px;color:var(--accent);line-height:1.6;}
 .task-overdue {color:var(--danger);font-size:12px;}
 #tasks-history-toggle {min-height:40px;margin-top:12px;}
@@ -442,7 +443,7 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 /* Gmail reader: focused mode uses ONE content scroll inside the isolated
    iframe, rather than a narrow inner viewport plus a nested dialog scroll. */
 .viewer-header-buttons {display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
-.viewer-header-buttons button {min-height:40px;}
+.viewer-header-buttons button {min-height:44px;}
 .mail-viewer {width:min(96vw,1100px);max-height:94dvh;}
 #viewer-image-status {display:block;flex-basis:100%;font-size:12px;
   line-height:1.65;color:var(--muted);overflow-wrap:anywhere;}
@@ -484,6 +485,18 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .mail-viewer .dialog-header {flex-wrap:wrap;gap:10px;}
   .mail-viewer .viewer-header-buttons {width:100%;justify-content:flex-end;}
   .mail-viewer .viewer-header-buttons button {flex:1;min-width:120px;}
+}
+
+/* Impeccable operate-mode polish: grounded navigation and readable state. */
+.nav-item[aria-current="location"]{color:var(--accent)}
+.selection-hint{line-height:1.65;overflow-wrap:anywhere}
+#viewer-reply-body::placeholder,.task-form input::placeholder,
+.input-row input::placeholder{color:var(--muted);opacity:1}
+@media(max-width:620px){
+  .topbar-context{min-width:0}
+  .today-date{font-size:11px;overflow-wrap:anywhere}
+  .topbar-right{min-width:0;flex-shrink:1}
+  .connection-status{overflow-wrap:anywhere}
 }
 
 /* Calendar integration: clear single-tap connect without changing OKAL tokens. */
