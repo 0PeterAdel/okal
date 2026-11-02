@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 
-from .google_tasks import GoogleTasksError, cached, status, sync
+from .google_tasks import GoogleTasksError, cached, status, sync_recorded as sync
 
 
 def main(store, argv):

@@ -123,6 +123,7 @@ def create_app(
                 "/api/v1/mail/reply-drafts/confirm-send",
                 "/api/v1/calendar/oauth/start",
                 "/api/v1/google-tasks/oauth/start",
+                "/api/v1/google-tasks/sync",
                 "/api/v1/mail/oauth/start",
                 "/api/v1/calendar/day-plan/preview",
                 "/api/v1/calendar/day-plan/ai-suggest",
@@ -1001,6 +1002,20 @@ def create_app(
         from .google_tasks import cached
         return cached(store)
 
+    @app.post("/api/v1/google-tasks/sync", status_code=202)
+    async def start_google_tasks_sync(request: Request, background_tasks: BackgroundTasks):
+        """Owner-clicked provider refresh. GET remains cached and offline-safe."""
+        await action_payload(request, set())
+        if request.headers.get("host") not in {
+            "okal", f"127.0.0.1:{port}", f"localhost:{port}"
+        }:
+            raise HTTPException(409, "google_tasks_sync_local_only")
+        from .google_tasks import private_credentials, sync_in_background
+        if not private_credentials(store).is_file():
+            raise HTTPException(409, "google_tasks_reauthorization_required")
+        background_tasks.add_task(sync_in_background, store)
+        return {"state": "accepted", "provider_writes": False}
+
     @app.post("/api/v1/google-tasks/oauth/start")
     async def start_google_tasks_oauth(request: Request):
         await action_payload(request, set())
@@ -1027,10 +1042,9 @@ def create_app(
         except ValueError:
             return FileResponse(STATIC / "calendar-oauth-error.html",
                                 media_type="text/html", status_code=400)
-        from .google_tasks import sync
-        # Explicit initial callback is the ONLY background fetch added here.
-        # Later updates use the operator CLI; dashboard GET is purely cached.
-        background_tasks.add_task(sync, store)
+        from .google_tasks import sync_in_background
+        # The initial provider read reports safe success/failure in local status.
+        background_tasks.add_task(sync_in_background, store)
         return FileResponse(STATIC / "tasks-oauth-complete.html",
                             media_type="text/html")
 

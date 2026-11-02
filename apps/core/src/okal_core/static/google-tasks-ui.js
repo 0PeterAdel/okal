@@ -48,7 +48,8 @@ async function loadGoogleTasksSnapshot(options, active) {
 async function loadTasksGoogleStatus() {
   const status=el("google-tasks-connect-state");
   const button=el("google-tasks-connect");
-  if (!status || !button) return;
+  const syncButton=el("google-tasks-sync");
+  if (!status || !button || !syncButton) return;
   try {
     const response=await fetch("/api/v1/google-tasks/status",{
       credentials:"same-origin",cache:"no-store",
@@ -57,16 +58,23 @@ async function loadTasksGoogleStatus() {
     if (!response.ok) throw Error("unavailable");
     const data=await response.json();
     const sync=data.sync;
-    status.textContent=sync.authorization==="cached"
+    const base=sync.authorization==="cached"
       ? "Read-only · آخر مزامنة محفوظة · "+sync.task_count+" مهمة"
       : sync.authorization==="configured_not_verified"
-      ? "تم التفويض؛ المزامنة الأولى لم تتأكد"
+      ? "تم التفويض؛ لم تُؤكد المزامنة الأولى"
       : "غير مربوط · نحتاج موافقة Google Tasks منفصلة";
+    status.textContent=base+(sync.last_result==="running"
+      ? " · المزامنة جارية"
+      : sync.last_error
+      ? " · آخر محاولة فشلت ("+sync.last_error+")"
+      : "");
     button.disabled = !data.oauth_client_ready;
+    syncButton.disabled = !sync.credentials_present || sync.last_result==="running";
     button.textContent=sync.authorization==="cached"?"إعادة تفويض Tasks":"ربط Google Tasks";
   } catch (_) {
     status.textContent="تعذر فحص حالة Tasks";
     button.disabled=true;
+    syncButton.disabled=true;
   }
 }
 async function connectGoogleTasks() {
@@ -93,3 +101,50 @@ async function connectGoogleTasks() {
 }
 el("google-tasks-connect").addEventListener("click",connectGoogleTasks);
 window.addEventListener("DOMContentLoaded",loadTasksGoogleStatus);
+
+async function syncGoogleTasksNow() {
+  const button=el("google-tasks-sync");
+  const feedback=el("google-tasks-sync-feedback");
+  button.disabled=true;
+  feedback.textContent="جاري طلب مزامنة Google Tasks...";
+  try {
+    const response=await fetch("/api/v1/google-tasks/sync", {
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json",
+        ...(token?{Authorization:"Bearer "+token}:{})},
+      body:JSON.stringify({})
+    });
+    if (!response.ok) throw Error("tasks_sync_request_rejected");
+    feedback.textContent="تم طلب المزامنة؛ جارٍ التحقق من النتيجة...";
+    for(let attempt=0;attempt<8;attempt++) {
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      const result=await fetch("/api/v1/google-tasks/status", {
+        credentials:"same-origin",cache:"no-store",
+        headers:token?{Authorization:"Bearer "+token}:{}
+      });
+      if (!result.ok) break;
+      const data=await result.json();
+      if (data.sync?.last_result==="running") continue;
+      if (data.sync?.last_result==="failed") {
+        feedback.textContent="فشلت المزامنة: "+data.sync.last_error+
+          " · راجع اتصال Google Tasks أو فحص CLI.";
+        break;
+      }
+      if (data.sync?.last_result==="complete") {
+        feedback.textContent="اكتملت المزامنة. حدّثنا مهام Google المحفوظة.";
+        if (typeof loadGoogleTasksSnapshot==="function") {
+          await loadGoogleTasksSnapshot({
+            credentials:"same-origin",cache:"no-store",
+            headers:token?{Authorization:"Bearer "+token}:{}
+          },generation);
+        }
+        break;
+      }
+    }
+  } catch (_) {
+    feedback.textContent="تعذر بدء المزامنة؛ لم نغيّر المهام المحفوظة.";
+  } finally {
+    await loadTasksGoogleStatus();
+  }
+}
+el("google-tasks-sync").addEventListener("click",syncGoogleTasksNow);

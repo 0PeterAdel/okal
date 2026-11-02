@@ -106,6 +106,17 @@ class GoogleTasksTests(unittest.TestCase):
         self.assertEqual(cached(self.store)["items"][0]["task_id"],"old-id")
         self.assertEqual(status(self.store)["task_count"],1)
 
+    def test_provider_403_reports_safe_access_or_api_disabled_code(self):
+        class HttpFailure(Exception):
+            resp = type("Response", (), {"status": 403})()
+        failure = FakeService({"items":[{"id":"list-a"}]}, HttpFailure(
+            "DO NOT EXPOSE provider token and identity"
+        ))
+        with self.assertRaisesRegex(GoogleTasksError,
+            "google_tasks_access_denied_or_api_disabled"):
+            sync(self.store,service=failure)
+        self.assertFalse(cached(self.store)["connected"])
+
     def test_invalid_duplicate_or_overbudget_rejects_snapshot(self):
         samples=[
             FakeService({"items":[{"id":"duplicate"},{"id":"duplicate"}]}),
@@ -120,6 +131,50 @@ class GoogleTasksTests(unittest.TestCase):
             with self.subTest(which=service.pages),self.assertRaises(GoogleTasksError):
                 sync(self.store,service=service)
             self.assertEqual(cached(self.store)["items"],[])
+
+
+    def test_recorded_sync_preserves_cache_and_exposes_safe_failure(self):
+        from okal_core.google_tasks import sync_recorded
+        sync(self.store,service=FakeService(
+            {"items":[{"id":"list-a"}]},
+            {"items":[item("saved")]}
+        ))
+        with patch("okal_core.google_tasks._service",
+                   return_value=FakeService(
+                       {"items":[{"id":"list-a"}]},
+                       RuntimeError("SECRET provider failure"))):
+            with self.assertRaisesRegex(GoogleTasksError,"google_tasks_read_failed"):
+                sync_recorded(self.store)
+        result=status(self.store)
+        self.assertEqual(result["last_result"],"failed")
+        self.assertEqual(result["last_error"],"google_tasks_read_failed")
+        self.assertEqual(result["task_count"],1)
+        self.assertNotIn("SECRET",str(result))
+        self.assertEqual(cached(self.store)["items"][0]["task_id"],"saved")
+        with patch("okal_core.google_tasks._service",
+                   return_value=FakeService(
+                       {"items":[{"id":"list-a"}]},
+                       {"items":[item("fresh")]})):
+            sync_recorded(self.store)
+        self.assertEqual(status(self.store)["last_result"],"complete")
+        self.assertIsNone(status(self.store)["last_error"])
+        self.assertEqual(cached(self.store)["items"][0]["task_id"],"fresh")
+
+    def test_sync_button_is_same_origin_local_only_and_requires_credentials(self):
+        headers={"Origin":"http://127.0.0.1:8766",
+                 "Sec-Fetch-Site":"same-origin"}
+        with TestClient(create_app(self.store),
+                base_url="http://127.0.0.1:8766",
+                client=("127.0.0.1",12000)) as client:
+            response=client.post("/api/v1/google-tasks/sync",json={},headers=headers)
+            self.assertEqual(response.status_code,409)
+            self.assertEqual(response.json()["detail"],
+                             "google_tasks_reauthorization_required")
+            self.assertEqual(client.post("/api/v1/google-tasks/sync",
+                                         json={},headers={
+                   "Origin":"https://example.org",
+                   "Sec-Fetch-Site":"cross-site",
+                 }).status_code,403)
 
     def test_api_never_fetches_live_tasks_or_exposes_tokens(self):
         with patch("okal_core.google_tasks._service",side_effect=AssertionError(
