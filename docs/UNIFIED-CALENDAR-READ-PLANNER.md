@@ -53,7 +53,7 @@ read-only; Gmail permissions and operations are untouched.
 Run existing Governance, Markdown, Python 3.12/3.14 and JS tests; in particular:
 
 ```bash
-PYTHONPATH=apps/core/src python -m unittest apps.core.tests.test_calendar_planning -v
+PYTHONPATH=apps/core/src python -m unittest discover -s apps/core/tests -p test_calendar_planning.py -v
 node --test apps/core/tests/test_inbox_status.cjs
 bash scripts/validate-governance.sh
 ```
