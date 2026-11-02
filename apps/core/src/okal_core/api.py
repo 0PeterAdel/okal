@@ -57,6 +57,7 @@ def create_app(
         "/api/v1/morning", "/api/v1/planner",
         "/api/v1/tasks/history", "/api/v1/calendar/agenda",
         "/api/v1/calendar/availability", "/api/v1/calendar/status",
+        "/api/v1/calendar/plan",
         "/api/v1/mail/oauth/status",
     }
 
@@ -929,6 +930,14 @@ def create_app(
         """Known local busy blocks, not a free-slot guarantee."""
         from .calendar_core import CalendarCore
         return CalendarCore(store).availability()
+
+    @app.get("/api/v1/calendar/plan")
+    def local_unified_calendar_plan(days: int = Query(default=7, ge=1, le=7)):
+        """Read cached calendar + confirmed tasks; no provider I/O or AI actions."""
+        from .calendar_planning import unified_plan
+        if days not in (1, 7):
+            raise HTTPException(422, "invalid_unified_plan_window")
+        return unified_plan(store, days=days)
 
     @app.post("/api/v1/tasks/create")
     async def local_task_create(request: Request):
