@@ -95,6 +95,7 @@ def create_app(
                 "/api/v1/mail/oauth/start",
                 "/api/v1/calendar/day-plan/preview",
                 "/api/v1/calendar/day-plan/ai-suggest",
+                "/api/v1/calendar/mail-proposal",
                 "/api/v1/calendar/day-plan/confirm"
             }
             and request.method == "POST"
@@ -994,6 +995,17 @@ def create_app(
         if days not in (1, 7):
             raise HTTPException(422, "invalid_unified_plan_window")
         return unified_plan(store, days=days)
+
+    @app.post("/api/v1/calendar/mail-proposal")
+    async def calendar_candidate_from_gmail(request: Request):
+        """Owner-click, native Gmail source-quoted suggestion; NO event writes."""
+        from .calendar_mail_proposals import propose_from_gmail
+        from .mail.contracts import MailError
+        payload = await action_payload(request, {"message_id"})
+        try:
+            return propose_from_gmail(store, payload["message_id"])
+        except MailError as exc:
+            raise action_failure(exc) from None
 
     @app.post("/api/v1/calendar/day-plan/ai-suggest")
     async def local_ai_day_plan_suggestions(request: Request):
