@@ -138,6 +138,21 @@ def recover_window(store, account="default", calendar="primary", days=7,
                         (account, target["id"], row["event_id"], row["instance_id"]),
                     )
                     deleted += 1
+            db.execute("""CREATE TABLE IF NOT EXISTS calendar_google_window_recovery (
+                account_id TEXT NOT NULL, calendar_id TEXT NOT NULL,
+                last_success INTEGER NOT NULL, window_start INTEGER NOT NULL,
+                window_end INTEGER NOT NULL, event_count INTEGER NOT NULL,
+                PRIMARY KEY (account_id,calendar_id)
+            )""")
+            db.execute("""INSERT INTO calendar_google_window_recovery
+                VALUES(?,?,?,?,?,?)
+                ON CONFLICT(account_id,calendar_id) DO UPDATE SET
+                last_success=excluded.last_success,
+                window_start=excluded.window_start,window_end=excluded.window_end,
+                event_count=excluded.event_count""", (
+                account, target["id"], int(store.clock()),
+                int(first.timestamp()), int(last.timestamp()), len(all_events)
+            ))
 
     return {
         "mode": "bounded_window_recovery",
