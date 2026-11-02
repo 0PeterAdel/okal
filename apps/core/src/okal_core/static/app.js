@@ -576,7 +576,7 @@ function renderCalendarDayFocus(data) {
       "muted"));
 }
 function chooseCalendarFocusDate(chosen) {
-  if (!calendarSnapshot || !/^\\d{4}-\\d{2}-\\d{2}$/.test(chosen)) return false;
+  if (!calendarSnapshot || !/^\d{4}-\d{2}-\d{2}$/.test(chosen)) return false;
   const start = calendarSnapshot.date;
   const last = calendarLastDate(start, calendarSnapshot.window_days - 1);
   if (chosen < start || chosen > last) return false;
