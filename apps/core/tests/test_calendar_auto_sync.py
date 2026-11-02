@@ -79,6 +79,9 @@ class AutoSyncTests(unittest.TestCase):
                           end="2026-11-03T08:00:00+02:00")
         service = Fake(
             {"items": [old_invalid], "nextSyncToken": "must-not-advance"},
+            {"items": [{"id": "primary", "summary": "Primary",
+                        "primary": True, "accessRole": "owner",
+                        "timeZone": "Africa/Cairo"}]},
             {"items": [row("current-1"), row("current-2")]},
         )
         result = _sync_with_window_fallback(self.store, "default",
@@ -86,8 +89,8 @@ class AutoSyncTests(unittest.TestCase):
         self.assertEqual(result["mode"], "bounded_window_recovery")
         self.assertEqual(result["written"], 2)
         self.assertEqual(len(CalendarCore(self.store).agenda(7)["items"]), 2)
-        self.assertIn("timeMin", service.calls[1])
-        self.assertNotIn("syncToken", service.calls[1])
+        self.assertIn("timeMin", service.calls[2])
+        self.assertNotIn("syncToken", service.calls[2])
         with self.store.connect() as db:
             self.assertIsNone(db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
@@ -100,6 +103,9 @@ class AutoSyncTests(unittest.TestCase):
 
         next_service = Fake(
             {"items": [old_invalid], "nextSyncToken": "still-not-advanced"},
+            {"items": [{"id": "primary", "summary": "Primary",
+                        "primary": True, "accessRole": "owner",
+                        "timeZone": "Africa/Cairo"}]},
             {"items": [row("current-2", end="2026-11-03T10:30:00+02:00")]},
         )
         result = _sync_with_window_fallback(
