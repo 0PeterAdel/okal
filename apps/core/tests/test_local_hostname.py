@@ -140,7 +140,7 @@ class LocalOkalHostTests(unittest.TestCase):
         self.assertIn("DynamicUser=yes",service)
         self.assertIn("IPAddressDeny=any",service)
         self.assertIn("IPAddressAllow=localhost",service)
-        self.assertIn("sudo -v",installer)
+        self.assertIn("sudo -v",upgrade)
         self.assertIn("upgrade-okal-local-https.sh",installer)
         upgrade=(root/"scripts/upgrade-okal-local-https.sh").read_text()
         self.assertIn("https://okal/api/v1/health",upgrade)
