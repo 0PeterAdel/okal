@@ -9,6 +9,27 @@ from .calendar_google import (
     record_sync_failure,
 )
 
+# Strict allowlist: provider HTTP bodies and OAuth diagnostics never reach CLI
+# JSON output or logs. Failed calendar indices are local listing positions.
+SAFE_SYNC_ERRORS = frozenset({
+    "google_calendar_provider_request_failed",
+    "google_calendar_reauthorization_required",
+    "google_calendar_missing_sync_token",
+    "google_calendar_event_budget_exceeded",
+    "google_calendar_event_page_budget_exceeded",
+    "google_calendar_sync_token_expired",
+    "calendar_sync_already_running",
+    "google_calendar_event_nonpositive_interval",
+    "google_calendar_event_overlong_interval",
+    "invalid_calendar_event_interval",
+    "google_calendar_sync_failed",
+})
+
+
+def safe_sync_error(exc):
+    code = str(exc)
+    return code if code in SAFE_SYNC_ERRORS else "google_calendar_sync_failed"
+
 
 def emit(result):
     print(json.dumps(result, ensure_ascii=True, indent=2))
@@ -54,15 +75,45 @@ def main(store, argv):
                 raise CalendarGoogleError("too_many_calendars_select_individually")
             if not targets or any(x is None for x in targets):
                 raise CalendarGoogleError("calendar_not_accessible_select_id_from_calendars")
-            results = []
-            for item in targets:
+            results, failures, skipped = [], [], 0
+            for number, item in enumerate(targets, start=1):
                 if item["access"] not in {"reader", "writer", "owner", "freeBusyReader"}:
+                    skipped += 1
                     continue
-                results.append(sync_calendar(
-                    store, args.account, validate_calendar_id(item["id"]),
-                    service=service, calendar_timezone=item["timezone"]
-                ))
-            emit({"results": results, "external_writes": False})
+                try:
+                    results.append(sync_calendar(
+                        store, args.account, validate_calendar_id(item["id"]),
+                        service=service, calendar_timezone=item["timezone"]
+                    ))
+                except Exception as exc:
+                    # Do NOT advance the failed calendar's cursor or omit an
+                    # invalid event. Let independent calendars continue.
+                    code = safe_sync_error(exc)
+                    try:
+                        record_sync_failure(store, args.account, item["id"], code)
+                    except (OSError, ValueError):
+                        # Never replace the primary per-calendar error or leak
+                        # provider response details via a status-write error.
+                        pass
+                    if not args.all:
+                        print(f"Calendar operation failed: {code}", file=sys.stderr)
+                        return 1
+                    failures.append({"calendar_number": number, "error_code": code})
+            emit({
+                "results": results,
+                "successful_calendars": len(results),
+                "failed_calendars": len(failures),
+                "failures": failures,
+                "unreadable_calendars": skipped,
+                "sync_status": (
+                    "partial" if failures or skipped else "complete"
+                ),
+                "external_writes": False,
+                "note": "A failed calendar retains its prior sync checkpoint.",
+            })
+            # Exit non-zero for PARTIAL coverage even though JSON remains
+            # parseable and successful calendar results are preserved.
+            return 2 if failures or skipped else 0
         return 0
     except (CalendarGoogleError, OSError, ValueError) as exc:
         if args.action == "sync":
@@ -71,7 +122,8 @@ def main(store, argv):
                 record_sync_failure(store, args.account, args.calendar, exc)
             except (CalendarGoogleError, OSError, ValueError):
                 pass
-        print(f"Calendar operation failed: {exc}", file=sys.stderr)
+        code = safe_sync_error(exc) if args.action == "sync" else str(exc)
+        print(f"Calendar operation failed: {code}", file=sys.stderr)
         return 1
     except Exception:
         # Provider library errors can include HTTP response text; don't echo it.
