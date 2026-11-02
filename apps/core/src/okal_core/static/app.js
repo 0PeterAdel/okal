@@ -1304,6 +1304,8 @@ async function openMailViewer(item) {
   el("viewer-ai-action").textContent = "";
   el("viewer-category").textContent = "";
   el("viewer-action-note").textContent = "";
+  if (typeof resetMailCalendarSuggestion === "function")
+    resetMailCalendarSuggestion();
   for (const name of ["viewer-copy-summary","viewer-select","viewer-delete",
                       "viewer-mark-read","viewer-mark-unread","viewer-archive",
                       "viewer-create-task","viewer-reply-generate"])
@@ -1363,6 +1365,9 @@ async function openMailViewer(item) {
     el("viewer-mark-unread").disabled = !writable || nativeLabels.includes("UNREAD");
     el("viewer-archive").disabled = !writable || !nativeLabels.includes("INBOX");
     el("viewer-create-task").disabled = data.ai_category === "manual_review";
+    if (typeof resetMailCalendarSuggestion === "function")
+      el("viewer-calendar-propose").disabled =
+        data.ai_category === "manual_review";
     el("viewer-reply-generate").disabled = data.ai_category === "manual_review";
     if (!canTrash)
       el("viewer-action-note").textContent =
