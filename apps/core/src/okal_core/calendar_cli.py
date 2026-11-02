@@ -54,6 +54,11 @@ def main(store, argv):
                       help="Calendar ID, or primary (default)")
     sync.add_argument("--all", action="store_true",
                       help="Sync all readable calendars (bounded to 20)")
+    audit = actions.add_parser(
+        "audit", help="Read-only live coverage audit, sanitized ordinals"
+    )
+    audit.add_argument("--account", default="default")
+    audit.add_argument("--days", type=int, choices=range(1, 15), default=7)
     args = parser.parse_args(argv)
     try:
         if args.action == "accounts":
@@ -65,6 +70,9 @@ def main(store, argv):
         elif args.action == "calendars":
             emit({"calendars": list_calendars(_service(store, args.account)),
                   "external_writes": False})
+        elif args.action == "audit":
+            from .calendar_audit import audit_google_calendar
+            emit(audit_google_calendar(store, args.account, days=args.days))
         elif args.action == "sync":
             service = _service(store, args.account)
             calendars = list_calendars(service)
