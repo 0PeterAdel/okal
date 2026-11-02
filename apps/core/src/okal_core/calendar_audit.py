@@ -114,9 +114,9 @@ def audit_google_calendar(store, account="default", days=7, service=None):
                 if page_token:
                     args["pageToken"] = page_token
                 page = service.events().list(**args).execute(num_retries=0)
-                if not isinstance(page, dict) or not isinstance(page.get("items"), list):
+                if not isinstance(page, dict) or not isinstance(page.get("items", []), list):
                     raise ValueError("invalid_audit_page")
-                for event in page["items"]:
+                for event in page.get("items", []):
                     counts[_event_shape(event, cal["timezone"])] += 1
                     count += 1
                 pages += 1
