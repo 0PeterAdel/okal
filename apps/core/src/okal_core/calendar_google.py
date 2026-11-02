@@ -138,7 +138,24 @@ def status(store, account="default"):
             "FROM calendar_google_attempts WHERE account_id=? ORDER BY calendar_id",
             (account,)
         )] if exists else []
+    with store.connect() as db:
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='calendar_google_poll_attempts'"
+        ).fetchone()
+        polled = db.execute(
+            "SELECT attempted_at FROM calendar_google_poll_attempts "
+            "WHERE account_id=?", (account,)
+        ).fetchone() if exists else None
+    last_checked = polled["attempted_at"] if polled and found else None
     return {
+        "background_poll": {
+            "interval_seconds": 10800,
+            "last_attempt": last_checked,
+            "next_eligible": last_checked + 10800
+            if last_checked is not None else None,
+            "restart_safe": True, "google_reads_on_status": False,
+        },
         "account_alias": account,
         "authorization": "configured_not_verified" if found else "not_configured",
         "last_sync": [
@@ -484,6 +501,10 @@ def sync_authorized_account(store, account="default"):
     provider call records a redacted code; it never blocks or breaks the UI.
     """
     validate_account(account)
+    # OAuth consent explicitly requests an immediate read. Record that read
+    # before provider I/O so the background worker will not repeat it after
+    # its startup delay or an unexpected service restart.
+    _claim_periodic_calendar_check(store, account, 10800, force=True)
     try:
         service = _service(store, account)
         calendars = list_calendars(service)
@@ -502,7 +523,7 @@ def sync_authorized_account(store, account="default"):
         _sync_with_window_fallback(store, account, item, service)
 
 
-def _claim_periodic_calendar_check(store, account, period_seconds):
+def _claim_periodic_calendar_check(store, account, period_seconds, *, force=False):
     """Persist a provider attempt before network access, across restarts.
 
     This is only a lightweight local due gate, never a Google sync cursor.
@@ -522,7 +543,7 @@ def _claim_periodic_calendar_check(store, account, period_seconds):
             "SELECT attempted_at FROM calendar_google_poll_attempts "
             "WHERE account_id=?", (account,)
         ).fetchone()
-        if previous is not None and now - previous[0] < period_seconds:
+        if not force and previous is not None and now - previous[0] < period_seconds:
             return False
         db.execute("""INSERT INTO calendar_google_poll_attempts VALUES(?,?)
             ON CONFLICT(account_id) DO UPDATE SET
