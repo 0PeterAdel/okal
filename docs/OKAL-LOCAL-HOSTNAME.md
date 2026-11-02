@@ -1,120 +1,108 @@
-# OKAL private hostname — `http://okal`
+# OKAL local HTTPS — trusted private address
 
-Owner-only localhost alias for OKAL on Omarchy (Arch Linux). This is
-**not a website or LAN service**. Backend remains on
-`http://127.0.0.1:8766`; a separate, low-overhead Caddy service on
-**127.0.0.1:80 only** forwards requests without altering the browser's
-Host or Origin headers. `/etc/hosts` maps `okal` to `127.0.0.1`.
-No DNS/ACME, no public certificate, no Cloud or paid API.
+## Purpose
 
-## Installation after merge/deployment
+The **default owner URL** is now `https://okal/`. Firefox should show a
+secure connection **after** the owner explicitly trusts OKAL's **public**
+local root CA. The loopback backend is still
+`http://127.0.0.1:8766/` for internal operation and Google Desktop OAuth.
 
-1. First deploy the current OKAL `main` to the existing
-   `~/Projects/okal-production` checkout with its normal **private SQLite
-   backup**, fast-forward and `okal-core.service` restart. Verify
-   `curl http://127.0.0.1:8766/api/v1/health` succeeds.
-2. Install the open-source reverse-proxy binary once (explicit
-   administrator operation):
+The Caddy frontend listens only on `127.0.0.1:443` and performs a local
+HTTP `127.0.0.1:80` → HTTPS 308 redirect. Both are non-LAN. It uses
+`tls internal`: no public certificate authority, domain purchase, network
+requests to ACME, or external cloud services are needed.
 
-   ```bash
-   sudo pacman -S --needed caddy
-   ```
+The CA private signing material is persisted across logins in Caddy's
+restricted systemd `StateDirectory` (`/var/lib/okal-local-proxy`), **not**
+the former temporary RuntimeDirectory. The installer exports **only the
+public root CA certificate** into the owner's private files and does not
+make its private signing keys accessible to Firefox or other processes.
 
-3. Install from Production:
+## Owner-controlled upgrade on Omarchy
 
-   ```bash
-   cd "$HOME/Projects/okal-production"
-   bash scripts/install-okal-local-host.sh
-   ```
-
-   The installer checks `Host: okal` on the existing loopback backend,
-   validates Caddy config, refuses an existing port-80 listener, rejects
-   conflicting hosts aliases and **does not overwrite existing changed
-   system config**. It backs up `/etc/hosts` before appending a single
-   `127.0.0.1 okal` line. It installs a dedicated systemd service
-   `okal-local-proxy.service` with `DynamicUser`,
-   `CAP_NET_BIND_SERVICE`, localhost-only IP access and an explicit
-   `http://okal` virtual host. The existing Caddy service and
-   `/etc/caddy/Caddyfile` are left unchanged.
-4. Check:
-
-   ```bash
-   curl --noproxy "*" -fsS http://okal/api/v1/health
-   sudo systemctl is-active okal-local-proxy.service
-   ss -lnt '( sport = :80 )'
-   ```
-
-   The port 80 listener must be `127.0.0.1:80`, NOT `0.0.0.0:80` or a
-   LAN address. Open exactly **`http://okal/`** in Firefox; no port required.
-   If the browser tries a search, type the full URL including `http://`.
-
-## Browser security + Google OAuth
-
-OKAL's FastAPI Host allowlist now includes exactly `okal` **only from
-a loopback client**. It still rejects spoofed/remote clients, unknown
-hosts, cross-site Origin and unsafe Sec-Fetch-Site, and requires
-explicit owner gesture for privileged actions. Caddy **does not rewrite
-Origin or Host**, so the backend checks the user's genuine
-`http://okal` browser origin. Strict session cookies remain host-bound:
-a read-key session paired on `127.0.0.1` does not carry over to
-`okal`; pair the new hostname separately if read-key mode is enabled.
-
-Google Desktop OAuth intentionally keeps **127.0.0.1:8766** redirect URIs
-when consent starts from `http://okal`, because Google accepts localhost
-or loopback for Desktop app redirects, **not arbitrary `http://okal`
-URIs**. After Google authorization, a one-time return may show the
-`127.0.0.1:8766` address. Navigate back to `http://okal/` for daily use.
-No wider OAuth scopes, callback-state bypass, token copying or Google
-writes were added.
-
-Because `okal` is not `localhost`, some browser APIs requiring a
-secure context might not be available over plain HTTP. The dashboard's
-existing features are designed to work over HTTP; keep direct loopback
-as a fallback for any browser or OAuth issue.
-
-## Existing owner-reported issues fixed / caveats
-
-**FullCalendar:** previous `npm pack` output clearly included
-`package/index.global.min.js`, but `tar -tzf | grep -Fxq` could produce
-`SIGPIPE` under `pipefail` when `grep -q` exited early. The corrected
-script lists archive members to a temporary manifest, then runs grep
-independently. Once this PR is deployed:
+After normal GitHub-reviewed merge and private SQLite backup, update the
+`okal-production` checkout to new `main`, restart `okal-core.service`,
+then run:
 
 ```bash
 cd "$HOME/Projects/okal-production"
-bash scripts/install-fullcalendar-standard.sh
+bash scripts/upgrade-okal-local-https.sh
 ```
 
-No additional npm package is automatically installed at browser runtime.
+The script requires existing `caddy`, `ss`, `curl` and sudo; it validates
+the new config and compares existing system configs against the known
+previous, repo-managed HTTP configuration. Unknown/manual changes trigger
+a **STOP**, not an overwrite. It creates protected backups under
+`/etc/okal-https-backup-XXXXXXXX`, refuses an unrelated occupied port
+and verifies TLS identity with `curl --cacert` (never `curl -k`).
 
-**Gmail `mail_operation_already_running`:** this is the deliberately
-non-blocking single-owner file lock while the background Gmail worker is
-processing a sync. **Do not remove the lock file or kill Ollama**. For
-`mail notifications on`, either retry when the worker is idle or
-explicitly stop `okal-core.service` briefly, change the local config,
-then restart the service. No Gmail OAuth writes or new notifications
-occur until the owner opts in.
-
-## Review and tests
+If Caddy is not installed yet:
 
 ```bash
-PYTHONPATH=apps/core/src python -m unittest discover \
-  -s apps/core/tests -p test_local_hostname.py -v
-bash -n scripts/install-okal-local-host.sh
-bash -n scripts/install-fullcalendar-standard.sh
+sudo pacman -S --needed caddy
+bash scripts/install-okal-local-host.sh
 ```
 
-GitHub CI checks Python 3.12/3.14, JS, Markdown and governance.
-Actual port-80 binding, Fedora/Omarchy firewall, Firefox navigation,
-DBus and Google OAuth browser return require owner machine acceptance.
-Do not claim `http://okal` is deployed merely because CI passes.
+The old installation script now delegates to the HTTPS installer.
 
-To disable the alias without stopping OKAL:
+## Remove Firefox's "Not Secure" warning
+
+On the host machine, after installation, find the exported **public**
+root CA:
 
 ```bash
-sudo systemctl disable --now okal-local-proxy.service
+echo "$HOME/.local/share/okal-certs/okal-local-ca.crt"
 ```
 
-For persistent removal, remove only the exact appended `127.0.0.1 okal`
-record from `/etc/hosts` using `sudoedit /etc/hosts`. The old
-`http://127.0.0.1:8766/` remains available.
+Firefox → Settings → Privacy & Security → Certificates → View Certificates
+→ Authorities → Import → choose the exported `okal-local-ca.crt` →
+allow this CA to identify websites. Restart Firefox or reopen the tab,
+then visit **`https://okal/`**.
+
+A local CA is trusted only on the device/browser where the owner imports
+it. It is **not** a publicly trusted certificate and does not make the
+machine available externally. Do not click "Accept risk" on an untrusted
+certificate; verify you imported the correct local root. If the CA is
+rotated, review and manually trust the new public certificate.
+
+System trust via Arch's `trust anchor` is a possible alternative but may
+not change Firefox's independent NSS store; Firefox import is explicit
+and deterministic. The CA trust affects certificate trust for that root:
+only import the CA you own, never arbitrary downloaded roots.
+
+## Security contract
+
+- Custom browser `Origin` is exclusively `https://okal`, even though
+  the internal reverse-proxied request to FastAPI arrives via HTTP.
+- Existing `http://127.0.0.1:8766` and `http://localhost:8766` origins
+  remain valid for **local** use.
+- All three Desktop Google OAuth flows continue redirecting to the
+  official `http://127.0.0.1:8766` loopback callback. A browser may
+  temporarily navigate there during consent.
+- Read-key authenticated browser pairing sets `Secure; HttpOnly;
+  SameSite=Strict` for cookies at `https://okal`.
+- Custom Host still requires a loopback TCP client; no forwarded host
+  is trusted, and cross-origin POSTs continue to fail closed.
+- The plain HTTP site on port 80 only redirects and serves NO dashboard
+  data. Do not publish or port-forward either port.
+
+## Troubleshooting and rollback
+
+```bash
+sudo systemctl status okal-local-proxy.service --no-pager
+ss -lnt '( sport = :80 or sport = :443 )'
+curl --noproxy '*' --cacert "$HOME/.local/share/okal-certs/okal-local-ca.crt" \
+  -fsS https://okal/api/v1/health
+```
+
+If Caddy fails or Firefox trust is not yet installed, the direct
+`http://127.0.0.1:8766/` remains the local fallback. This is loopback-only,
+not an excuse to forward that port to the internet. To stop the proxy,
+`sudo systemctl disable --now okal-local-proxy.service`. System config
+backups are printed by the upgrade script; restore only after reviewing
+them. Never delete the CA signing keys unless intentionally resetting
+all trusted local devices and certificates.
+
+This issue covers **local HTTPS only**; a remote Cloudflare Tunnel is a
+separate opt-in, authenticated feature and MUST NOT expose this
+passwordless local origin as a public website.

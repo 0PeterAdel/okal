@@ -1,5 +1,5 @@
 [Unit]
-Description=OKAL local-only http://okal proxy
+Description=OKAL private HTTPS loopback proxy with persistent local CA
 After=network.target
 
 [Service]
@@ -18,9 +18,11 @@ PrivateDevices=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 IPAddressDeny=any
 IPAddressAllow=localhost
+StateDirectory=okal-local-proxy
+StateDirectoryMode=0700
 RuntimeDirectory=okal-local-proxy
 Environment=XDG_CONFIG_HOME=/run/okal-local-proxy
-Environment=XDG_DATA_HOME=/run/okal-local-proxy
+Environment=XDG_DATA_HOME=/var/lib/okal-local-proxy
 
 [Install]
 WantedBy=multi-user.target

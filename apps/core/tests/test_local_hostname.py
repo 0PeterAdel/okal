@@ -1,4 +1,4 @@
-"""http://okal is an explicit LOCAL alias, not an arbitrary domain.
+"""https://okal is an explicit LOCAL alias, not an arbitrary domain.
 
 No network sockets or Google authorization during this test.
 """
@@ -21,14 +21,14 @@ class LocalOkalHostTests(unittest.TestCase):
     def browser(self, *, host="okal", client_ip="127.0.0.1", protected=False):
         return TestClient(
             create_app(self.store, require_read_key=protected),
-            base_url="http://" + host,
+            base_url=("https://" if host == "okal" else "http://") + host,
             client=(client_ip,12345),
         )
 
     def test_okal_origin_read_allowed_only_for_loopback_client(self):
         with self.browser() as client:
             r=client.get("/api/v1/health",
-                         headers={"Origin":"http://okal",
+                         headers={"Origin":"https://okal",
                                   "Sec-Fetch-Site":"same-origin"})
             self.assertEqual(r.status_code,200,r.text)
             self.assertIn("same-origin",r.headers["Cross-Origin-Resource-Policy"])
@@ -43,7 +43,7 @@ class LocalOkalHostTests(unittest.TestCase):
                 with self.subTest(host=host):
                     # Host and Origin must both match this precise origin.
                     self.assertEqual(client.get("/api/v1/health",headers={
-                        "Host":host,"Origin":"http://okal",
+                        "Host":host,"Origin":"https://okal",
                         "Sec-Fetch-Site":"same-origin",
                     }).status_code,403 if host!="okal" else 200)
             for hdr in (
@@ -51,7 +51,7 @@ class LocalOkalHostTests(unittest.TestCase):
                 {"Origin":"http://evil.com"},
                 {"Sec-Fetch-Site":"cross-site"},
                 {"Sec-Fetch-Site":"same-site"},
-                {"Origin":"http://okal:80", "Sec-Fetch-Site":"same-origin"},
+                {"Origin":"https://okal:80", "Sec-Fetch-Site":"same-origin"},
                 {"X-Forwarded-Host":"evil.com","Origin":"http://evil.com"},
             ):
                 with self.subTest(headers=hdr):
@@ -61,8 +61,14 @@ class LocalOkalHostTests(unittest.TestCase):
             # loopback same-origin request into a privileged remote request.
             self.assertEqual(client.get("/api/v1/health",headers={
                 "X-Forwarded-Host":"evil.example",
-                "Origin":"http://okal","Sec-Fetch-Site":"same-origin",
+                "Origin":"https://okal","Sec-Fetch-Site":"same-origin",
             }).status_code,200)
+
+    def test_http_local_alias_origin_is_rejected_after_https_upgrade(self):
+        with self.browser() as client:
+            self.assertEqual(client.get("/api/v1/health",headers={
+                "Origin":"http://okal","Sec-Fetch-Site":"same-origin",
+            }).status_code,403)
 
     def test_all_google_oauth_starts_redirect_to_desktop_loopback_not_okal(self):
         calls=[]
@@ -84,7 +90,7 @@ class LocalOkalHostTests(unittest.TestCase):
                     "/api/v1/google-tasks/oauth/start",
                 ):
                     res=client.post(path,json={},headers={
-                        "Origin":"http://okal",
+                        "Origin":"https://okal",
                         "Sec-Fetch-Site":"same-origin",
                     })
                     self.assertEqual(res.status_code,200,(path,res.text))
@@ -102,7 +108,7 @@ class LocalOkalHostTests(unittest.TestCase):
                               json={},headers=headers)
                 self.assertEqual(r.status_code,403)
             r=client.post("/api/v1/calendar/oauth/start",json={},
-                           headers={"Origin":"http://okal",
+                           headers={"Origin":"https://okal",
                                     "Sec-Fetch-Site":"same-origin"})
             # Valid owner origin reaches the action, but lacks Google client
             # credentials in fake private test store.
@@ -113,8 +119,9 @@ class LocalOkalHostTests(unittest.TestCase):
             self.assertEqual(client.get("/api/v1/mail/triage").status_code,401)
             key=self.store.issue_device("browser",1)["token"]
             res=client.post("/api/v1/session",json={"token":key},headers={
-                "Origin":"http://okal","Sec-Fetch-Site":"same-origin"})
+                "Origin":"https://okal","Sec-Fetch-Site":"same-origin"})
             self.assertEqual(res.status_code,200,res.text)
+            self.assertIn("Secure",res.headers.get("Set-Cookie",""))
             self.assertEqual(client.get("/api/v1/mail/triage").status_code,200)
 
     def test_proxy_config_binds_loopback_without_https_or_forwarded_host_rewrite(self):
@@ -122,15 +129,23 @@ class LocalOkalHostTests(unittest.TestCase):
         proxy=(root/"deploy/okal-local.Caddyfile").read_text()
         service=(root/"deploy/okal-local-proxy.service").read_text()
         installer=(root/"scripts/install-okal-local-host.sh").read_text()
-        self.assertIn("http://okal {",proxy)
+        self.assertIn("https://okal {",proxy)
         self.assertIn("bind 127.0.0.1",proxy)
+        self.assertIn("tls internal",proxy)
+        self.assertIn("redir https://okal{uri} 308",proxy)
+        self.assertIn("StateDirectory=okal-local-proxy",service)
+        self.assertIn("XDG_DATA_HOME=/var/lib/okal-local-proxy",service)
         self.assertIn("reverse_proxy 127.0.0.1:8766",proxy)
         self.assertNotIn("header_up",proxy)
         self.assertIn("DynamicUser=yes",service)
         self.assertIn("IPAddressDeny=any",service)
         self.assertIn("IPAddressAllow=localhost",service)
-        self.assertIn("sudo -v",installer)
-        self.assertIn("STOP: Port 80 already used",installer)
+        self.assertIn("upgrade-okal-local-https.sh",installer)
+        upgrade=(root/"scripts/upgrade-okal-local-https.sh").read_text()
+        self.assertIn("sudo -v",upgrade)
+        self.assertIn("https://okal/api/v1/health",upgrade)
+        self.assertIn("--cacert",upgrade)
+        self.assertNotIn("curl -k",upgrade)
 
     def test_fullcalendar_archive_manifest_not_early_pipe_closed(self):
         root=Path(__file__).resolve().parents[3]

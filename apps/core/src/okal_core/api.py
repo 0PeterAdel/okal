@@ -56,6 +56,11 @@ def create_app(
     # trust arbitrary DNS names or forwarded host headers.
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}", "okal"}
 
+    def browser_origin(host):
+        # HTTPS is mandatory for the private hostname. Direct 127.0.0.1
+        # continues to support Google Desktop OAuth loopback redirects.
+        return "https://okal" if host == "okal" else f"http://{host}"
+
     def oauth_loopback_host(request):
         """Desktop Google OAuth only accepts a loopback redirect, not 'okal'.
 
@@ -109,7 +114,9 @@ def create_app(
                 "/api/v1/calendar/day-plan/confirm"
             }
             and request.method == "POST"
-            and request.headers.get("origin") == f"http://{request.headers.get('host')}"
+            and request.headers.get("origin") == browser_origin(
+                request.headers.get("host", "")
+            )
             and request.headers.get("sec-fetch-site", "same-origin")
                 in {"same-origin", "none"}
             and request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
@@ -133,7 +140,7 @@ def create_app(
             request.method == "GET"
             and request.url.path in {CALLBACK, GMAIL_CALLBACK, TASKS_CALLBACK}
             and origin in (None, "null", "https://accounts.google.com",
-                           f"http://{host}")
+                           browser_origin(host))
             and request.headers.get("sec-fetch-mode") in (None, "navigate")
             and request.headers.get("sec-fetch-dest") in (None, "document")
         )
@@ -165,7 +172,7 @@ def create_app(
         if (
             not local
             or host not in hosts
-            or (origin is not None and origin != f"http://{host}"
+            or (origin is not None and origin != browser_origin(host)
                 and not is_google_oauth_callback(request)
                 and not is_dashboard_document_navigation(request))
             or (request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
@@ -175,7 +182,7 @@ def create_app(
                 request.url.path == "/api/v1/session"
                 and request.method in {"POST", "DELETE"}
                 and (
-                    origin != f"http://{host}"
+                    origin != browser_origin(host)
                     or request.headers.get("sec-fetch-site", "same-origin")
                     not in {"same-origin", "none"}
                 )
@@ -289,6 +296,7 @@ def create_app(
         # Loopback HTTP, host-only, HttpOnly and SameSite Strict. No JS storage.
         response.set_cookie(
             "okal_session", session["token"], httponly=True,
+            secure=request.headers.get("host") == "okal",
             samesite="strict", max_age=age, path="/api",
         )
         return response
