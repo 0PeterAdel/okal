@@ -1138,6 +1138,11 @@ def create_app(
         return FileResponse(STATIC / "fullcalendar-ui.js",
                             media_type="text/javascript")
 
+    @app.get("/calendar-mail-proposal.js")
+    def local_calendar_mail_proposal_ui():
+        return FileResponse(STATIC / "calendar-mail-proposal.js",
+                            media_type="text/javascript")
+
     @app.get("/day-plan.js")
     def local_day_plan_script():
         """Self-hosted browser action UI; no paid or external scripts."""
