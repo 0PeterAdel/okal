@@ -1,15 +1,13 @@
 """One-use browser Tasks OAuth; separate read-only token and PKCE state."""
 import json
-import re
 import secrets
 import threading
 
-from .calendar_web_oauth import gmail_desktop_client
+from .calendar_web_oauth import gmail_desktop_client, _CODE
 from .google_tasks import SCOPES, GoogleTasksError, private_credentials
 from .mail.private import write_private
 
 CALLBACK = "/api/v1/google-tasks/oauth/callback"
-_CODE = re.compile(r"^[A-Za-z0-9/_\\-.]{10,2048}$")
 TTL = 300
 
 
