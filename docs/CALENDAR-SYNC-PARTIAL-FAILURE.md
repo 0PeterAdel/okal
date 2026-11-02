@@ -31,6 +31,64 @@ JSON on stdout. This is separate from the missing-source coverage PR #72.
 - Existing single-calendar sync keeps exit **1** and a redacted error on
   failure; unchanged behavior for existing shell scripts.
 
+## Safe targeted current-window recovery (new command)
+
+The real owner audit reported **four valid live Events on the primary calendar,
+zero cached events, and no primary sync checkpoint**. The six other calendars
+already had checkpoints and returned zero incremental changes; a separate
+older **nonpositive interval** in the primary prevented a full initial sync.
+
+To restore the required agenda immediately, the new explicit operator command
+`calendar recover-window --calendar primary --days 7`:
+
+- Resolves the authenticated account's primary calendar via CalendarList.
+- Reads **only the requested 1–14-day Cairo window** using Google Events.list
+  `singleEvents=true`, `timeMin`, `timeMax`, and `showDeleted=false`.
+  This does not use a sync token; these date filters are **not allowed with
+  syncToken** in Google's incremental-sync protocol.
+- Downloads all bounded pages and validates every returned event using the
+  same strict core model **before** the first SQLite cache insertion. If a
+  page or event is invalid, fails closed and does not apply partial results.
+- Saves valid events idempotently into the same private SQLite projection used
+  by `/api/v1/calendar/plan`. It does NOT create/update sync checkpoints,
+  delete events omitted from the window, or claim a historical full sync.
+  The preexisting full-sync validation failure remains separately unresolved.
+- Requires the already-granted read-only Google OAuth scopes; does not modify
+  provider calendars, Gmail, attendee invitations or OAuth permissions.
+- Restricts outputs to aggregate `received`, `written`, `date`, `days`,
+  `source_coverage=selected_calendar_window_only`, and safety flags. Does
+  not print event titles, calendar IDs or tokens.
+
+**Owner real-device acceptance from a separate PR checkout (before merge):**
+
+1. Ensure `okal-core.service` is active; retain original service binary.
+2. Back up `~/.local/state/okal-core/core.sqlite3` with Python's SQLite
+   `Connection.backup` (not a raw copy of a live WAL file).
+3. Fetch PR #73, create a detached worktree and set
+   `OKAL_CORE_PYTHON=$HOME/Projects/okal/.venv-okal-core/bin/python`.
+4. Run `PYTHONPATH=apps/core/src "$OKAL_CORE_PYTHON" -m unittest discover
+   -s apps/core/tests -p test_calendar_window_recovery.py -v`.
+5. Run `bash scripts/run-okal-core.sh --state-dir
+   "$HOME/.local/state/okal-core" calendar recover-window
+   --account default --calendar primary --days 7` within the **review
+   checkout** (not the old production checkout). This writes only the
+   private local event projection; it never updates Google.
+6. Verify success reports `received` approximately matching audit's four
+   valid events, `source_coverage=selected_calendar_window_only`, and
+   `sync_cursor_advanced=false`.
+7. Refresh `http://127.0.0.1:8766/#calendar-section` in Firefox with
+   Ctrl+Shift+R and compare event titles/times for **Nov 2 and Nov 3** with
+   Google Calendar. Note any independent Google Tasks not yet supported.
+8. Run `calendar audit --days 7` again to verify that **cached counts**
+   match live counts for the primary in the window. A failed full historical
+   sync must still appear as incomplete and must NOT be reported as fully
+   connected. Review PR #72 separately for its coverage UI warnings.
+
+Full historical sync, ambiguous zero-length event semantics, complete
+cross-provider source coverage and Google Tasks integration are not solved
+by this date-bounded repair. In particular, no new automation can treat the
+window-only cache as verified free time.
+
 ## Read-only coverage audit (new command)
 
 The `calendar audit --days 7` operator command makes a fresh, bounded
