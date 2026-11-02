@@ -24,8 +24,11 @@ TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}\Z")
 
 def issue_control_key():
     """Return a 24-hour control key ONCE to the local operator terminal."""
-    from .store import private_directory
-    private_directory(CONFIG_DIR)
+    CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = CONFIG_DIR.stat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o077 or CONFIG_DIR.is_symlink()):
+        raise ValueError("remote_control_unsafe_directory")
     if CONTROL_FILE.is_symlink():
         raise ValueError("remote_control_unsafe_key_file")
     secret = secrets.token_urlsafe(32)
