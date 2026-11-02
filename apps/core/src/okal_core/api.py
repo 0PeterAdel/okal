@@ -64,18 +64,15 @@ def create_app(
         require_read_key = True
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}", "okal"}
 
-    def browser_origin(request):
-        host = request.headers.get("host", "")
-        return "https://okal" if host == "okal" else f"http://{host}"
     if remote_access:
         hosts.add(remote_access.hostname)
 
     def browser_origin(host):
-        # HTTPS is mandatory for the private hostname. Direct 127.0.0.1
-        # continues to support Google Desktop OAuth loopback redirects.
+        # Browser origin uses the exact Host allowlist, not forwarded headers.
+        # Google Desktop redirects continue over direct localhost HTTP.
         return (f"https://{host}" if host == "okal" or (
             remote_access is not None and host == remote_access.hostname
-        ) else browser_origin(request))
+        ) else f"http://{host}")
 
     def oauth_loopback_host(request):
         """Desktop Google OAuth only accepts a loopback redirect, not 'okal'.
