@@ -1,0 +1,11 @@
+{
+    admin off
+    persist_config off
+}
+
+# Explicit HTTP avoids ACME and certificate issuance for a private-only name.
+# Only loopback accepts requests. Never route this site to the LAN.
+http://okal {
+    bind 127.0.0.1
+    reverse_proxy 127.0.0.1:8766
+}
