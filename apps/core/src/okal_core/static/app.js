@@ -1680,6 +1680,176 @@ el("logout").addEventListener("click", async () => {
 });
 window.addEventListener("pagehide", lock);
 
+// One-click Google Calendar connection, using Gmail's existing Desktop
+// OAuth CLIENT identity only. Access tokens never reach the browser.
+async function loadCalendarConnection() {
+  const status = el("calendar-status");
+  const button = el("calendar-connect");
+  button.disabled = true;
+  try {
+    const result = await fetch("/api/v1/calendar/status", {
+      credentials:"same-origin", cache:"no-store",
+      headers:token?{Authorization:"Bearer "+token}:{},
+    });
+    if (!result.ok) throw new Error("unavailable");
+    const data = await result.json();
+    const account = data.accounts?.find(item => item.account_alias === "default");
+    const synced = account?.connected === true;
+    const oauthReady = data.reuse_gmail_oauth_client_available === true;
+    const latest = account?.last_sync?.reduce(
+      (max, item) => Math.max(max, item.last_success || 0), 0) || 0;
+    const error = account?.last_attempts?.find(item => item.last_error)?.last_error;
+    if (synced) {
+      status.textContent = "متصل · آخر مزامنة: " +
+        new Date(latest * 1000).toLocaleString("ar-EG") +
+        (error ? " · آخر محاولة مزامنة فشلت" : "");
+      button.textContent = "إعادة ربط Google";
+    } else if (account?.authorization === "configured_not_verified") {
+      status.textContent = "تم التفويض · المزامنة الأولى لم تكتمل بعد";
+      button.textContent = "إعادة التفويض";
+    } else if (oauthReady) {
+      status.textContent = "جاهز للربط باستخدام حساب Google الحالي";
+      button.textContent = "ربط Google Calendar";
+    } else {
+      status.textContent = "يجب تفويض Gmail أولًا على هذا الجهاز";
+      button.textContent = "ربط Google Calendar";
+    }
+    button.disabled = !oauthReady;
+  } catch (_) {
+    status.textContent = "تعذّر قراءة حالة Google Calendar المحلية";
+    button.disabled = true;
+  }
+}
+
+async function connectGoogleCalendar() {
+  const button = el("calendar-connect");
+  const feedback = el("calendar-connect-feedback");
+  button.disabled = true;
+  feedback.textContent = "جاري فتح صفحة Google للموافقة...";
+  try {
+    const response = await fetch("/api/v1/calendar/oauth/start", {
+      method:"POST", credentials:"same-origin", cache:"no-store",
+      headers:{"Content-Type":"application/json",
+               ...(token?{Authorization:"Bearer "+token}:{})},
+      body:JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error("calendar oauth start failed");
+    const result = await response.json();
+    const target = new URL(result.authorization_url);
+    if (target.protocol !== "https:" || target.hostname !== "accounts.google.com")
+      throw new Error("untrusted Google consent destination");
+    // Real top-level browser redirect, not a popup or embedded login screen.
+    window.location.assign(target.href);
+  } catch (_) {
+    feedback.textContent = "تعذّر بدء الربط. تأكد من اتصال Google وGmail وحاول مجددًا.";
+    button.disabled = false;
+  }
+}
+el("calendar-connect").addEventListener("click", connectGoogleCalendar);
+window.addEventListener("DOMContentLoaded", () => {
+  if (window.location.hash === "#calendar-connected") {
+    // The URL fragment is only a presentation hint, NEVER proof of sync.
+    el("calendar-connect-feedback").textContent =
+      "تم قبول تفويض Google Calendar. جاري التحقق من المزامنة الأولى...";
+    el("integrations").scrollIntoView({block:"start"});
+    window.history.replaceState(null, "", "/#integrations");
+  }
+  loadCalendarConnection();
+});
+if (typeof window.setInterval === "function")
+  window.setInterval(() => {
+    if (!document.hidden) loadCalendarConnection();
+  }, 30000);
+
+// Gmail OAuth: consent uses the same Google Desktop CLIENT identity as Calendar.
+// Gmail tokens never appear in any browser request or persistent browser storage.
+async function loadGmailConnection() {
+  const label = el("gmail-oauth-status");
+  const button = el("gmail-connect");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/v1/mail/oauth/status", {
+      credentials:"same-origin", cache:"no-store",
+      headers:token?{Authorization:"Bearer "+token}:{},
+    });
+    if (!response.ok) throw new Error("status unavailable");
+    const state = await response.json();
+    if (state.configuration !== "configured") {
+      label.textContent = "Gmail غير مهيأ في نسخة OKAL الحالية";
+      button.textContent = "ربط Gmail";
+      return;
+    }
+    if (!state.client_available) {
+      label.textContent = "بيانات Google OAuth Client غير موجودة على الجهاز";
+      button.textContent = "ربط Gmail";
+      return;
+    }
+    const granted = state.authorization === "credentials_saved_not_live_verified";
+    const profile = state.scope_profile === "modify"
+      ? "· صلاحيات Gmail الحالية تشمل التعديل"
+      : state.scope_profile === "read_and_send"
+        ? "· قراءة وإرسال بموافقة سابقة"
+        : "· قراءة فقط";
+    const last = state.last_sync;
+    if (granted && last?.last_checked && !last?.last_error) {
+      label.textContent = "التفويض محفوظ · آخر مزامنة: " +
+        new Date(last.last_checked * 1000).toLocaleString("ar-EG") + " " + profile;
+    } else if (granted) {
+      label.textContent = "تفويض Gmail محفوظ · " +
+        (last?.last_error ? "آخر محاولة مزامنة فشلت" : "لم نتأكد من مزامنة ناجحة") +
+        " " + profile;
+    } else {
+      label.textContent = "جاهز للربط بحساب Gmail المُهيأ " + profile;
+    }
+    button.textContent = granted ? "إعادة ربط Gmail" : "ربط Gmail";
+    button.disabled = false;
+  } catch (_) {
+    label.textContent = "تعذّر قراءة حالة Gmail المحلية";
+    button.disabled = true;
+  }
+}
+
+async function connectGmail() {
+  const button = el("gmail-connect");
+  const feedback = el("gmail-connect-feedback");
+  button.disabled = true;
+  feedback.textContent = "جاري فتح صفحة Google للموافقة...";
+  try {
+    const response = await fetch("/api/v1/mail/oauth/start", {
+      method:"POST", credentials:"same-origin", cache:"no-store",
+      headers:{"Content-Type":"application/json",
+               ...(token?{Authorization:"Bearer "+token}:{})},
+      body:JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error("Gmail OAuth start failed");
+    const data = await response.json();
+    const target = new URL(data.authorization_url);
+    if (target.protocol !== "https:" ||
+        target.hostname !== "accounts.google.com" ||
+        target.pathname !== "/o/oauth2/auth")
+      throw new Error("Untrusted consent URL");
+    window.location.assign(target.href);
+  } catch (_) {
+    feedback.textContent = "تعذّر فتح موافقة Gmail. راجع الإعدادات والاتصال.";
+    button.disabled = false;
+  }
+}
+el("gmail-connect").addEventListener("click", connectGmail);
+window.addEventListener("DOMContentLoaded", () => {
+  if (window.location.hash === "#gmail-connected") {
+    // A success fragment is just UI navigation, not proof of a live sync.
+    el("gmail-connect-feedback").textContent =
+      "تم حفظ تفويض Gmail للحساب المهيأ. جاري التحقق من حالة المزامنة...";
+    el("integrations").scrollIntoView({block:"start"});
+    window.history.replaceState(null, "", "/#integrations");
+  }
+  loadGmailConnection();
+});
+if (typeof window.setInterval === "function")
+  window.setInterval(() => {
+    if (!document.hidden) loadGmailConnection();
+  }, 30000);
+
 // Default single-user loopback mode auto-opens; protected mode falls back to pairing.
 window.addEventListener("DOMContentLoaded", () => load(true));
 

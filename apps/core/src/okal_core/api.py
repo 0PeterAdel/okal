@@ -7,7 +7,7 @@ import json
 import os
 import re
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from .store import InvalidCursor, Store
@@ -44,6 +44,10 @@ def create_app(
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     from .mail.approval import PendingTrashConfirmations
     approvals = PendingTrashConfirmations(store.clock)
+    from .calendar_web_oauth import CalendarOAuthWeb, CALLBACK
+    calendar_oauth = CalendarOAuthWeb(store.clock)
+    from .mail.web_oauth import GmailOAuthWeb, CALLBACK as GMAIL_CALLBACK
+    gmail_oauth = GmailOAuthWeb(store.clock)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     # Never let a future privileged /api/ endpoint inherit passwordless access.
@@ -51,7 +55,9 @@ def create_app(
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
         "/api/v1/morning", "/api/v1/planner",
-        "/api/v1/tasks/history",
+        "/api/v1/tasks/history", "/api/v1/calendar/agenda",
+        "/api/v1/calendar/availability", "/api/v1/calendar/status",
+        "/api/v1/mail/oauth/status",
     }
 
     def public_local_read(path, method):
@@ -76,7 +82,9 @@ def create_app(
                 "/api/v1/mail/reply-drafts/generate",
                 "/api/v1/mail/reply-drafts/revise",
                 "/api/v1/mail/reply-drafts/preview-send",
-                "/api/v1/mail/reply-drafts/confirm-send"
+                "/api/v1/mail/reply-drafts/confirm-send",
+                "/api/v1/calendar/oauth/start",
+                "/api/v1/mail/oauth/start"
             }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
@@ -89,6 +97,35 @@ def create_app(
                  or store.authenticate_browser_session(
                     request.cookies.get("okal_session", "")
                  ))
+        )
+
+    def is_google_oauth_callback(request):
+        # Google redirects the owner's top-level browser navigation here.
+        # Firefox can send Origin: null after cross-site redirects; other
+        # browsers may send the Google origin or omit Origin entirely.
+        # This exception is ONLY for a document GET to the OAuth callback;
+        # its state, issuer, one-use nonce and PKCE are checked below.
+        host = request.headers.get("host", "")
+        origin = request.headers.get("origin")
+        return (
+            request.method == "GET"
+            and request.url.path in {CALLBACK, GMAIL_CALLBACK}
+            and origin in (None, "null", "https://accounts.google.com",
+                           f"http://{host}")
+            and request.headers.get("sec-fetch-mode") in (None, "navigate")
+            and request.headers.get("sec-fetch-dest") in (None, "document")
+        )
+
+    def is_dashboard_document_navigation(request):
+        # A browser may keep Sec-Fetch-Site: cross-site across OAuth 303
+        # redirects. Opening only the inert HTML shell is safe; API calls,
+        # POSTs, subresources and framing retain the existing strict policy.
+        return (
+            request.method == "GET"
+            and request.url.path == "/"
+            and request.headers.get("origin") in (None, "null")
+            and request.headers.get("sec-fetch-mode") == "navigate"
+            and request.headers.get("sec-fetch-dest") == "document"
         )
 
     @app.middleware("http")
@@ -106,8 +143,12 @@ def create_app(
         if (
             not local
             or host not in hosts
-            or (origin is not None and origin != f"http://{host}")
-            or request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
+            or (origin is not None and origin != f"http://{host}"
+                and not is_google_oauth_callback(request)
+                and not is_dashboard_document_navigation(request))
+            or (request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}
+                and not is_google_oauth_callback(request)
+                and not is_dashboard_document_navigation(request))
             or (
                 request.url.path == "/api/v1/session"
                 and request.method in {"POST", "DELETE"}
@@ -139,6 +180,7 @@ def create_app(
                 and public_local_read(request.url.path, request.method)
             )
             and not authorized_ui_trash(request)
+            and not is_google_oauth_callback(request)
             and not (
                 require_read_key
                 and request.url.path == "/api/v1/session"
@@ -166,13 +208,24 @@ def create_app(
             not in (
                 {"limit", "cursor"}
                 if request.url.path == "/api/v1/summaries"
+                else {"state", "code", "scope", "authuser", "prompt",
+                      "error", "error_description", "iss"}
+                if is_google_oauth_callback(request)
                 else set()
             )
             for k in request.query_params
         ):
-            response = JSONResponse(
-                {"detail": "unsupported query parameter"}, status_code=400
-            )
+            if is_google_oauth_callback(request):
+                response = FileResponse(
+                    STATIC / ("mail-oauth-error.html"
+                              if request.url.path == GMAIL_CALLBACK
+                              else "calendar-oauth-error.html"),
+                    media_type="text/html", status_code=400,
+                )
+            else:
+                response = JSONResponse(
+                    {"detail": "unsupported query parameter"}, status_code=400
+                )
         else:
             response = await call_next(request)
         response.headers.update(
@@ -765,6 +818,118 @@ def create_app(
         from .task_planner import TaskPlanner
         return TaskPlanner(store).agenda(7)
 
+    @app.get("/api/v1/calendar/agenda")
+    def local_calendar_agenda():
+        """Cached calendar projection only; never contacts providers."""
+        from .calendar_core import CalendarCore
+        return CalendarCore(store).agenda()
+
+    @app.get("/api/v1/mail/oauth/status")
+    def gmail_oauth_status():
+        """Read local Gmail OAuth metadata only, no Google API calls."""
+        from .mail.web_oauth import status
+        return status(store)
+
+    @app.post("/api/v1/mail/oauth/start")
+    async def start_gmail_connect(request: Request):
+        """Same-origin user gesture authorizes existing Gmail scope profile."""
+        from .mail.contracts import MailError
+        await action_payload(request, set())
+        try:
+            return gmail_oauth.start(store, request.headers["host"])
+        except MailError as exc:
+            raise HTTPException(409, str(exc)) from None
+        except (OSError, ValueError):
+            raise HTTPException(409, "gmail_setup_required") from None
+
+    @app.get("/api/v1/mail/oauth/callback")
+    def finish_gmail_connect(request: Request):
+        """Validate Google response and existing mailbox before token commit."""
+        from .mail.contracts import MailError
+        params = request.query_params
+        if (len(params.getlist("state")) != 1
+                or len(params.getlist("code")) > 1
+                or len(params.getlist("iss")) > 1
+                or ("iss" in params and
+                    params.get("iss") != "https://accounts.google.com")):
+            return FileResponse(
+                STATIC / "mail-oauth-error.html",
+                media_type="text/html", status_code=400,
+            )
+        try:
+            gmail_oauth.finish(
+                store, params.get("state"), params.get("code"),
+                params.get("error")
+            )
+        except (MailError, OSError, ValueError):
+            # No provider exception, auth code, state or token in response.
+            return FileResponse(
+                STATIC / "mail-oauth-error.html",
+                media_type="text/html", status_code=400,
+            )
+        return FileResponse(
+            STATIC / "mail-oauth-complete.html", media_type="text/html"
+        )
+
+    @app.post("/api/v1/calendar/oauth/start")
+    async def start_calendar_connect(request: Request):
+        """Explicit same-origin owner click starts Google consent in browser."""
+        from .calendar_google import CalendarGoogleError
+        await action_payload(request, set())
+        try:
+            return calendar_oauth.start(store, request.headers["host"])
+        except CalendarGoogleError as exc:
+            raise HTTPException(409, str(exc)) from None
+
+    @app.get("/api/v1/calendar/oauth/callback")
+    def finish_calendar_connect(request: Request, background_tasks: BackgroundTasks):
+        """Google redirect: one-use state, PKCE, separate Calendar credentials."""
+        from .calendar_google import CalendarGoogleError
+        params = request.query_params
+        state = params.get("state")
+        code = params.get("code")
+        if (len(params.getlist("state")) != 1
+                or len(params.getlist("code")) > 1
+                or len(params.getlist("iss")) > 1
+                or ("iss" in params and
+                    params.get("iss") != "https://accounts.google.com")):
+            return FileResponse(
+                STATIC / "calendar-oauth-error.html",
+                media_type="text/html", status_code=400,
+            )
+        try:
+            calendar_oauth.finish(store, state, code, params.get("error"))
+        except CalendarGoogleError:
+            # No codes, state, credentials, exceptions or provider text in HTML.
+            return FileResponse(
+                STATIC / "calendar-oauth-error.html",
+                media_type="text/html", status_code=400,
+            )
+        from .calendar_google import sync_authorized_account
+        background_tasks.add_task(sync_authorized_account, store, "default")
+        # Do not 303 directly to dashboard: Firefox may carry cross-site
+        # Fetch Metadata through the redirect chain and reject the HTML.
+        # Send an inert local document then navigate within the same origin.
+        return FileResponse(
+            STATIC / "calendar-oauth-complete.html", media_type="text/html"
+        )
+
+    @app.get("/api/v1/calendar/status")
+    def local_calendar_status():
+        """Cached sync status only; no provider calls or OAuth information."""
+        from .calendar_google import configured_accounts, status
+        from .calendar_web_oauth import client_available
+        return {"accounts": [
+            status(store, account) for account in configured_accounts(store)
+        ], "reuse_gmail_oauth_client_available": client_available(store),
+            "external_reads": False, "external_writes": False}
+
+    @app.get("/api/v1/calendar/availability")
+    def local_calendar_availability():
+        """Known local busy blocks, not a free-slot guarantee."""
+        from .calendar_core import CalendarCore
+        return CalendarCore(store).availability()
+
     @app.post("/api/v1/tasks/create")
     async def local_task_create(request: Request):
         from .task_planner import TaskPlanner
@@ -828,6 +993,18 @@ def create_app(
     @app.get("/app.js")
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
+
+    @app.get("/mail-oauth-return.js")
+    def mail_oauth_return_script():
+        return FileResponse(
+            STATIC / "mail-oauth-return.js", media_type="text/javascript"
+        )
+
+    @app.get("/calendar-oauth-return.js")
+    def calendar_oauth_return_script():
+        return FileResponse(
+            STATIC / "calendar-oauth-return.js", media_type="text/javascript"
+        )
 
     @app.get("/style.css")
     def styles():
