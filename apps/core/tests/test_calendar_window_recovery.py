@@ -132,7 +132,7 @@ class RecoverWindowTests(unittest.TestCase):
         self.assertEqual(tuple(checkpoint), ("SECRET-OLD-CURSOR", 123, 9))
 
     def test_late_invalid_event_rejects_entire_window_before_cache_mutation(self):
-        bad = fixture("invalid-zero", end="2026-11-03T05:00:00+02:00")
+        bad = fixture("invalid-reversed", end="2026-11-03T04:59:00+02:00")
         svc = self.service(
             {"items": [fixture("valid-first")], "nextPageToken": "page2"},
             {"items": [bad]},
@@ -195,7 +195,7 @@ class RecoverWindowTests(unittest.TestCase):
     def test_cli_fails_closed_when_one_event_is_invalid_no_private_error(self):
         out, err = StringIO(), StringIO()
         svc = self.service({"items": [
-            fixture("PRIVATE-ID", end="2026-11-03T05:00:00+02:00")
+            fixture("PRIVATE-ID", end="2026-11-03T04:59:00+02:00")
         ]})
         with patch("okal_core.calendar_window_recovery._service", return_value=svc), \
                 redirect_stdout(out), redirect_stderr(err):
@@ -205,6 +205,39 @@ class RecoverWindowTests(unittest.TestCase):
         self.assertIn("google_calendar_event_nonpositive_interval", err.getvalue())
         self.assertNotIn("PRIVATE-ID", err.getvalue())
         self.assertEqual(self.cached(), [])
+
+    def test_recovery_reconciles_removed_event_only_within_window(self):
+        initial = self.service({"items": [
+            fixture("live-a"), fixture("to-be-removed")
+        ]})
+        first = recover_window(self.store, service=initial)
+        self.assertEqual(first["received"], 2)
+        self.assertEqual(len(self.cached()), 2)
+
+        second = recover_window(
+            self.store, service=self.service({"items": [fixture("live-a")]})
+        )
+        self.assertEqual(second["removed_from_window"], 1)
+        self.assertEqual(len(self.cached()), 1)
+        self.assertEqual(self.cached()[0]["event_id"], "live-a")
+        with self.store.connect() as db:
+            metadata = db.execute(
+                "SELECT event_count FROM calendar_google_window_recovery"
+            ).fetchone()[0]
+        self.assertEqual(metadata, 1)
+
+    def test_window_reconciliation_is_all_or_nothing_for_bad_late_page(self):
+        recover_window(self.store, service=self.service({
+            "items": [fixture("original")]
+        }))
+        bad = fixture("bad-reversed", end="2026-11-03T04:00:00+02:00")
+        failing = self.service(
+            {"items": [fixture("different")], "nextPageToken": "other"},
+            {"items": [bad]},
+        )
+        with self.assertRaises(ValueError):
+            recover_window(self.store, service=failing)
+        self.assertEqual([e["event_id"] for e in self.cached()], ["original"])
 
     def test_rejects_unbounded_window_and_unreadable_calendar(self):
         for days in (0, 15, True, "7", None):
