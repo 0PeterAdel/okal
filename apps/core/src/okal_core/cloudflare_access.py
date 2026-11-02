@@ -98,12 +98,7 @@ class AccessGate:
                  and item.get("kid")==kid and item.get("kty")=="RSA"
                  and item.get("alg","RS256")=="RS256"]
         if len(matches)!=1:
-            # One key rotation retry is safe and bounded.
-            if self._fetched_at and records is self._keys:
-                with self._lock:
-                    self._keys=self._fetch_keys()
-                    self._fetched_at=self._now()
-                return self._signing_key(kid)
+            # Unknown kid never causes unbounded retries or recursion.
             raise ValueError("unknown_cloudflare_signing_key")
         return matches[0]
 
