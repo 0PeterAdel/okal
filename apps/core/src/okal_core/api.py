@@ -51,7 +51,8 @@ def create_app(
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
         "/api/v1/morning", "/api/v1/planner",
-        "/api/v1/tasks/history",
+        "/api/v1/tasks/history", "/api/v1/calendar/agenda",
+        "/api/v1/calendar/availability",
     }
 
     def public_local_read(path, method):
@@ -764,6 +765,18 @@ def create_app(
         """Local Cairo-tz agenda. Never claims Google Calendar coverage."""
         from .task_planner import TaskPlanner
         return TaskPlanner(store).agenda(7)
+
+    @app.get("/api/v1/calendar/agenda")
+    def local_calendar_agenda():
+        """Cached calendar projection only; never contacts providers."""
+        from .calendar_core import CalendarCore
+        return CalendarCore(store).agenda()
+
+    @app.get("/api/v1/calendar/availability")
+    def local_calendar_availability():
+        """Known local busy blocks, not a free-slot guarantee."""
+        from .calendar_core import CalendarCore
+        return CalendarCore(store).availability()
 
     @app.post("/api/v1/tasks/create")
     async def local_task_create(request: Request):
