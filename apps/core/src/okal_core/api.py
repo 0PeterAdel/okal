@@ -1059,6 +1059,11 @@ def create_app(
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    @app.get("/day-plan-ai.js")
+    def day_plan_ai_script():
+        return FileResponse(STATIC / "day-plan-ai.js",
+                            media_type="text/javascript")
+
     @app.get("/day-plan.js")
     def local_day_plan_script():
         """Self-hosted browser action UI; no paid or external scripts."""
