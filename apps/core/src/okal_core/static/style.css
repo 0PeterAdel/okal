@@ -485,3 +485,19 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .mail-viewer .viewer-header-buttons {width:100%;justify-content:flex-end;}
   .mail-viewer .viewer-header-buttons button {flex:1;min-width:120px;}
 }
+
+/* Calendar integration: clear single-tap connect without changing OKAL tokens. */
+.integrations .calendar-connection .btn-secondary {
+  min-height:44px;width:100%;font-size:12px;justify-content:center;
+}
+.integrations .calendar-connection small {overflow-wrap:anywhere;line-height:1.6;}
+
+/* Local Google OAuth return: self-hosted, no inline scripts or external fonts. */
+.oauth-screen{min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box}
+.oauth-card{width:min(100%,460px);padding:32px;border:1px solid var(--line);
+  background:var(--surface);border-radius:18px;text-align:center;box-shadow:0 12px 48px #0002}
+.oauth-card h1{font-size:22px;margin:12px 0}
+.oauth-card p{font-size:14px;line-height:1.9;margin:12px 0;color:var(--soft)}
+.oauth-card .oauth-mark{font-size:32px;color:var(--accent);font-weight:800}
+.oauth-card a{display:inline-block;margin-top:16px;min-height:44px;padding:12px 20px;
+  box-sizing:border-box;border-radius:10px;border:1px solid var(--line-strong);color:var(--accent)}
