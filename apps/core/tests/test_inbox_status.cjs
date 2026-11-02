@@ -954,3 +954,25 @@ test("unified planner never implies complete sync with fresh single-calendar che
   assert.match(get("calendar-items").children[0].textContent,/النسخة المحلية/);
   assert.match(get("calendar-conflicts").children[0].textContent,/المصدر قد يكون ناقص/);
 });
+
+test("calendar zero-duration event is visibly instant and does not imply booked time", () => {
+  const { context, get } = harness();
+  context.renderUnifiedCalendar({
+    window_days: 7, items: [{
+      kind:"calendar_event",id:["google","default","p","instant",""],
+      provider:"google",title:"Moment",
+      start_ts:1793610000,end_ts:1793610000,all_day:false,busy:false
+    }],
+    conflicts:[],candidate_slots:[],candidate_slots_status:"disabled_unverified_calendar_sources",
+    counts:{calendar_events:1},
+    coverage:{last_sync:null,recent_successful_sync:false,
+      coverage_verified:false,calendar_limit_reached:false,
+      task_limit_reached:false,conflicts_truncated:false,
+      source_evidence:{synced_calendar_count:0,recent_calendar_count:0,
+        stale_calendar_count:0,recorded_sync_failures:0,
+        cached_google_events_in_window:1,partial_window_recovery_count:1}},
+  });
+  assert.match(get("calendar-items").children[0].children[2].textContent,/حدث لحظي/);
+  assert.match(get("calendar-coverage").textContent,/لفترة محدودة/);
+  assert.match(get("calendar-slots").children[0].textContent,/تم إيقاف/);
+});
