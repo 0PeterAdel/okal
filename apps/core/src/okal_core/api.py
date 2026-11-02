@@ -63,12 +63,13 @@ def create_app(
         # passwordless. Remote mode adds a mandatory local read-key factor.
         require_read_key = True
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}", "okal"}
+
     if remote_access:
         hosts.add(remote_access.hostname)
 
     def browser_origin(host):
-        # HTTPS is mandatory for the private hostname. Direct 127.0.0.1
-        # continues to support Google Desktop OAuth loopback redirects.
+        # Browser origin uses the exact Host allowlist, not forwarded headers.
+        # Google Desktop redirects continue over direct localhost HTTP.
         return (f"https://{host}" if host == "okal" or (
             remote_access is not None and host == remote_access.hostname
         ) else f"http://{host}")
