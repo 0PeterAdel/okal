@@ -304,7 +304,7 @@ def normalize(item, default_timezone, prior=None):
     # Never guess a duration or silently drop an unrepresentable event.
     start_instant = datetime.fromisoformat(start).astimezone(timezone.utc)
     end_instant = datetime.fromisoformat(end).astimezone(timezone.utc)
-    if end_instant <= start_instant:
+    if end_instant < start_instant or (all_day and end_instant == start_instant):
         raise CalendarGoogleError("google_calendar_event_nonpositive_interval")
     if end_instant - start_instant > timedelta(days=366):
         raise CalendarGoogleError("google_calendar_event_overlong_interval")
