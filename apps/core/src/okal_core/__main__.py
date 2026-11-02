@@ -34,6 +34,10 @@ def main():
         "calendar", help="Google Calendar owner-only OAuth, sync and status"
     )
     calendar.add_argument("calendar_args", nargs=argparse.REMAINDER)
+    google_tasks = commands.add_parser(
+        "tasks-google", help="Separate Google Tasks read-only cache"
+    )
+    google_tasks.add_argument("args", nargs=argparse.REMAINDER)
     tasks = commands.add_parser(
         "tasks", help="Owner-approved local tasks; never writes to Gmail or Calendar"
     )
@@ -100,6 +104,9 @@ def main():
         if args.command == "calendar":
             from .calendar_cli import main as calendar_main
             return calendar_main(store, args.calendar_args)
+        if args.command == "tasks-google":
+            from .google_tasks_cli import main as tasks_main
+            return tasks_main(store, args.args)
         if args.command == "mail":
             from .mail.cli import main as mail_main
 
