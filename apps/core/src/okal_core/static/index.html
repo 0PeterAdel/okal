@@ -10,10 +10,12 @@
   <link rel="stylesheet" href="/vanilla-calendar.min.css" />
   <link rel="stylesheet" href="/style.css" />
   <script defer src="/vanilla-calendar.min.js"></script>
+  <script defer src="/fullcalendar-standard.min.js"></script>
   <script defer src="/app.js"></script>
   <script defer src="/day-plan.js"></script>
   <script defer src="/day-plan-ai.js"></script>
   <script defer src="/google-tasks-ui.js"></script>
+  <script defer src="/fullcalendar-ui.js"></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -223,6 +225,16 @@
                     <p class="muted">الأيام المتاحة هنا من نسخة الأسبوع المحلية فقط؛ باقي الأيام لا تعني إنها فاضية.</p>
                   </div>
                 </div>
+                <section class="fullcalendar-shell" aria-labelledby="fullcalendar-title">
+                  <div class="panel-head">
+                    <div>
+                      <p class="overline">LOCAL FULLCALENDAR · STANDARD MIT</p>
+                      <h4 id="fullcalendar-title">خط اليوم والأسبوع والشهر</h4>
+                      <p class="muted" id="fullcalendar-status" role="status">عرض محلي فقط · لا تعديل لمواعيد Google · المصادر قد تكون ناقصة</p>
+                    </div>
+                  </div>
+                  <div id="fullcalendar-view" aria-label="تقويم تفاعلي للقراءة فقط"></div>
+                </section>
                 <section class="day-plan-panel" aria-labelledby="day-plan-title">
                   <div class="day-plan-head">
                     <div>
