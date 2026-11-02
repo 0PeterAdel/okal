@@ -12,6 +12,7 @@
   <script defer src="/vanilla-calendar.min.js"></script>
   <script defer src="/app.js"></script>
   <script defer src="/day-plan.js"></script>
+  <script defer src="/google-tasks-ui.js"></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -209,6 +210,11 @@
                     <p id="calendar-focus-summary" class="muted" role="status" aria-live="polite">جارٍ عرض أحداث اليوم من بياناتك المحلية.</p>
                     <div id="calendar-focus-items" class="calendar-focus-items"></div>
                     <a class="calendar-task-link" href="#task-section">افتح مهامي لإكمال أو تعديل مهمة</a>
+                    <section class="google-tasks-focus" aria-labelledby="google-tasks-focus-title">
+                      <h5 id="google-tasks-focus-title">Google Tasks · المهام المحددة لهذا اليوم</h5>
+                      <p id="google-tasks-state" class="muted" role="status" aria-live="polite">مهام تاريخية فقط؛ لم تُحمّل بعد.</p>
+                      <div id="google-tasks-items" class="calendar-focus-items"></div>
+                    </section>
                   </div>
                   <div class="calendar-navigator-shell">
                     <p class="overline">اختر يومًا من الأسبوع المحفوظ</p>
@@ -419,6 +425,12 @@
             <small id="calendar-status" role="status" aria-live="polite">جاري التحقق من الاتصال...</small>
             <button id="calendar-connect" class="btn-secondary" type="button" disabled>ربط Google Calendar</button>
             <small id="calendar-connect-feedback" role="status" aria-live="polite"></small>
+          </div>
+          <div class="calendar-connection">
+            <span class="service-icon" aria-hidden="true">T</span>
+            <span>Google Tasks</span>
+            <small id="google-tasks-connect-state" role="status">جارٍ فحص حالة Google Tasks...</small>
+            <button id="google-tasks-connect" class="btn-secondary" type="button" disabled>ربط Google Tasks</button>
           </div>
           <div><span class="service-icon">S</span><span>Social</span><small>غير مربوط</small></div>
           <div><span class="service-icon">F</span><span>Freelance</span><small>غير مربوط</small></div>
