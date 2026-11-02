@@ -212,6 +212,7 @@ def create_app(
                 else {"state", "code", "scope", "authuser", "prompt",
                       "error", "error_description", "iss"}
                 if is_google_oauth_callback(request)
+                else {"days"} if request.url.path == "/api/v1/calendar/plan"
                 else set()
             )
             for k in request.query_params
