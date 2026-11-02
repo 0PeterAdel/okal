@@ -502,9 +502,37 @@ def sync_authorized_account(store, account="default"):
         _sync_with_window_fallback(store, account, item, service)
 
 
+def _claim_periodic_calendar_check(store, account, period_seconds):
+    """Persist a provider attempt before network access, across restarts.
+
+    This is only a lightweight local due gate, never a Google sync cursor.
+    Network failures must not cause repeat syncs at every desktop login.
+    Manual commands and OAuth consent are explicit exceptions.
+    """
+    validate_account(account)
+    if type(period_seconds) is not int or period_seconds < 1:
+        raise CalendarGoogleError("invalid_calendar_poll_period")
+    now = int(store.clock())
+    with store.connect() as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("""CREATE TABLE IF NOT EXISTS calendar_google_poll_attempts (
+            account_id TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL
+        )""")
+        previous = db.execute(
+            "SELECT attempted_at FROM calendar_google_poll_attempts "
+            "WHERE account_id=?", (account,)
+        ).fetchone()
+        if previous is not None and now - previous[0] < period_seconds:
+            return False
+        db.execute("""INSERT INTO calendar_google_poll_attempts VALUES(?,?)
+            ON CONFLICT(account_id) DO UPDATE SET
+                attempted_at=excluded.attempted_at""", (account, now))
+    return True
+
+
 class CalendarWorker:
-    """Best-effort read-only polling; worker failure never breaks local Core."""
-    def __init__(self, store, period_seconds=1800):
+    """Read-only 3-hour Google polling with a persisted restart-safe due gate."""
+    def __init__(self, store, period_seconds=10800):
         self.store, self.period = store, period_seconds
         self.stop_event = threading.Event()
         self.thread = None
@@ -517,34 +545,46 @@ class CalendarWorker:
         )
         self.thread.start()
 
+    def tick(self):
+        """Only local state is consulted until the 3-hour account gate is due."""
+        for account in configured_accounts(self.store):
+            if self.stop_event.is_set():
+                return
+            if not _claim_periodic_calendar_check(self.store, account, self.period):
+                continue
+            try:
+                service = _service(self.store, account)
+                calendars = list_calendars(service)
+            except Exception as exc:
+                record_sync_failure(
+                    self.store, account, "primary",
+                    "google_calendar_reauthorization_required"
+                    if isinstance(exc, CalendarGoogleError) and
+                    str(exc) == "google_calendar_reauthorization_required"
+                    else "google_calendar_provider_request_failed"
+                )
+                continue
+            for item in calendars[:20]:
+                if self.stop_event.is_set():
+                    return
+                if item["access"] in {"reader", "writer", "owner"}:
+                    _sync_with_window_fallback(
+                        self.store, account, item, service
+                    )
+
     def _loop(self):
-        # Initial small delay keeps desktop service bootstrap fast.
+        # Small delay keeps desktop login fast and avoids redundant startup I/O.
         if self.stop_event.wait(20):
             return
         while not self.stop_event.is_set():
-            for account in configured_accounts(self.store):
-                if self.stop_event.is_set():
-                    break
-                try:
-                    service = _service(self.store, account)
-                    calendars = list_calendars(service)
-                except Exception as exc:
-                    record_sync_failure(
-                        self.store, account, "primary",
-                        "google_calendar_reauthorization_required"
-                        if isinstance(exc, CalendarGoogleError) and
-                           str(exc) == "google_calendar_reauthorization_required"
-                        else "google_calendar_provider_request_failed"
-                    )
-                    continue
-                for item in calendars[:20]:
-                    if self.stop_event.is_set():
-                        break
-                    if item["access"] in {"reader", "writer", "owner"}:
-                        _sync_with_window_fallback(
-                            self.store, account, item, service
-                        )
-            if self.stop_event.wait(self.period):
+            try:
+                self.tick()
+            except Exception:
+                # Network/provider errors must not stop OKAL's local interface.
+                # Neither tokens nor provider messages are printed here.
+                pass
+            # Cheap local SQLite due checks, not network polling.
+            if self.stop_event.wait(min(self.period, 300)):
                 return
 
     def stop(self):
