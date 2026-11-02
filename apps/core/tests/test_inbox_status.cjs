@@ -1017,7 +1017,8 @@ test("calendar focus refuses dates outside loaded local week", () => {
   assert.equal(context.chooseCalendarFocusDate("2026-11-09"),false);
   assert.equal(context.chooseCalendarFocusDate("2026-11-01"),false);
   assert.equal(context.chooseCalendarFocusDate("<script>"),false);
-  assert.match(get("calendar-focus-summary").textContent,/مش دليل/);
+  assert.match(get("calendar-focus-summary").textContent,/غير مكتملة/);
+  assert.match(get("calendar-focus-items").children[0].textContent,/مش دليل/);
 });
 test("calendar day focus renders untrusted titles inert and clears on lock", () => {
   const { context,get } = harness();
