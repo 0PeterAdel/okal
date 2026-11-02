@@ -928,3 +928,56 @@ test("unified calendar fails visibly when cached response is invalid", () => {
   assert.match(get("calendar-coverage").textContent,/لم تكتمل مزامنة/);
   assert.match(get("calendar-slots").children[0].textContent,/لا توجد فترات/);
 });
+
+test("task work proposals clearly disclose invented block length and inert text", () => {
+  const {context,get}=harness();
+  context.renderTaskWorkProposals({
+    status:"tentative_local_plan",
+    proposals:[{task_id:"aaa",title:"<img src=x onerror=alert(1)>",
+      start_ts:1793610000,end_ts:1793611800,due_at:1793630000}],
+    unplaced_tasks:1,coverage:{},external_writes:false,
+  });
+  assert.equal(get("calendar-task-proposals").children.length,1);
+  assert.equal(get("calendar-task-proposals").children[0].children[0].textContent,
+    "<img src=x onerror=alert(1)>");
+  assert.match(get("calendar-task-proposal-status").textContent,/30 دقيقة افتراضية/);
+  assert.throws(()=>context.renderTaskWorkProposals({
+    status:"tentative_local_plan",proposals:[],coverage:{},external_writes:true,
+  }),/invalid_calendar_task_proposals/);
+  context.lock();
+  assert.equal(get("calendar-task-proposals").children.length,0);
+});
+
+test("mail candidate is never rendered as a created calendar event", () => {
+  const {context,get}=harness();
+  context.renderMailCalendarCandidate({
+    status:"owner_must_set_time",
+    title:"<svg onload=alert(1)>",evidence_quote:"tomorrow at 2",
+    start_iso:null,end_iso:null,
+    calendar_event_created:false,owner_review_required:true,external_writes:false,
+  });
+  assert.equal(get("viewer-calendar-propose-details").children[0].textContent,
+    "<svg onload=alert(1)>");
+  assert.match(get("viewer-calendar-propose-status").textContent,/لم يتم إنشاء/);
+  assert.match(get("viewer-calendar-propose-details").children[2].textContent,
+    /يحتاج إدخالًا/);
+  assert.throws(()=>context.renderMailCalendarCandidate({
+    status:"created",calendar_event_created:true,
+    owner_review_required:false,external_writes:true
+  }),/invalid_mail_calendar_proposal/);
+});
+
+test("task plan button reads only bounded local plan endpoint",async()=>{
+  const calls=[];
+  const {context,get}=harness(async (url)=>{
+    calls.push(url);
+    return response({
+      status:"blocked_by_missing_or_limited_calendar_evidence",
+      proposals:[],coverage:{},external_writes:false,
+    });
+  });
+  await get("calendar-task-propose").handlers.click();
+  assert.equal(calls.join(","),"/api/v1/calendar/review-plan?days=7");
+  assert.match(get("calendar-task-proposal-status").textContent,
+    /لا يمكن اقتراح/);
+});
