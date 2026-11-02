@@ -8,5 +8,6 @@
   "retention_days": 30,
   "daily_at": null,
   "sync_enabled": false,
+  "notify_new_mail": false,
   "send_enabled": false
 }

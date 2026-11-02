@@ -12,6 +12,7 @@ def snapshot(store):
         "local_send_enabled": False,
         "history": "not_checked",
         "sync_enabled": False,
+        "notify_new_mail": False,
         "sync": None,
         "latest_attempt": None,
         "latest_success": None,
@@ -30,6 +31,7 @@ def snapshot(store):
         timezone=cfg.timezone,
         local_send_enabled=cfg.send_enabled,
         sync_enabled=cfg.sync_enabled,
+        notify_new_mail=cfg.notify_new_mail,
     )
     from .history import local_status
 

@@ -53,6 +53,7 @@ class Config(Strict):
     send_enabled: bool = False
     trash_enabled: bool = False
     sync_enabled: bool = False
+    notify_new_mail: bool = False
 
     @field_validator("account")
     @classmethod

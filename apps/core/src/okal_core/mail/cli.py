@@ -44,6 +44,9 @@ def main(store, argv):
     commands.add_parser("status")
     c = commands.add_parser("sync")
     c.add_argument("mode", choices=("on", "off", "now", "status"))
+    c = commands.add_parser("notifications",
+                            help="Local aggregate new-mail desktop notice, OFF by default")
+    c.add_argument("mode", choices=("on","off","status"))
     commands.add_parser("doctor")
     c = commands.add_parser("assistant", help="Local Inbox Actions preview; never fetches Gmail or sends")
     c.add_argument("--view", choices=("summary", "queue"), default="summary")
@@ -144,6 +147,19 @@ def main(store, argv):
                 emit({"sync_enabled": cfg.sync_enabled,
                       "poll_seconds": 300,
                       "restart_core_service_if_worker_was_not_running": True})
+                return 0
+            if args.command == "notifications":
+                cfg = config(store)
+                if args.mode in {"on", "off"}:
+                    cfg.notify_new_mail = args.mode == "on"
+                    write_private(root(store) / "config.json", cfg.model_dump())
+                emit({
+                    "desktop_new_mail_notifications": cfg.notify_new_mail,
+                    "privacy": "generic_count_only",
+                    "delivery": "best_effort_notify_send",
+                    "gmail_push": False,
+                    "gmail_poll_seconds_if_enabled": 300,
+                })
                 return 0
             if args.command == "sync" and args.mode == "status":
                 cfg = config(store)
