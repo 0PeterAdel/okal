@@ -40,7 +40,7 @@ class AccessGate:
                 or not isinstance(team,str) or not _TEAM.fullmatch(team)
                 or not isinstance(audience,str) or not _AUD.fullmatch(audience)
                 or not isinstance(email,str) or
-                not re.fullmatch(r"[^@\s]{1,100}@[^@\s]{1,150}",email)):
+                not re.fullmatch(r"[A-Za-z0-9._%+-]{1,100}@[A-Za-z0-9.-]{2,150}",email)):
             raise ValueError("invalid_cloudflare_access_configuration")
         self.hostname=hostname
         self.issuer=f"https://{team}.cloudflareaccess.com"
