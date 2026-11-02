@@ -57,6 +57,11 @@ def create_app(
     # trust arbitrary DNS names or forwarded host headers.
     from .cloudflare_access import AccessGate
     remote_access = AccessGate.from_environment()
+    if remote_access is not None:
+        # Defense in depth: even if someone mistakenly rewrites the public
+        # Host to local "okal" in Cloudflare routing, no private read/API is
+        # passwordless. Remote mode adds a mandatory local read-key factor.
+        require_read_key = True
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}", "okal"}
     if remote_access:
         hosts.add(remote_access.hostname)
