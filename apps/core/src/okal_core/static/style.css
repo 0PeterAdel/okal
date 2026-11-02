@@ -654,3 +654,38 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   #fullcalendar-view .fc .fc-header-toolbar{display:flex;flex-wrap:wrap;gap:6px}
   #fullcalendar-view .fc .fc-toolbar-chunk{max-width:100%}
   #fullcalendar-view .fc .fc-toolbar-title{font-size:14px}}
+
+/* Owner-only external access settings: usable without visual effects. */
+.remote-settings {
+  border: 1px solid var(--line, rgba(140, 172, 196, .3));
+  border-radius: 18px;
+  padding: clamp(1rem, 2vw, 1.7rem);
+  margin-block: 1.5rem;
+  background: var(--panel, rgba(12, 28, 45, .86));
+  display: grid;
+  gap: .75rem;
+}
+.remote-settings input[type="password"] {
+  width: min(100%, 34rem);
+  border: 1px solid rgba(140, 172, 196, .42);
+  border-radius: .8rem;
+  background: rgba(6, 15, 27, .75);
+  color: inherit;
+  padding: .8rem 1rem;
+  font: inherit;
+}
+.remote-settings .remote-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: .7rem;
+  line-height: 1.65;
+}
+.remote-settings .remote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .7rem;
+}
+.remote-settings #remote-url {
+  overflow-wrap: anywhere;
+}
+.remote-settings [disabled] { opacity: .56; cursor: not-allowed; }
