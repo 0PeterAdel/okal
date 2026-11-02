@@ -1,4 +1,4 @@
-# OKAL private hostname — http://okal
+# OKAL private hostname — `http://okal`
 
 Owner-only localhost alias for OKAL on Omarchy (Arch Linux). This is
 **not a website or LAN service**. Backend remains on
@@ -45,7 +45,7 @@ No DNS/ACME, no public certificate, no Cloud or paid API.
    ```
 
    The port 80 listener must be `127.0.0.1:80`, NOT `0.0.0.0:80` or a
-   LAN address. Open exactly **http://okal/** in Firefox; no port required.
+   LAN address. Open exactly **`http://okal/`** in Firefox; no port required.
    If the browser tries a search, type the full URL including `http://`.
 
 ## Browser security + Google OAuth
