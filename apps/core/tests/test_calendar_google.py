@@ -183,15 +183,32 @@ class ProviderTests(unittest.TestCase):
         result = normalize(event, "Africa/Cairo")
         self.assertEqual(result["instance_id"], "2026-11-03T10:00:00+02:00")
 
-    def test_nonpositive_google_event_fails_with_safe_reason(self):
-        for end in ("2026-11-03T10:00:00+02:00",
-                    "2026-11-03T09:59:00+02:00"):
-            with self.subTest(end=end), self.assertRaisesRegex(
-                CalendarGoogleError, "google_calendar_event_nonpositive_interval"
-            ):
-                normalize(fixture(
-                    end={"dateTime": end},
-                ), "Africa/Cairo")
+    def test_zero_duration_timed_google_event_preserved_without_busy_block(self):
+        zero = normalize(fixture(
+            end={"dateTime": "2026-11-03T10:00:00+02:00"},
+        ), "Africa/Cairo")
+        self.assertEqual(zero["start"], zero["end"])
+        result = self.sync(FakeService({
+            "items": [fixture(end={"dateTime": "2026-11-03T10:00:00+02:00"})],
+            "nextSyncToken": "valid-instant",
+        }))
+        self.assertEqual(result["result"], "full_sync")
+        with self.store.connect() as db:
+            row = db.execute(
+                "SELECT start_ts,end_ts,busy FROM calendar_source_events"
+            ).fetchone()
+        self.assertEqual(row["start_ts"], row["end_ts"])
+        self.assertFalse(row["busy"])
+        self.assertEqual(len(__import__("okal_core.calendar_core",
+                         fromlist=["CalendarCore"]).CalendarCore(self.store).agenda(7)["items"]), 1)
+
+    def test_reversed_google_event_fails_with_safe_reason(self):
+        with self.assertRaisesRegex(
+            CalendarGoogleError, "google_calendar_event_nonpositive_interval"
+        ):
+            normalize(fixture(
+                end={"dateTime": "2026-11-03T09:59:00+02:00"},
+            ), "Africa/Cairo")
 
     def test_overlong_event_does_not_advance_calendar_sync_cursor(self):
         self.sync(FakeService({
