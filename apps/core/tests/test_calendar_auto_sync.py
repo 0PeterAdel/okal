@@ -92,10 +92,9 @@ class AutoSyncTests(unittest.TestCase):
         self.assertIn("timeMin", service.calls[2])
         self.assertNotIn("syncToken", service.calls[2])
         with self.store.connect() as db:
-            self.assertIsNone(db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='calendar_google_sync'"
-            ).fetchone())
+            self.assertEqual(db.execute(
+                "SELECT count(*) FROM calendar_google_sync"
+            ).fetchone()[0], 0)
             error = db.execute(
                 "SELECT last_error FROM calendar_google_attempts"
             ).fetchone()[0]
@@ -115,10 +114,9 @@ class AutoSyncTests(unittest.TestCase):
         self.assertEqual(result["removed_from_window"], 1)
         self.assertEqual(len(CalendarCore(self.store).agenda(7)["items"]), 1)
         with self.store.connect() as db:
-            self.assertIsNone(db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='calendar_google_sync'"
-            ).fetchone())
+            self.assertEqual(db.execute(
+                "SELECT count(*) FROM calendar_google_sync"
+            ).fetchone()[0], 0)
 
     def test_network_error_never_falls_back_or_guesses(self):
         service = Fake(RuntimeError("PRIVATE HTTP response"))
