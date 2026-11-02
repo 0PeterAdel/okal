@@ -1,11 +1,18 @@
 {
     admin off
     persist_config off
+    auto_https disable_redirects
 }
 
-# Explicit HTTP avoids ACME and certificate issuance for a private-only name.
-# Only loopback accepts requests. Never route this site to the LAN.
+# HTTPS-only private hostname, local self-hosted CA. Never listens on LAN.
+https://okal {
+    bind 127.0.0.1
+    tls internal
+    reverse_proxy 127.0.0.1:8766
+}
+
+# Only an HTTP redirect is served on local port 80.
 http://okal {
     bind 127.0.0.1
-    reverse_proxy 127.0.0.1:8766
+    redir https://okal{uri} 308
 }
