@@ -522,6 +522,8 @@ function renderUnifiedCalendar(data) {
       notes.push("فيه تقويمات محفوظة مزامنتها قديمة.");
     if (evidence.recorded_sync_failures)
       notes.push("فيه فشل مسجل في مزامنة تقويم واحد أو أكثر.");
+    if (evidence.partial_window_recovery_count)
+      notes.push("فيه تقويمات مسترجعة لفترة محدودة فقط؛ المزامنة التاريخية لم تُكتمل.");
   }
   if (coverage.coverage_verified === false)
     notes.push("لم يتم تأكيد تغطية كل التقويمات والمصادر؛ أوقات الفراغ غير متاحة حتى التحقق.");
@@ -547,7 +549,9 @@ function renderUnifiedCalendar(data) {
     const when = item.kind === "local_task" ? "آخر موعد · " +
       cairoDate(item.start_ts) :
       (item.all_day ? "يوم كامل · " + cairoDate(item.start_ts, false) :
-        cairoDate(item.start_ts) + " — " + cairoDate(item.end_ts));
+        item.start_ts === item.end_ts
+          ? "حدث لحظي · " + cairoDate(item.start_ts) + " · بدون مدة محجوزة"
+          : cairoDate(item.start_ts) + " — " + cairoDate(item.end_ts));
     entry.append(text("p", label), text("h5", item.title), text("p", when));
     list.append(entry);
   }
