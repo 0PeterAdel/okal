@@ -165,7 +165,7 @@ class UnifiedPlannerTests(unittest.TestCase):
                 self.assertEqual(client.get(
                     "/api/v1/calendar/plan?" + query, headers=auth).status_code, 422)
             self.assertEqual(client.post(
-                "/api/v1/calendar/plan", json={}, headers=auth).status_code, 401)
+                "/api/v1/calendar/plan", json={}, headers=auth).status_code, 405)
 
     def test_limit_warning_is_not_silent(self):
         self.calendar.ingest("google", "default", "primary", [
