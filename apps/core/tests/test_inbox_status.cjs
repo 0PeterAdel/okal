@@ -976,3 +976,76 @@ test("calendar zero-duration event is visibly instant and does not imply booked 
   assert.match(get("calendar-coverage").textContent,/لفترة محدودة/);
   assert.match(get("calendar-slots").children[0].textContent,/تم إيقاف/);
 });
+
+test("calendar day focus is Cairo-aware across midnight without missing events", () => {
+  const { context, get } = harness();
+  const start = Date.parse("2026-11-02T23:30:00+02:00") / 1000;
+  const end = Date.parse("2026-11-03T00:30:00+02:00") / 1000;
+  context.renderUnifiedCalendar({
+    date:"2026-11-02",window_days:7,
+    items:[
+      {kind:"calendar_event",id:["google","default","p","overnight",""],
+        provider:"google",title:"Overnight event",start_ts:start,end_ts:end,
+        all_day:false,busy:true},
+      {kind:"local_task",id:"one",title:"Deadline on 3rd",
+        start_ts:Date.parse("2026-11-03T11:00:00+02:00") / 1000,end_ts:null}
+    ],
+    conflicts:[],candidate_slots:[],counts:{calendar_events:1},
+    coverage:{last_sync:null,recent_successful_sync:false,
+      coverage_verified:false,calendar_limit_reached:false,
+      task_limit_reached:false,conflicts_truncated:false},
+    candidate_slots_status:"disabled_unverified_calendar_sources",
+  });
+  assert.equal(get("calendar-focus-items").children.some(item=>
+    item.children && item.children[1] && item.children[1].textContent === "Overnight event"),true);
+  assert.equal(context.chooseCalendarFocusDate("2026-11-03"),true);
+  const entries=get("calendar-focus-items").children;
+  assert.equal(entries.some(item=>item.children &&
+    item.children[1]?.textContent === "Overnight event"),true);
+  assert.equal(entries.some(item=>item.children &&
+    item.children[1]?.textContent === "Deadline on 3rd"),true);
+  assert.match(get("calendar-focus-summary").textContent,/1 حدث محفوظ · 1 مهمة/);
+});
+test("calendar focus refuses dates outside loaded local week", () => {
+  const { context,get } = harness();
+  context.renderUnifiedCalendar({
+    date:"2026-11-02",window_days:7,items:[],conflicts:[],
+    candidate_slots:[],counts:{},
+    coverage:{last_sync:null,recent_successful_sync:false},
+  });
+  assert.equal(context.chooseCalendarFocusDate("2026-11-08"),true);
+  assert.equal(context.chooseCalendarFocusDate("2026-11-09"),false);
+  assert.equal(context.chooseCalendarFocusDate("2026-11-01"),false);
+  assert.equal(context.chooseCalendarFocusDate("<script>"),false);
+  assert.match(get("calendar-focus-summary").textContent,/مش دليل/);
+});
+test("calendar day focus renders untrusted titles inert and clears on lock", () => {
+  const { context,get } = harness();
+  context.renderUnifiedCalendar({
+    date:"2026-11-02",window_days:7,
+    items:[{kind:"calendar_event",id:["g","p","i","t",""],provider:"google",
+      title:"<img src=x onerror=alert(1)>",start_ts:1793610000,
+      end_ts:1793613600,all_day:false,busy:true}],
+    conflicts:[],candidate_slots:[],counts:{},
+    coverage:{last_sync:null,recent_successful_sync:false},
+  });
+  const textValue = get("calendar-focus-items").children.find(e=>e.children?.length>1)
+    ?.children[1]?.textContent;
+  assert.equal(textValue,"<img src=x onerror=alert(1)>");
+  context.lock();
+  assert.equal(get("calendar-focus-items").children.length,0);
+  assert.equal(get("calendar-date-navigator").children.length,0);
+});
+test("vendored MIT calendar assets are local and credited", () => {
+  const base=path.join(__dirname,"../src/okal_core/static");
+  const html=fs.readFileSync(path.join(base,"index.html"),"utf8");
+  const js=fs.readFileSync(path.join(base,"vendor/vanilla-calendar.min.js"),"utf8");
+  const css=fs.readFileSync(path.join(base,"vendor/vanilla-calendar.min.css"),"utf8");
+  const license=fs.readFileSync(path.join(base,"vendor/vanilla-calendar.LICENSE"),"utf8");
+  assert.match(js,/vanilla-calendar/);
+  assert.match(css,/vanilla-calendar/);
+  assert.match(license,/MIT License/);
+  assert.match(license,/Yury Uvarov/);
+  assert.ok(html.indexOf('/vanilla-calendar.min.js')<html.indexOf('/app.js'));
+  assert.doesNotMatch(html,/cdn\\.jsdelivr|unpkg\\.com/);
+});
