@@ -86,7 +86,7 @@ sudo systemctl restart okal-local-proxy.service
 # Never bypass TLS verification. Export only the PUBLIC root
 # certificate (never a root or intermediate private key).
 cert="/var/lib/okal-local-proxy/caddy/pki/authorities/local/root.crt"
-for attempt in {1..12}; do
+for ((attempt=1; attempt<=12; attempt++)); do
   if sudo test -s "$cert"; then break; fi
   sleep 1
 done
@@ -104,7 +104,7 @@ if [[ -e "$out" ]]; then
     exit 1
   fi
 else
-  sudo cat "$cert" > "$out"
+  sudo cat "$cert" | tee "$out" >/dev/null
   chmod 0600 "$out"
 fi
 curl --noproxy '*' --cacert "$out" -fsS --max-time 5 \
