@@ -11,7 +11,7 @@ import re
 import ssl
 import threading
 import time
-from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
 _HOST = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 _TEAM = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
@@ -67,8 +67,11 @@ class AccessGate:
         # TLS-verified fixed Cloudflare Access team cert endpoint; no redirects
         # to arbitrary host or environment-defined proxies.
         url=self.issuer+"/cdn-cgi/access/certs"
+        class DenyRedirect(HTTPRedirectHandler):
+            def redirect_request(self, request, fp, code, msg, headers, newurl):
+                return None
         opener=build_opener(ProxyHandler({}),HTTPSHandler(
-            context=ssl.create_default_context()))
+            context=ssl.create_default_context()),DenyRedirect())
         response=opener.open(Request(url,headers={
             "Accept":"application/json","User-Agent":"OKAL-Local-Access-Gate"
         }),timeout=4)
