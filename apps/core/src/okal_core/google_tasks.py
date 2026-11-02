@@ -183,6 +183,82 @@ def sync(store, account="default", service=None):
             "local_cache_updated":True, "date_only_semantics":True}
 
 
+
+# Record only allowlisted error codes; never persist a provider response or token.
+_TASKS_SAFE_ERRORS = frozenset({
+    "google_tasks_read_failed",
+    "google_tasks_reauthorization_required",
+    "tasks_readonly_scope_required",
+    "invalid_google_tasks_response",
+    "invalid_google_tasks_pagination",
+    "google_tasks_page_budget_exceeded",
+    "google_tasks_list_budget_exceeded",
+    "google_tasks_snapshot_budget_exceeded",
+    "invalid_google_tasks_list",
+    "duplicate_google_tasks_list",
+    "invalid_google_tasks_entry",
+    "invalid_google_tasks_identity",
+    "duplicate_google_tasks_identity",
+    "invalid_google_tasks_status",
+    "invalid_google_tasks_scheduled_date",
+    "invalid_google_tasks_title",
+})
+
+
+def _record_sync_attempt(store, account, result, error=None):
+    """Last attempt is independent of the last successful cached snapshot."""
+    with store.connect() as db, db:
+        db.execute("""CREATE TABLE IF NOT EXISTS google_tasks_attempts (
+            account_id TEXT PRIMARY KEY, last_attempt INTEGER NOT NULL,
+            last_result TEXT NOT NULL, last_error TEXT
+        )""")
+        db.execute("""INSERT INTO google_tasks_attempts VALUES(?,?,?,?)
+            ON CONFLICT(account_id) DO UPDATE SET
+                last_attempt=excluded.last_attempt,
+                last_result=excluded.last_result,
+                last_error=excluded.last_error""",
+            (account, int(store.clock()), result, error))
+
+
+def sync_recorded(store, account="default"):
+    """Explicit owner sync: exclusive across CLI and HTTP background workers."""
+    import fcntl
+    import os
+
+    account = validate_account(account)
+    lock = private_directory(store.directory / "tasks" / "google") / (
+        account + ".sync.lock")
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "rb") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise GoogleTasksError("google_tasks_sync_already_running") from None
+            _record_sync_attempt(store, account, "running")
+            try:
+                result = sync(store, account)
+            except Exception as exc:
+                code = str(exc) if isinstance(exc, GoogleTasksError) else ""
+                if code not in _TASKS_SAFE_ERRORS:
+                    code = "google_tasks_read_failed"
+                _record_sync_attempt(store, account, "failed", code)
+                raise GoogleTasksError(code) from None
+            _record_sync_attempt(store, account, "complete")
+            return result
+    except OSError:
+        raise GoogleTasksError("google_tasks_sync_lock_failed") from None
+
+
+def sync_in_background(store):
+    """OAuth callback / button: never leak provider exceptions to HTTP logs."""
+    try:
+        sync_recorded(store)
+    except (GoogleTasksError, OSError):
+        # Failure is persisted as a safe code in status for owner inspection.
+        pass
+
+
 def status(store, account="default"):
     validate_account(account)
     with store.connect() as db:
@@ -193,7 +269,19 @@ def status(store, account="default"):
             "WHERE account_id=?", (account,)
         ).fetchone() if exists else None
     path = private_credentials(store, account)
-    return {"authorization": "configured_not_verified"
+    with store.connect() as db:
+        attempt_exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='google_tasks_attempts'").fetchone()
+        attempt = db.execute(
+            "SELECT last_attempt,last_result,last_error FROM google_tasks_attempts "
+            "WHERE account_id=?", (account,)
+        ).fetchone() if attempt_exists else None
+    return {"last_attempt": attempt["last_attempt"] if attempt else None,
+            "last_result": attempt["last_result"] if attempt else None,
+            "last_error": attempt["last_error"] if attempt else None,
+            "credentials_present": path.is_file(),
+            "authorization": "configured_not_verified"
             if path.is_file() and row is None else "cached"
             if row is not None else "not_connected",
             "last_success": row["last_success"] if row else None,
