@@ -106,6 +106,17 @@ class GoogleTasksTests(unittest.TestCase):
         self.assertEqual(cached(self.store)["items"][0]["task_id"],"old-id")
         self.assertEqual(status(self.store)["task_count"],1)
 
+    def test_provider_403_reports_safe_access_or_api_disabled_code(self):
+        class HttpFailure(Exception):
+            resp = type("Response", (), {"status": 403})()
+        failure = FakeService({"items":[{"id":"list-a"}]}, HttpFailure(
+            "DO NOT EXPOSE provider token and identity"
+        ))
+        with self.assertRaisesRegex(GoogleTasksError,
+            "google_tasks_access_denied_or_api_disabled"):
+            sync(self.store,service=failure)
+        self.assertFalse(cached(self.store)["connected"])
+
     def test_invalid_duplicate_or_overbudget_rejects_snapshot(self):
         samples=[
             FakeService({"items":[{"id":"duplicate"},{"id":"duplicate"}]}),
