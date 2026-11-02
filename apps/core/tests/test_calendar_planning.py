@@ -53,6 +53,9 @@ class UnifiedPlannerTests(unittest.TestCase):
         self.assertEqual(result["candidate_slots"], [])
         self.assertIsNone(result["coverage"]["last_sync"])
         self.assertFalse(result["coverage"]["availability_verified"])
+        self.assertEqual(result["candidate_slots_status"],
+                         "disabled_unverified_calendar_sources")
+        self.assertFalse(result["coverage"]["source_evidence"]["desired_sources_verified"])
         self.assertFalse(result["external_reads"])
         self.assertFalse(result["external_writes"])
         self.assertFalse(result["ai_actions_executed"])
@@ -94,14 +97,10 @@ class UnifiedPlannerTests(unittest.TestCase):
         self.assertEqual(types.count("potential_event_overlap"), 1)
         self.assertEqual(types.count("deadline_during_busy_event"), 2)
         self.assertFalse(result["coverage"]["availability_verified"])
-        self.assertTrue(all(
-            x["status"] == "candidate_not_verified"
-            for x in result["candidate_slots"]))
-        self.assertTrue(all(
-            not (int(datetime(2026, 11, 2, 10, tzinfo=CAIRO).timestamp())
-                 <= x["start_ts"] <
-                 int(datetime(2026, 11, 2, 12, tzinfo=CAIRO).timestamp()))
-            for x in result["candidate_slots"]))
+        self.assertEqual(result["candidate_slots"], [])
+        self.assertFalse(result["coverage"]["coverage_verified"])
+        self.assertEqual(
+            result["coverage"]["source_evidence"]["synced_calendar_count"], 1)
 
     def test_cancellation_and_busy_flag_do_not_create_conflicts(self):
         self.calendar.ingest("google", "default", "primary", [
@@ -138,8 +137,62 @@ class UnifiedPlannerTests(unittest.TestCase):
         self.assertEqual(data["candidate_slots"], [])
         self.now = int(datetime(2026, 11, 2, 8, tzinfo=CAIRO).timestamp())
         data = unified_plan(self.store, 1)
-        self.assertEqual(data["candidate_slots"][0]["start_ts"],
-                         int(datetime(2026, 11, 2, 9, tzinfo=CAIRO).timestamp()))
+        # Even with a recent successful checkpoint and no busy cache rows,
+        # unknown provider/account coverage cannot prove these hours are free.
+        self.assertEqual(data["candidate_slots"], [])
+        self.assertEqual(
+            data["candidate_slots_status"],
+            "disabled_unverified_calendar_sources")
+
+    def test_recent_checkpoint_zero_events_is_reported_as_incomplete(self):
+        self.sync_checkpoint()
+        result = unified_plan(self.store, 7)
+        evidence = result["coverage"]["source_evidence"]
+        self.assertEqual(evidence["synced_calendar_count"], 1)
+        self.assertEqual(evidence["recent_calendar_count"], 1)
+        self.assertEqual(evidence["cached_google_events_in_window"], 0)
+        self.assertEqual(result["candidate_slots"], [])
+        self.assertIn("zero_cached_google_events_in_window",
+                      result["coverage"]["warnings"])
+        self.assertIn("desired_calendar_sources_not_verified",
+                      result["coverage"]["warnings"])
+
+    def test_multiple_checkpoints_and_failures_are_aggregate_only(self):
+        self.calendar.ingest("google", "a-secret-account", "private-calendar",
+                             [event(event_id="TOP-SECRET-EVENT")])
+        self.sync_checkpoint()
+        with self.store.connect() as db, db:
+            db.execute(
+                "INSERT INTO calendar_google_sync VALUES(?,?,?,?,?)",
+                ("a-secret-account", "private-calendar",
+                 "private-sync-token", self.now - 10000, 20)
+            )
+            db.execute("""CREATE TABLE calendar_google_attempts (
+                account_id TEXT NOT NULL, calendar_id TEXT NOT NULL,
+                last_attempt INTEGER NOT NULL, last_error TEXT NOT NULL,
+                PRIMARY KEY(account_id,calendar_id))""")
+            db.execute(
+                "INSERT INTO calendar_google_attempts VALUES(?,?,?,?)",
+                ("a-secret-account", "private-calendar", self.now,
+                 "google_calendar_provider_request_failed")
+            )
+        result = unified_plan(self.store, 1)
+        evidence = result["coverage"]["source_evidence"]
+        self.assertEqual(evidence["synced_calendar_count"], 2)
+        self.assertEqual(evidence["recent_calendar_count"], 1)
+        self.assertEqual(evidence["stale_calendar_count"], 1)
+        self.assertEqual(evidence["recorded_sync_failures"], 1)
+        self.assertEqual(evidence["cached_google_events_in_window"], 1)
+        self.assertEqual(result["candidate_slots"], [])
+        self.assertIn("some_google_calendars_stale", result["coverage"]["warnings"])
+        self.assertIn("google_calendar_sync_failures_recorded",
+                      result["coverage"]["warnings"])
+        import json
+        serialized = json.dumps(result["coverage"])
+        self.assertNotIn("a-secret-account", serialized)
+        self.assertNotIn("private-calendar", serialized)
+        self.assertNotIn("private-sync-token", serialized)
+        self.assertNotIn("TOP-SECRET-EVENT", serialized)
 
     def test_daylight_saving_window_uses_cairo_local_midnights(self):
         self.now = int(datetime(2027, 4, 29, 8, tzinfo=CAIRO).timestamp())
