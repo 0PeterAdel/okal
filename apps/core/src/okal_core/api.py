@@ -52,7 +52,18 @@ def create_app(
     gmail_oauth = GmailOAuthWeb(store.clock)
     from .day_planner import DayPlanManager
     day_plans = DayPlanManager(store)
-    hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+    # Only the explicitly supported local reverse-proxy hostname. Never
+    # trust arbitrary DNS names or forwarded host headers.
+    hosts = {f"127.0.0.1:{port}", f"localhost:{port}", "okal"}
+
+    def oauth_loopback_host(request):
+        """Desktop Google OAuth only accepts a loopback redirect, not 'okal'.
+
+        The browser can use http://okal, but the authorization code must be
+        returned to the existing direct localhost port, preserving PKCE.
+        """
+        host = request.headers.get("host", "")
+        return f"127.0.0.1:{port}" if host == "okal" else host
 
     # Never let a future privileged /api/ endpoint inherit passwordless access.
     local_read_paths = {
@@ -848,7 +859,7 @@ def create_app(
         from .mail.contracts import MailError
         await action_payload(request, set())
         try:
-            return gmail_oauth.start(store, request.headers["host"])
+            return gmail_oauth.start(store, oauth_loopback_host(request))
         except MailError as exc:
             raise HTTPException(409, str(exc)) from None
         except (OSError, ValueError):
@@ -889,7 +900,7 @@ def create_app(
         from .calendar_google import CalendarGoogleError
         await action_payload(request, set())
         try:
-            return calendar_oauth.start(store, request.headers["host"])
+            return calendar_oauth.start(store, oauth_loopback_host(request))
         except CalendarGoogleError as exc:
             raise HTTPException(409, str(exc)) from None
 
@@ -942,7 +953,7 @@ def create_app(
     async def start_google_tasks_oauth(request: Request):
         await action_payload(request, set())
         try:
-            return tasks_oauth.start(store, request.headers["host"])
+            return tasks_oauth.start(store, oauth_loopback_host(request))
         except ValueError:
             raise HTTPException(409, "tasks_oauth_unavailable") from None
 
