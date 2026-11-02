@@ -1058,6 +1058,9 @@ test("local Plan My Day requires selected task estimates before preview", async 
   const id="a".repeat(32);
   context.renderTasks({items:[{id,title:"Improve UX",due_at:null}],
     total_in_sample:1,overdue_in_sample:0});
+  context.renderUnifiedCalendar({date:"2026-11-02",window_days:7,
+    items:[],conflicts:[],candidate_slots:[],counts:{},
+    coverage:{last_sync:null,recent_successful_sync:false}});
   const row=get("day-plan-tasks").children[0];
   assert.equal(row.children.length,3);
   assert.equal(row.children[1].value,"");
