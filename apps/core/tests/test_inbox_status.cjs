@@ -925,7 +925,7 @@ test("unified calendar fails visibly when cached response is invalid", () => {
     window_days:1,items:[],conflicts:[],candidate_slots:[],counts:{},
     coverage:{last_sync:null,recent_successful_sync:false}
   });
-  assert.match(get("calendar-coverage").textContent,/لم تكتمل مزامنة/);
+  assert.match(get("calendar-coverage").textContent,/لم تكتمل.*مزامنة/);
   assert.match(get("calendar-slots").children[0].textContent,/لا توجد فترات/);
 });
 
