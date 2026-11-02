@@ -208,6 +208,11 @@
                 <h4>فترات مرشحة · 30 دقيقة</h4>
                 <p class="muted">الاقتراحات مبنية على البيانات المحفوظة وأوقات افتراضية من 09:00 إلى 18:00 بتوقيت القاهرة. ليست تأكيدًا للتفرغ.</p>
                 <div id="calendar-slots" class="calendar-slots"></div>
+                <h4>خطة عمل مقترحة للمهام</h4>
+                <p class="muted">30 دقيقة افتراضية لكل مهمة، مش تقدير لمدة إنجازها. المواعيد للعرض والمراجعة فقط.</p>
+                <button type="button" id="calendar-task-propose" class="btn-secondary">اقترح وقت للمهام</button>
+                <p id="calendar-task-proposal-status" class="muted" role="status" aria-live="polite"></p>
+                <div id="calendar-task-proposals" class="calendar-task-proposals"></div>
               </div>
             </div>
           </section>
@@ -270,8 +275,13 @@
             <button id="viewer-mark-unread" class="btn-secondary" type="button" disabled>Mark Unread</button>
             <button id="viewer-archive" class="btn-secondary" type="button" disabled>Archive</button>
             <button id="viewer-create-task" class="btn-secondary" type="button" disabled>إنشاء Task</button>
+            <button id="viewer-calendar-propose" class="btn-secondary" type="button" disabled>اقتراح موعد بالـ AI</button>
             <span id="viewer-action-note" class="muted" role="status"></span>
           </div>
+          <section class="calendar-mail-proposal" aria-label="اقتراح موعد من البريد" aria-live="polite">
+            <p id="viewer-calendar-propose-status" class="muted"></p>
+            <div id="viewer-calendar-propose-details"></div>
+          </section>
           <details id="viewer-task-options" class="viewer-reply-panel">
             <summary>اختياري · تأكيد موعد المهمة من هذا البريد</summary>
             <p class="muted">اكتب الموعد بنفسك إن كان مؤكدًا. تركه فارغًا ينشئ Task بدون موعد.</p>
