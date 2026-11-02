@@ -11,8 +11,8 @@ deadline**; the Google Tasks API discards the time portion. OKAL stores
 at midnight. Google Task items are independent records; *do not duplicate*
 them into `local_tasks`.
 
-Official docs: https://developers.google.com/workspace/tasks/reference/rest/v1/tasks
-and https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/list
+Official docs: [Google Tasks resource](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks)
+and [Tasks.list method](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/list)
 
 ## Operator / owner connection
 
