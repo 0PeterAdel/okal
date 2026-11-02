@@ -57,7 +57,7 @@ class IdleBenchmarkTests(unittest.TestCase):
 
     def test_measure_has_no_network_and_bounded_sample_parameters(self):
         ticks=[100,105,110]
-        times=[0.0,5.0,10.0]
+        times=[0.0,0.0,5.0,10.0]
         with patch.object(bench.os,"sysconf",return_value=100):
             r=bench.measure(3,5,pid_reader=lambda:123,
                 sampler=lambda pid:{"pid":pid,"cpu_ticks":ticks.pop(0),
