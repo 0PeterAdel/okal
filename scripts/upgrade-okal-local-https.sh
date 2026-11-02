@@ -83,7 +83,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now okal-local-proxy.service
 sudo systemctl restart okal-local-proxy.service
 
-# Do NOT use curl -k or bypass verification. Export only the PUBLIC root
+# Never bypass TLS verification. Export only the PUBLIC root
 # certificate (never a root or intermediate private key).
 cert="/var/lib/okal-local-proxy/caddy/pki/authorities/local/root.crt"
 for attempt in {1..12}; do
