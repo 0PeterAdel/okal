@@ -115,7 +115,18 @@ def main():
     c.add_argument("--confirm-access-policy",action="store_true",required=True)
     sub.add_parser("off")
     sub.add_parser("status")
+    sub.add_parser("ui-key")
     a=p.parse_args()
+    if a.action=="ui-key":
+        sys.path.insert(0,str(ROOT/"apps/core/src"))
+        from okal_core.remote_control import issue_control_key
+        if not sys.stdout.isatty():
+            raise ValueError("remote_control_key_requires_private_terminal")
+        key=issue_control_key()
+        print("One-day Remote Settings control key (shown only now):")
+        print(key)
+        print("Enter this key in OKAL local Settings. Never paste it in chat.")
+        return
     if a.action=="status":
         try: cfg=parse_env()
         except ValueError: cfg=None
@@ -215,7 +226,20 @@ def main():
 
 if __name__=="__main__":
     try:
-        main()
+        if len(sys.argv)>1 and sys.argv[1] in ("on","off"):
+            # Serialize operator CLI and UI actions in the same private lock.
+            import fcntl
+            DIR.mkdir(mode=0o700,parents=True,exist_ok=True)
+            fd=os.open(DIR/"remote-action.lock",
+                       os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+            with os.fdopen(fd,"rb") as stream:
+                fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                main()
+        else:
+            main()
+    except BlockingIOError:
+        print("OKAL remote: another remote transition is running",file=sys.stderr)
+        raise SystemExit(1)
     except (ValueError,OSError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("OKAL remote: safe stop — "+str(exc),file=sys.stderr)
         raise SystemExit(1)
