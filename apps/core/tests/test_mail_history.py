@@ -112,8 +112,8 @@ class HistoryTests(unittest.TestCase):
         digest = self.store.list_summaries()["items"][0]["body"]
         self.assertLessEqual(len(digest), 12000)
         self.assertIn("Action required", digest)
-        self.assertIn("PREVIEW", digest)
-        self.assertIn("omitted", digest.lower())
+        self.assertIn("https://mail.google.com/", digest)
+        self.assertNotIn("digest_output_budget_exceeded", digest)
         self.assertEqual(local_status(self.store, self.cfg.account)["state"],
                          "checkpoint_saved")
         # Idempotence: replay must not reprocess the same 30 messages.
@@ -139,6 +139,8 @@ class HistoryTests(unittest.TestCase):
         self.assertIn("history expired", digest)
         self.assertIn("deletion or unavailable", digest)
         self.assertIn("Manual review required", digest)
+        self.assertIn("PREVIEW", digest)
+        self.assertIn("omitted", digest.lower())
 
     def test_first_sync_catches_up_from_previous_digest_watermark(self):
         from okal_core.mail.state import MailState
