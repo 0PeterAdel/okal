@@ -437,7 +437,7 @@ def briefing(account, start, end, observations, deleted=0,
 
     if any(omitted.values()) or omitted_quarantines:
         lines += [
-            "⚠ Digest display is compacted, not an incomplete Gmail sync.",
+            "⚠ Digest preview was compacted; check separate sync coverage warnings below.",
             "Entries omitted from this PREVIEW / عناصر مختصرة من العرض فقط: " +
             ", ".join(f"{key}={count}" for key, count in omitted.items()) +
             f", manual_review={omitted_quarantines}.",
