@@ -119,6 +119,7 @@ function resetMailStatus() {
   el("calendar-focus-items").replaceChildren();
   el("calendar-date-navigator").replaceChildren();
   if (typeof resetDayPlanUI === "function") resetDayPlanUI();
+  if (typeof clearFullCalendar === "function") clearFullCalendar();
   el("calendar-coverage").textContent = "بيانات التقويم مخفية؛ اقرأ النسخة المحلية مجددًا.";
   for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
     el(id).replaceChildren();
@@ -712,6 +713,7 @@ function renderUnifiedCalendar(data) {
       "لا تعارضات مرصودة في العناصر المحفوظة، لكن المصدر قد يكون ناقصًا.",
       "muted"));
 
+  if (typeof renderFullCalendar === "function") renderFullCalendar(data);
   const slots = el("calendar-slots");
   slots.replaceChildren();
   for (const slot of data.candidate_slots) {
@@ -735,6 +737,8 @@ async function loadUnifiedCalendar(options, active) {
     const data = await response.json();
     if (active !== generation || request !== calendarRequestSequence) return;
     renderUnifiedCalendar(data);
+    if (typeof loadFullCalendarSavedPlans === "function")
+      await loadFullCalendarSavedPlans(options, active);
   } catch (error) {
     if (active !== generation || request !== calendarRequestSequence ||
         error.name === "AbortError") return;
@@ -742,6 +746,7 @@ async function loadUnifiedCalendar(options, active) {
       "تعذر قراءة الجدول المحلي؛ لا تعتبر المعلومات القديمة مؤكدة.";
     calendarSnapshot = null;
     calendarDatePicker = null;
+    if (typeof clearFullCalendar === "function") clearFullCalendar();
     if (typeof invalidateDayPlanApproval === "function")
       invalidateDayPlanApproval();
     el("calendar-focus-summary").textContent =
