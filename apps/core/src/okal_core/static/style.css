@@ -595,3 +595,41 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   .calendar-day-focus-shell{gap:10px}
   .calendar-navigator-shell{padding:10px}
   .calendar-navigator-shell .vanilla-calendar{max-width:350px;margin-inline:auto}}
+
+/* Approved-local day planning; all tentative blocks originate on-device. */
+.day-plan-panel{margin:16px 0;border:1px solid var(--line-strong);
+  border-radius:15px;padding:17px;background:var(--surface-raised);min-width:0}
+.day-plan-head h4{font-size:20px;line-height:1.5;margin:0 0 5px}
+.day-plan-head .muted,.day-plan-form>.muted{font-size:12px;line-height:1.8;margin:5px 0 12px}
+.day-plan-form{display:grid;gap:12px}
+.day-plan-hours{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.day-plan-hours label{font-size:13px;color:var(--muted);font-weight:650}
+.day-plan-hours input{min-height:44px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--line-strong);border-radius:9px;padding:7px 10px}
+.day-plan-task-list{display:grid;gap:10px;min-width:0}
+.day-plan-task-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(108px,125px)
+  minmax(106px,130px);align-items:center;gap:9px;padding:9px;
+  border:1px solid var(--line);border-radius:11px;background:var(--surface)}
+.day-plan-task-row label{display:flex;align-items:center;gap:9px;min-width:0;
+  cursor:pointer;font-size:13px;overflow-wrap:anywhere}
+.day-plan-task-row input[type="checkbox"]{width:19px;height:19px;accent-color:var(--accent);
+  flex:0 0 19px}
+.day-plan-task-row select{min-width:0;min-height:44px;background:var(--surface-raised);
+  color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;
+  padding:7px 8px;font-size:12px}
+.day-plan-panel button{min-height:44px}
+.day-plan-review,.day-plan-saved{display:grid;gap:8px;margin:12px 0;min-width:0}
+.day-plan-review:empty,.day-plan-saved:empty{display:none}
+.day-plan-proposed-block,.day-plan-saved-item{border:1px solid var(--line);
+  border-inline-start:3px solid var(--accent);border-radius:10px;padding:10px 13px;
+  background:var(--surface)}
+.day-plan-proposed-block h5,.day-plan-saved-item h5{margin:0 0 5px;font-size:13px;
+  overflow-wrap:anywhere}
+.day-plan-proposed-block p,.day-plan-saved-item p{margin:2px 0;font-size:12px;
+  color:var(--muted);line-height:1.65}
+.day-plan-unscheduled{color:var(--amber);font-size:13px;padding:8px}
+.day-plan-actions{display:flex;gap:8px;flex-wrap:wrap}
+.day-plan-actions button{flex:1;min-width:165px}
+@media(max-width:760px){.day-plan-task-row{grid-template-columns:1fr 1fr}
+  .day-plan-task-row label{grid-column:1/-1}
+  .day-plan-panel{padding:12px}}

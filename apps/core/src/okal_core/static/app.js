@@ -118,6 +118,7 @@ function resetMailStatus() {
   el("calendar-focus-summary").textContent = "اختر التقويم لعرض يومك.";
   el("calendar-focus-items").replaceChildren();
   el("calendar-date-navigator").replaceChildren();
+  if (typeof resetDayPlanUI === "function") resetDayPlanUI();
   el("calendar-coverage").textContent = "بيانات التقويم مخفية؛ اقرأ النسخة المحلية مجددًا.";
   for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
     el(id).replaceChildren();
@@ -581,6 +582,8 @@ function chooseCalendarFocusDate(chosen) {
   const last = calendarLastDate(start, calendarSnapshot.window_days - 1);
   if (chosen < start || chosen > last) return false;
   calendarFocusedDate = chosen;
+  if (typeof invalidateDayPlanApproval === "function")
+    invalidateDayPlanApproval();
   renderCalendarDayFocus(calendarSnapshot);
   return true;
 }
@@ -739,6 +742,8 @@ async function loadUnifiedCalendar(options, active) {
       "تعذر قراءة الجدول المحلي؛ لا تعتبر المعلومات القديمة مؤكدة.";
     calendarSnapshot = null;
     calendarDatePicker = null;
+    if (typeof invalidateDayPlanApproval === "function")
+      invalidateDayPlanApproval();
     el("calendar-focus-summary").textContent =
       "تعذر قراءة بيانات اليوم؛ لا تعتمد على العرض القديم.";
     for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots",
@@ -810,6 +815,8 @@ function renderTasks(result) {
     throw new Error("invalid local tasks payload");
   const list=el("tasks-list");
   list.replaceChildren();
+  if (typeof renderDayPlanTaskOptions === "function")
+    renderDayPlanTaskOptions(result.items);
   el("tasks-count").textContent =
     result.total_in_sample + " مفتوحة · " +
     (result.overdue_in_sample || 0) + " متأخرة";

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/style.css" />
   <script defer src="/vanilla-calendar.min.js"></script>
   <script defer src="/app.js"></script>
+  <script defer src="/day-plan.js"></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -215,6 +216,33 @@
                     <p class="muted">الأيام المتاحة هنا من نسخة الأسبوع المحلية فقط؛ باقي الأيام لا تعني إنها فاضية.</p>
                   </div>
                 </div>
+                <section class="day-plan-panel" aria-labelledby="day-plan-title">
+                  <div class="day-plan-head">
+                    <div>
+                      <p class="overline">PLAN MY DAY · OWNER REVIEW</p>
+                      <h4 id="day-plan-title">رتّب يومي</h4>
+                      <p class="muted">اختار المهام وحدّد وقتها المتوقع؛ OKAL يقترح توزيعها حول المواعيد المحفوظة. الأوقات تقديرية وليست تأكيدًا للتفرغ.</p>
+                    </div>
+                  </div>
+                  <form id="day-plan-form" class="day-plan-form">
+                    <div class="day-plan-hours">
+                      <label for="day-plan-start">ابدأ من</label>
+                      <input id="day-plan-start" type="time" step="900" value="09:00" required />
+                      <label for="day-plan-end">لحد</label>
+                      <input id="day-plan-end" type="time" step="900" value="18:00" required />
+                    </div>
+                    <p class="muted">9 صباحًا – 6 مساءً مجرد مثال، غيّر ساعات يومك قبل التخطيط.</p>
+                    <div id="day-plan-tasks" class="day-plan-task-list"></div>
+                    <button type="submit" class="btn-primary" id="day-plan-preview">اقترح خطة اليوم</button>
+                  </form>
+                  <p id="day-plan-feedback" class="muted" role="status" aria-live="polite">بدون AI مدفوع أو تعديل لمواعيد Google.</p>
+                  <div id="day-plan-review" class="day-plan-review"></div>
+                  <div class="day-plan-actions">
+                    <button type="button" id="day-plan-save" class="btn-secondary" disabled>أوافق — احفظ محليًا فقط</button>
+                    <button type="button" id="day-plan-history" class="btn-ghost">آخر الخطط المحفوظة</button>
+                  </div>
+                  <div id="day-plan-saved" class="day-plan-review"></div>
+                </section>
                 <details id="calendar-week-details" class="calendar-week-details">
                   <summary>كل الأحداث والمهام في النطاق <span id="calendar-count" class="counter-pill">—</span></summary>
                   <div id="calendar-items" class="calendar-items"></div>

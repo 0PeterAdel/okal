@@ -48,6 +48,8 @@ def create_app(
     calendar_oauth = CalendarOAuthWeb(store.clock)
     from .mail.web_oauth import GmailOAuthWeb, CALLBACK as GMAIL_CALLBACK
     gmail_oauth = GmailOAuthWeb(store.clock)
+    from .day_planner import DayPlanManager
+    day_plans = DayPlanManager(store)
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     # Never let a future privileged /api/ endpoint inherit passwordless access.
@@ -58,6 +60,7 @@ def create_app(
         "/api/v1/tasks/history", "/api/v1/calendar/agenda",
         "/api/v1/calendar/availability", "/api/v1/calendar/status",
         "/api/v1/calendar/plan",
+        "/api/v1/calendar/day-plan/saved",
         "/api/v1/mail/oauth/status",
     }
 
@@ -85,7 +88,9 @@ def create_app(
                 "/api/v1/mail/reply-drafts/preview-send",
                 "/api/v1/mail/reply-drafts/confirm-send",
                 "/api/v1/calendar/oauth/start",
-                "/api/v1/mail/oauth/start"
+                "/api/v1/mail/oauth/start",
+                "/api/v1/calendar/day-plan/preview",
+                "/api/v1/calendar/day-plan/confirm"
             }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
@@ -940,6 +945,35 @@ def create_app(
             raise HTTPException(422, "invalid_unified_plan_window")
         return unified_plan(store, days=days)
 
+    @app.post("/api/v1/calendar/day-plan/preview")
+    async def preview_local_day_plan(request: Request):
+        """Explicit owner time estimates; no provider/LLM I/O or durable plan."""
+        payload = await action_payload(
+            request, {"date", "work_start", "work_end", "tasks"}
+        )
+        try:
+            return day_plans.preview(payload)
+        except (ValueError, TypeError):
+            raise HTTPException(422, "invalid_local_day_plan") from None
+
+    @app.post("/api/v1/calendar/day-plan/confirm")
+    async def confirm_local_day_plan(request: Request):
+        """Single-use owner confirmation saves private SQLite blocks ONLY."""
+        payload = await action_payload(
+            request, {"confirmation_token", "confirmed"}
+        )
+        try:
+            return day_plans.confirm(
+                payload["confirmation_token"], payload["confirmed"]
+            )
+        except (ValueError, TypeError):
+            raise HTTPException(409, "local_day_plan_preview_expired_or_changed") from None
+
+    @app.get("/api/v1/calendar/day-plan/saved")
+    def read_local_saved_day_plans():
+        """Private locally approved plan history, no Google write semantics."""
+        return day_plans.saved()
+
     @app.post("/api/v1/tasks/create")
     async def local_task_create(request: Request):
         from .task_planner import TaskPlanner
@@ -1003,6 +1037,11 @@ def create_app(
     @app.get("/app.js")
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
+
+    @app.get("/day-plan.js")
+    def local_day_plan_script():
+        """Self-hosted browser action UI; no paid or external scripts."""
+        return FileResponse(STATIC / "day-plan.js", media_type="text/javascript")
 
     @app.get("/mail-oauth-return.js")
     def mail_oauth_return_script():

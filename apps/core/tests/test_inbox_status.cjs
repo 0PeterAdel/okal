@@ -58,6 +58,7 @@ function harness(fetcher) {
       : fetcher(url,options),
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/okal_core/static/app.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/okal_core/static/day-plan.js"), "utf8"), context);
   return { context, get, navLinks };
 }
 const configured = {
@@ -1049,4 +1050,69 @@ test("vendored MIT calendar assets are local and credited", () => {
   assert.match(license,/Yury Uvarov/);
   assert.ok(html.indexOf('/vanilla-calendar.min.js')<html.indexOf('/app.js'));
   assert.doesNotMatch(html,/cdn\\.jsdelivr|unpkg\\.com/);
+});
+
+test("local Plan My Day requires selected task estimates before preview", async () => {
+  const calls=[];
+  const {context,get}=harness(async url=>{calls.push(url);return response({});});
+  const id="a".repeat(32);
+  context.renderTasks({items:[{id,title:"Improve UX",due_at:null}],
+    total_in_sample:1,overdue_in_sample:0});
+  context.renderUnifiedCalendar({date:"2026-11-02",window_days:7,
+    items:[],conflicts:[],candidate_slots:[],counts:{},
+    coverage:{last_sync:null,recent_successful_sync:false}});
+  const row=get("day-plan-tasks").children[0];
+  assert.equal(row.children.length,3);
+  assert.equal(row.children[1].value,"");
+  await get("day-plan-form").handlers.submit({preventDefault(){}});
+  assert.equal(calls.length,0);
+  assert.match(get("day-plan-feedback").textContent,/اختار مهمة/);
+  row.children[0].children[0].checked=true;
+  await get("day-plan-form").handlers.submit({preventDefault(){}});
+  assert.equal(calls.length,0);
+  assert.match(get("day-plan-feedback").textContent,/اختار مدة/);
+});
+test("local Plan My Day previews and saves without ever writing to Google",async()=>{
+  const calls=[];
+  const {context,get}=harness(async (url,options)=>{
+    calls.push({url,options});
+    if (url==="/api/v1/calendar/day-plan/preview")
+      return response({blocks:[{title:"Study",minutes:60,
+        start_ts:1793610000,end_ts:1793613600}],
+        unplaced:[],confirmation_token:"OWNER_TICKET"});
+    if (url==="/api/v1/calendar/day-plan/confirm")
+      return response({blocks_saved:1,google_events_created:0,external_writes:false});
+    if (url==="/api/v1/calendar/day-plan/saved")
+      return response({items:[{date:"2026-11-02",blocks:[{
+        title:"Study",start_ts:1793610000,end_ts:1793613600}]}]});
+    throw Error("unexpected endpoint:"+url);
+  });
+  const id="b".repeat(32);
+  context.renderTasks({items:[{id,title:"Study",due_at:null}],
+    total_in_sample:1,overdue_in_sample:0});
+  context.renderUnifiedCalendar({date:"2026-11-02",window_days:7,
+    items:[],conflicts:[],candidate_slots:[],counts:{},
+    coverage:{last_sync:null,recent_successful_sync:false}});
+  const row=get("day-plan-tasks").children[0];
+  row.children[0].children[0].checked=true;
+  row.children[1].value="60";
+  get("day-plan-start").value="09:00";
+  get("day-plan-end").value="18:00";
+  await get("day-plan-form").handlers.submit({preventDefault(){}});
+  assert.equal(calls[0].url,"/api/v1/calendar/day-plan/preview");
+  assert.equal(JSON.parse(calls[0].options.body).tasks[0].minutes,60);
+  assert.equal(get("day-plan-save").disabled,false);
+  assert.match(get("day-plan-review").children[1].children[0].textContent,/Study/);
+  await get("day-plan-save").handlers.click();
+  assert.deepEqual(calls.map(x=>x.url),[
+    "/api/v1/calendar/day-plan/preview",
+    "/api/v1/calendar/day-plan/confirm",
+    "/api/v1/calendar/day-plan/saved"
+  ]);
+  assert.equal(JSON.parse(calls[1].options.body).confirmed,true);
+  assert.match(get("day-plan-feedback").textContent,/محليًا فقط/);
+  assert.match(get("day-plan-saved").children[0].children[1].textContent,/Study/);
+  context.lock();
+  assert.equal(get("day-plan-saved").children.length,0);
+  assert.equal(get("day-plan-save").disabled,true);
 });
