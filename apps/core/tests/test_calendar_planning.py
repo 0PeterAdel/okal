@@ -220,6 +220,27 @@ class UnifiedPlannerTests(unittest.TestCase):
             self.assertEqual(client.post(
                 "/api/v1/calendar/plan", json={}, headers=auth).status_code, 405)
 
+    def test_self_hosted_mit_calendar_assets_require_no_external_cdn(self):
+        with TestClient(
+            create_app(self.store),
+            base_url="http://127.0.0.1:8766",
+            client=("127.0.0.1", 1234),
+        ) as client:
+            for endpoint, mimetype, marker in (
+                ("/vanilla-calendar.min.js", "text/javascript", b"vanilla-calendar"),
+                ("/vanilla-calendar.min.css", "text/css", b"vanilla-calendar"),
+            ):
+                with self.subTest(endpoint=endpoint):
+                    response = client.get(endpoint)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn(mimetype, response.headers["content-type"])
+                    self.assertIn(marker, response.content)
+                    self.assertIn("no-store", response.headers["cache-control"])
+                    self.assertIn("script-src", response.headers["content-security-policy"])
+            html = client.get("/").text
+            self.assertIn('src="/vanilla-calendar.min.js"', html)
+            self.assertNotIn("cdn.jsdelivr.net", html)
+
     def test_limit_warning_is_not_silent(self):
         self.calendar.ingest("google", "default", "primary", [
             event("event-" + str(index), start="2026-11-02T10:00:00+02:00",
