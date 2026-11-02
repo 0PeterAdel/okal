@@ -332,7 +332,14 @@
 
         <p id="message" role="status" aria-live="polite" class="global-message"></p>
         <section id="integrations" class="integrations" aria-label="حالة ربط الخدمات">
-          <div><span class="service-icon">G</span><span>Gmail</span><small id="mail-status">جاري القراءة</small></div>
+          <div class="mail-connection" aria-labelledby="gmail-connect-label">
+            <span class="service-icon" aria-hidden="true">G</span>
+            <span id="gmail-connect-label">Gmail</span>
+            <small id="mail-status">جاري القراءة</small>
+            <small id="gmail-oauth-status" role="status" aria-live="polite">جاري فحص التفويض المحلي...</small>
+            <button id="gmail-connect" type="button" class="btn-secondary" disabled>ربط Gmail</button>
+            <small id="gmail-connect-feedback" role="status" aria-live="polite"></small>
+          </div>
           <div class="calendar-connection" aria-labelledby="calendar-connect-label">
             <span class="service-icon" aria-hidden="true">C</span>
             <span id="calendar-connect-label">Google Calendar</span>
