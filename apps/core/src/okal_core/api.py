@@ -45,7 +45,9 @@ def create_app(
     from .mail.approval import PendingTrashConfirmations
     approvals = PendingTrashConfirmations(store.clock)
     from .calendar_web_oauth import CalendarOAuthWeb, CALLBACK
+    from .google_tasks_oauth import TasksOAuthWeb, CALLBACK as TASKS_CALLBACK
     calendar_oauth = CalendarOAuthWeb(store.clock)
+    tasks_oauth = TasksOAuthWeb(store.clock)
     from .mail.web_oauth import GmailOAuthWeb, CALLBACK as GMAIL_CALLBACK
     gmail_oauth = GmailOAuthWeb(store.clock)
     from .day_planner import DayPlanManager
@@ -61,6 +63,7 @@ def create_app(
         "/api/v1/calendar/availability", "/api/v1/calendar/status",
         "/api/v1/calendar/plan",
         "/api/v1/calendar/day-plan/saved",
+        "/api/v1/google-tasks/status", "/api/v1/google-tasks/cached",
         "/api/v1/mail/oauth/status",
     }
 
@@ -88,8 +91,10 @@ def create_app(
                 "/api/v1/mail/reply-drafts/preview-send",
                 "/api/v1/mail/reply-drafts/confirm-send",
                 "/api/v1/calendar/oauth/start",
+                "/api/v1/google-tasks/oauth/start",
                 "/api/v1/mail/oauth/start",
                 "/api/v1/calendar/day-plan/preview",
+                "/api/v1/calendar/day-plan/ai-suggest",
                 "/api/v1/calendar/day-plan/confirm"
             }
             and request.method == "POST"
@@ -115,7 +120,7 @@ def create_app(
         origin = request.headers.get("origin")
         return (
             request.method == "GET"
-            and request.url.path in {CALLBACK, GMAIL_CALLBACK}
+            and request.url.path in {CALLBACK, GMAIL_CALLBACK, TASKS_CALLBACK}
             and origin in (None, "null", "https://accounts.google.com",
                            f"http://{host}")
             and request.headers.get("sec-fetch-mode") in (None, "navigate")
@@ -921,6 +926,51 @@ def create_app(
             STATIC / "calendar-oauth-complete.html", media_type="text/html"
         )
 
+
+    @app.get("/api/v1/google-tasks/status")
+    def local_google_tasks_status():
+        from .google_tasks import status
+        from .calendar_web_oauth import client_available
+        return {"sync": status(store), "oauth_client_ready":client_available(store)}
+
+    @app.get("/api/v1/google-tasks/cached")
+    def local_google_tasks_cached():
+        from .google_tasks import cached
+        return cached(store)
+
+    @app.post("/api/v1/google-tasks/oauth/start")
+    async def start_google_tasks_oauth(request: Request):
+        await action_payload(request, set())
+        try:
+            return tasks_oauth.start(store, request.headers["host"])
+        except ValueError:
+            raise HTTPException(409, "tasks_oauth_unavailable") from None
+
+    @app.get("/api/v1/google-tasks/oauth/callback")
+    def finish_google_tasks_oauth(request: Request, background_tasks: BackgroundTasks):
+        params = request.query_params
+        if (len(params.getlist("state")) != 1
+                or len(params.getlist("code")) > 1
+                or len(params.getlist("iss")) > 1
+                or ("iss" in params and
+                    params.get("iss") != "https://accounts.google.com")):
+            return FileResponse(STATIC / "calendar-oauth-error.html",
+                                media_type="text/html", status_code=400)
+        try:
+            tasks_oauth.finish(
+                store, params.get("state"), params.get("code"),
+                params.get("error"),
+            )
+        except ValueError:
+            return FileResponse(STATIC / "calendar-oauth-error.html",
+                                media_type="text/html", status_code=400)
+        from .google_tasks import sync
+        # Explicit initial callback is the ONLY background fetch added here.
+        # Later updates use the operator CLI; dashboard GET is purely cached.
+        background_tasks.add_task(sync, store)
+        return FileResponse(STATIC / "tasks-oauth-complete.html",
+                            media_type="text/html")
+
     @app.get("/api/v1/calendar/status")
     def local_calendar_status():
         """Cached sync status only; no provider calls or OAuth information."""
@@ -944,6 +994,26 @@ def create_app(
         if days not in (1, 7):
             raise HTTPException(422, "invalid_unified_plan_window")
         return unified_plan(store, days=days)
+
+    @app.post("/api/v1/calendar/day-plan/ai-suggest")
+    async def local_ai_day_plan_suggestions(request: Request):
+        """Explicit owner click only, localhost Ollama, no plan confirmation."""
+        from .day_plan_ai import PlannerAIError, suggest
+        payload = await action_payload(request, {"task_ids"})
+        try:
+            return suggest(store, payload["task_ids"])
+        except PlannerAIError as error:
+            code=str(error)
+            # Never leak raw model/provider responses or private task titles.
+            raise HTTPException(
+                503 if code=="local_ai_unavailable" else 422,
+                code if code in {
+                    "local_ai_unavailable","invalid_ai_task_selection",
+                    "ai_task_not_open","incomplete_task_source",
+                    "invalid_local_ai_model","invalid_local_ai_estimates",
+                    "local_ai_request_too_large","local_ai_response_too_large"
+                } else "invalid_local_ai_estimates"
+            ) from None
 
     @app.post("/api/v1/calendar/day-plan/preview")
     async def preview_local_day_plan(request: Request):
@@ -1038,6 +1108,11 @@ def create_app(
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    @app.get("/day-plan-ai.js")
+    def day_plan_ai_script():
+        return FileResponse(STATIC / "day-plan-ai.js",
+                            media_type="text/javascript")
+
     @app.get("/fullcalendar-standard.min.js")
     def local_fullcalendar_vendor():
         """Self-hosted MIT asset, explicitly installed by the owner."""
@@ -1055,6 +1130,11 @@ def create_app(
     def local_day_plan_script():
         """Self-hosted browser action UI; no paid or external scripts."""
         return FileResponse(STATIC / "day-plan.js", media_type="text/javascript")
+
+    @app.get("/google-tasks-ui.js")
+    def google_tasks_local_ui_script():
+        return FileResponse(STATIC / "google-tasks-ui.js",
+                            media_type="text/javascript")
 
     @app.get("/mail-oauth-return.js")
     def mail_oauth_return_script():

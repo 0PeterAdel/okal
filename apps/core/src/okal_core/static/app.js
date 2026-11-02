@@ -118,6 +118,7 @@ function resetMailStatus() {
   el("calendar-focus-summary").textContent = "اختر التقويم لعرض يومك.";
   el("calendar-focus-items").replaceChildren();
   el("calendar-date-navigator").replaceChildren();
+  if (typeof resetGoogleTasksView === "function") resetGoogleTasksView();
   if (typeof resetDayPlanUI === "function") resetDayPlanUI();
   if (typeof clearFullCalendar === "function") clearFullCalendar();
   el("calendar-coverage").textContent = "بيانات التقويم مخفية؛ اقرأ النسخة المحلية مجددًا.";
@@ -586,6 +587,8 @@ function chooseCalendarFocusDate(chosen) {
   if (typeof invalidateDayPlanApproval === "function")
     invalidateDayPlanApproval();
   renderCalendarDayFocus(calendarSnapshot);
+  if (typeof renderGoogleTasksDay === "function")
+    renderGoogleTasksDay(chosen);
   return true;
 }
 function mountCalendarDateNavigator(data) {
@@ -737,6 +740,8 @@ async function loadUnifiedCalendar(options, active) {
     const data = await response.json();
     if (active !== generation || request !== calendarRequestSequence) return;
     renderUnifiedCalendar(data);
+    if (typeof loadGoogleTasksSnapshot === "function")
+      await loadGoogleTasksSnapshot(options, active);
     if (typeof loadFullCalendarSavedPlans === "function")
       await loadFullCalendarSavedPlans(options, active);
   } catch (error) {
@@ -747,6 +752,7 @@ async function loadUnifiedCalendar(options, active) {
     calendarSnapshot = null;
     calendarDatePicker = null;
     if (typeof clearFullCalendar === "function") clearFullCalendar();
+    if (typeof resetGoogleTasksView === "function") resetGoogleTasksView();
     if (typeof invalidateDayPlanApproval === "function")
       invalidateDayPlanApproval();
     el("calendar-focus-summary").textContent =

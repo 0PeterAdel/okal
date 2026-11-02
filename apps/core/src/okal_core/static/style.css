@@ -633,7 +633,6 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
 @media(max-width:760px){.day-plan-task-row{grid-template-columns:1fr 1fr}
   .day-plan-task-row label{grid-column:1/-1}
   .day-plan-panel{padding:12px}}
-
 /* FullCalendar Standard MIT, locally installed. Source coverage never verified. */
 .fullcalendar-shell{margin:14px 0 18px;border:1px solid var(--line-strong);
   border-radius:15px;padding:14px;background:var(--surface-raised);min-width:0}

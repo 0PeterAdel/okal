@@ -13,6 +13,8 @@
   <script defer src="/fullcalendar-standard.min.js"></script>
   <script defer src="/app.js"></script>
   <script defer src="/day-plan.js"></script>
+  <script defer src="/day-plan-ai.js"></script>
+  <script defer src="/google-tasks-ui.js"></script>
   <script defer src="/fullcalendar-ui.js"></script>
 </head>
 <body>
@@ -211,6 +213,11 @@
                     <p id="calendar-focus-summary" class="muted" role="status" aria-live="polite">جارٍ عرض أحداث اليوم من بياناتك المحلية.</p>
                     <div id="calendar-focus-items" class="calendar-focus-items"></div>
                     <a class="calendar-task-link" href="#task-section">افتح مهامي لإكمال أو تعديل مهمة</a>
+                    <section class="google-tasks-focus" aria-labelledby="google-tasks-focus-title">
+                      <h5 id="google-tasks-focus-title">Google Tasks · المهام المحددة لهذا اليوم</h5>
+                      <p id="google-tasks-state" class="muted" role="status" aria-live="polite">مهام تاريخية فقط؛ لم تُحمّل بعد.</p>
+                      <div id="google-tasks-items" class="calendar-focus-items"></div>
+                    </section>
                   </div>
                   <div class="calendar-navigator-shell">
                     <p class="overline">اختر يومًا من الأسبوع المحفوظ</p>
@@ -245,6 +252,8 @@
                     </div>
                     <p class="muted">9 صباحًا – 6 مساءً مجرد مثال، غيّر ساعات يومك قبل التخطيط.</p>
                     <div id="day-plan-tasks" class="day-plan-task-list"></div>
+                    <button type="button" class="btn-secondary" id="day-plan-ai-suggest">اقترح مدة وأولوية المهام باستخدام Ollama المحلي</button>
+                    <p id="day-plan-ai-feedback" class="muted" role="status" aria-live="polite">اختياري · توصيات AI ليست قرارات نهائية ولا تُطبَّق تلقائيًا.</p>
                     <button type="submit" class="btn-primary" id="day-plan-preview">اقترح خطة اليوم</button>
                   </form>
                   <p id="day-plan-feedback" class="muted" role="status" aria-live="polite">بدون AI مدفوع أو تعديل لمواعيد Google.</p>
@@ -431,6 +440,12 @@
             <small id="calendar-status" role="status" aria-live="polite">جاري التحقق من الاتصال...</small>
             <button id="calendar-connect" class="btn-secondary" type="button" disabled>ربط Google Calendar</button>
             <small id="calendar-connect-feedback" role="status" aria-live="polite"></small>
+          </div>
+          <div class="calendar-connection">
+            <span class="service-icon" aria-hidden="true">T</span>
+            <span>Google Tasks</span>
+            <small id="google-tasks-connect-state" role="status">جارٍ فحص حالة Google Tasks...</small>
+            <button id="google-tasks-connect" class="btn-secondary" type="button" disabled>ربط Google Tasks</button>
           </div>
           <div><span class="service-icon">S</span><span>Social</span><small>غير مربوط</small></div>
           <div><span class="service-icon">F</span><span>Freelance</span><small>غير مربوط</small></div>
