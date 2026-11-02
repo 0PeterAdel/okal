@@ -47,7 +47,26 @@ curl --noproxy '*' -fsS --max-time 4 \
   exit 1
 }
 
+# Refuse other port-80 listeners for a clean new installation.
+if ! systemctl is-active --quiet okal-local-proxy.service && \
+   [[ -n "$(ss -H -lnt '( sport = :80 )')" ]]; then
+  echo "STOP: Port 80 already used" >&2
+  exit 1
+fi
+
 sudo -v
+# Only support exact local mapping; do not override other /etc/hosts entries.
+if awk '$1 !~ /^#/ {for(i=2;i<=NF;i++) if($i=="okal" && $1!="127.0.0.1") bad=1} END{exit !bad}' /etc/hosts; then
+  echo "STOP: Existing okal alias points outside loopback" >&2
+  exit 1
+fi
+if ! awk '$1=="127.0.0.1" {for(i=2;i<=NF;i++) if($i=="okal") ok=1} END{exit !ok}' /etc/hosts; then
+  hosts_backup="/etc/hosts.okal-pre-https-$(date +%Y%m%d-%H%M%S)"
+  sudo cp -p /etc/hosts "$hosts_backup"
+  printf '\n127.0.0.1 okal\n' | sudo tee -a /etc/hosts >/dev/null
+  echo "Backed up hosts: $hosts_backup"
+fi
+
 backup="$(sudo mktemp -d /etc/okal-https-backup-XXXXXXXX)"
 echo "System configuration backup: $backup"
 if sudo test -f /etc/okal/Caddyfile; then
