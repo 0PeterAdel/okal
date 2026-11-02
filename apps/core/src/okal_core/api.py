@@ -95,6 +95,7 @@ def create_app(
         "/api/v1/calendar/plan",
         "/api/v1/calendar/day-plan/saved",
         "/api/v1/google-tasks/status", "/api/v1/google-tasks/cached",
+        "/api/v1/remote/status",
         "/api/v1/mail/oauth/status",
     }
 
@@ -124,6 +125,7 @@ def create_app(
                 "/api/v1/calendar/oauth/start",
                 "/api/v1/google-tasks/oauth/start",
                 "/api/v1/google-tasks/sync",
+                "/api/v1/remote/switch",
                 "/api/v1/mail/oauth/start",
                 "/api/v1/calendar/day-plan/preview",
                 "/api/v1/calendar/day-plan/ai-suggest",
@@ -991,6 +993,38 @@ def create_app(
         )
 
 
+    @app.get("/api/v1/remote/status")
+    def remote_settings_status():
+        """Non-secret local state; no Access authentication or tunnel startup."""
+        from .remote_control import status as remote_status
+        try:
+            return remote_status()
+        except ValueError:
+            raise HTTPException(503,"remote_status_unavailable") from None
+
+    @app.post("/api/v1/remote/switch",status_code=202)
+    async def switch_remote_settings(request: Request):
+        """Explicit local HTTPS owner action with a separate short-lived key."""
+        if request.headers.get("host") != "okal":
+            raise HTTPException(409,"remote_owner_local_https_only")
+        payload = await action_payload(request,
+            {"action","control_key","confirm_access_policy"})
+        from .remote_control import switch as remote_switch
+        try:
+            return remote_switch(payload["action"],payload["control_key"],
+                                 payload["confirm_access_policy"])
+        except PermissionError:
+            raise HTTPException(403,"remote_owner_control_key_required") from None
+        except ValueError as exc:
+            # Return stable allowlisted errors, never subprocess output.
+            code=str(exc)
+            allowed={"invalid_remote_action",
+                     "cloudflare_access_policy_confirmation_required",
+                     "remote_not_configured","remote_action_launch_failed",
+                     "remote_status_unavailable"}
+            raise HTTPException(409, code if code in allowed
+                                else "remote_action_rejected") from None
+
     @app.get("/api/v1/google-tasks/status")
     def local_google_tasks_status():
         from .google_tasks import status
@@ -1207,6 +1241,11 @@ def create_app(
     def local_day_plan_script():
         """Self-hosted browser action UI; no paid or external scripts."""
         return FileResponse(STATIC / "day-plan.js", media_type="text/javascript")
+
+    @app.get("/remote-settings-ui.js")
+    def remote_settings_ui_script():
+        return FileResponse(STATIC / "remote-settings-ui.js",
+                            media_type="text/javascript")
 
     @app.get("/google-tasks-ui.js")
     def google_tasks_local_ui_script():

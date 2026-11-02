@@ -15,6 +15,7 @@
   <script defer src="/day-plan.js"></script>
   <script defer src="/day-plan-ai.js"></script>
   <script defer src="/google-tasks-ui.js"></script>
+  <script defer src="/remote-settings-ui.js"></script>
   <script defer src="/fullcalendar-ui.js"></script>
 </head>
 <body>
@@ -46,6 +47,7 @@
       </nav>
       <div class="sidebar-section-label">SYSTEM</div>
       <div class="sidebar-system">
+        <a class="nav-item" href="#settings-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-plug"></use></svg></span><span>الإعدادات</span><span class="nav-english">Settings</span></a>
         <a class="nav-item" href="#integrations"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-plug"></use></svg></span><span>الاتصالات</span></a>
         <span class="system-note"><span class="presence-dot" aria-hidden="true"></span> Local-first · يعمل على جهازك</span>
         <p>إرسال البريد أو تغيير حالته أو نقله إلى Trash يتطلب منك مراجعة وتأكيدًا صريحًا.</p>
@@ -451,6 +453,24 @@
           </div>
           <div><span class="service-icon">S</span><span>Social</span><small>غير مربوط</small></div>
           <div><span class="service-icon">F</span><span>Freelance</span><small>غير مربوط</small></div>
+        </section>
+        <section id="settings-section" class="remote-settings" aria-labelledby="remote-settings-title">
+          <p class="overline">SECURE ACCESS · LOCAL FIRST</p>
+          <h3 id="remote-settings-title">إعدادات الوصول الخارجي · Remote Access</h3>
+          <p class="muted">اتصالك المحلي: <a href="https://okal/">https://okal/</a>. التشغيل الخارجي اختياري ومغلق افتراضيًا، ويتطلب Cloudflare Access وOKAL read-key.</p>
+          <p id="remote-status" role="status" aria-live="polite">جاري فحص حالة Cloudflare Tunnel...</p>
+          <p>الرابط الخارجي: <a id="remote-url" href="#settings-section" target="_blank" rel="noopener noreferrer" hidden></a><span id="remote-no-url">غير مهيأ</span></p>
+          <label for="remote-control-key">مفتاح تحكم المالك (صالِح 24 ساعة، يصدر من Terminal)</label>
+          <input id="remote-control-key" type="password" autocomplete="off" spellcheck="false" placeholder="Owner control key" />
+          <p class="muted">لإنشاء المفتاح محليًا فقط: <code>python3 scripts/okal-remote.py ui-key</code>. لا تحفظ المفتاح في المتصفح أو ترسله لأي شخص.</p>
+          <label class="remote-confirm"><input id="remote-confirm-policy" type="checkbox" /> أتأكد أن Cloudflare Access يسمح لحسابي فقط، والتونل مُعد مسبقًا.</label>
+          <div class="remote-actions">
+            <button id="remote-enable" class="btn-primary" type="button" disabled>تشغيل الوصول الخارجي</button>
+            <button id="remote-disable" class="btn-secondary" type="button" disabled>إيقاف الوصول الخارجي</button>
+            <button id="remote-refresh" class="btn-secondary" type="button">تحديث الحالة</button>
+          </div>
+          <p id="remote-feedback" role="status" aria-live="polite"></p>
+          <p class="muted">الزر يطلب تشغيل خدمة المستخدم عبر systemd فقط؛ لا يعني نجاح الوصول العام حتى التحقق من Cloudflare Access على جهازك. التحكم من الرابط الخارجي ممنوع.</p>
         </section>
         <footer><span>OKAL · Your private personal workspace</span><span>Local-first · Gmail needs an internet connection</span></footer>
       </main>
