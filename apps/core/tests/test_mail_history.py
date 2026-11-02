@@ -93,6 +93,53 @@ class HistoryTests(unittest.TestCase):
         self.api = Provider(self.now)
         self.model = Model()
 
+    def test_long_message_metadata_does_not_stall_history_checkpoint(self):
+        """Full per-message evidence persists even when preview is compacted."""
+        self.api.items = {}
+        for index in range(30):
+            mid = format(4096 + index, "x")
+            original = incoming(mid, self.now - 100)
+            self.api.items[mid] = original.model_copy(update={
+                "subject": "S" * 490,
+                "sender": "Sender <" + "a" * 850 + "@example.com>",
+            })
+        outcome = run(self.store, self.cfg, self.api, self.model)
+        self.assertEqual(outcome["processed"], 30)
+        self.assertEqual(HistoryState(self.store).current(self.cfg.account)["cursor"],
+                         "100")
+        self.assertEqual(len(HistoryState(self.store).recent(
+            self.cfg.account, limit=50)), 30)
+        digest = self.store.list_summaries()["items"][0]["body"]
+        self.assertLessEqual(len(digest), 12000)
+        self.assertIn("Action required", digest)
+        self.assertIn("PREVIEW", digest)
+        self.assertIn("omitted", digest.lower())
+        self.assertEqual(local_status(self.store, self.cfg.account)["state"],
+                         "checkpoint_saved")
+        # Idempotence: replay must not reprocess the same 30 messages.
+        self.assertEqual(run(self.store, self.cfg, self.api, self.model)["processed"], 0)
+
+    def test_compaction_preserves_pending_and_recovery_warnings(self):
+        from okal_core.mail.history import briefing
+        observations = []
+        for index in range(30):
+            message = incoming(format(6000 + index, "x"), self.now - 100)
+            message = message.model_copy(update={"subject": "X" * 490,
+                                                "sender": "S" * 900})
+            insight = Insight(
+                source_id=message.id, category="information",
+                summary="محتوى مهم" * 24, suggested_action="Review the source" * 8,
+            )
+            observations.append((message, insight))
+        digest = briefing(self.cfg.account, self.now - 60, self.now,
+                          observations, deleted=2, recovered=True, pending=True,
+                          quarantines=[("aa","unreadable_message")])
+        self.assertLessEqual(len(digest), 12000)
+        self.assertIn("checkpoint is NOT complete", digest)
+        self.assertIn("history expired", digest)
+        self.assertIn("deletion or unavailable", digest)
+        self.assertIn("Manual review required", digest)
+
     def test_first_sync_catches_up_from_previous_digest_watermark(self):
         from okal_core.mail.state import MailState
 
