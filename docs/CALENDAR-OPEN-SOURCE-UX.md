@@ -12,8 +12,7 @@ available on demand behind a native `details` panel.
 
 ### Code sources and licensing
 
-- **Vendored production source:** [Vanilla Calendar]
-  (https://github.com/senese/vanilla-calendar) by Yury Uvarov,
+- **Vendored production source:** [Vanilla Calendar](https://github.com/senese/vanilla-calendar) by Yury Uvarov,
   **MIT**. Exact upstream Git commit:
   `688a381e76e80750ca25f9a72866ba2b6c4cf747`.
   Directly copied *unmodified*:
@@ -23,20 +22,17 @@ available on demand behind a native `details` panel.
   Authors retain copyright; see `vanilla-calendar.LICENSE`.
   Includes no runtime analytics, remote calls, or paid features.
   This component provides **date selection**, not automatic scheduling.
-- **Future event-time grid:** [FullCalendar Standard]
-  (https://fullcalendar.io/license), MIT. Day/week/month timeline, event
+- **Future event-time grid:** [FullCalendar Standard](https://fullcalendar.io/license), MIT. Day/week/month timeline, event
   density, responsive controls. No source from FullCalendar is copied in
   this PR; its v7 build requires a JavaScript bundling/Temporal integration
   that should be measured separately.
-- **Product-pattern research only:** [Horolog]
-  (https://github.com/ujjwalredd/horolog), AGPL-3.0:
+- **Product-pattern research only:** [Horolog](https://github.com/ujjwalredd/horolog), AGPL-3.0:
   stable deadline-aware re-planning, local Ollama, preserving existing blocks.
   [Atomic](https://github.com/Cephren/atomic), AGPL-3.0:
   priorities, time constraints, task templates. No code copied from either,
   to avoid accidentally imposing reciprocal license obligations on the
   current private repo or future product.
-- **UX-pattern research only:** [Open Sunsama]
-  (https://github.com/ShadowWalker2014/open-sunsama) uses a custom
+- **UX-pattern research only:** [Open Sunsama](https://github.com/ShadowWalker2014/open-sunsama) uses a custom
   non-commercial license; its day planning, focus mode and time-boxing
   patterns are useful, but source reuse is excluded.
 
