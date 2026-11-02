@@ -545,3 +545,53 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   min-height:44px;width:100%;font-size:12px;justify-content:center;
 }
 .integrations .mail-connection small{overflow-wrap:anywhere;line-height:1.6;}
+
+/* Day Focus: lightweight MIT Vanilla Calendar navigation inside OKAL.
+   Library assets are vendored and self-hosted; no CDN or custom JS framework. */
+.calendar-primary{min-width:0}
+.calendar-day-focus-shell{display:grid;grid-template-columns:minmax(0,1fr) 282px;
+  gap:14px;align-items:start;margin-bottom:16px}
+.calendar-day-focus-body{min-width:0;min-height:300px;padding:18px;
+  border-radius:15px;border:1px solid var(--line-strong);background:var(--surface-raised)}
+.calendar-day-focus-body h4{font-size:21px;font-weight:750;line-height:1.5;margin:0 0 8px}
+.calendar-day-focus-body>.muted{font-size:13px;line-height:1.85;margin:0 0 18px}
+.calendar-focus-items{display:grid;gap:9px;margin:12px 0}
+.calendar-focus-entry{border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+  background:var(--surface);border-inline-start:3px solid var(--blue)}
+.calendar-focus-entry p{font-size:12px;color:var(--muted);margin:0 0 3px}
+.calendar-focus-entry h5{font-size:13px;margin:0;line-height:1.6;overflow-wrap:anywhere}
+.calendar-next-action{margin:0 0 12px;padding:10px 12px;border:1px solid var(--accent-soft);
+  border-radius:10px;background:var(--accent-soft);color:var(--ink);font-size:13px;
+  overflow-wrap:anywhere}
+.calendar-task-link{display:inline-flex;align-items:center;min-height:44px;
+  color:var(--accent);font-weight:650;font-size:13px}
+.calendar-navigator-shell{border:1px solid var(--line);border-radius:15px;
+  padding:12px;min-width:0;background:var(--surface-raised)}
+.calendar-navigator-shell>.muted{font-size:11px;line-height:1.65;margin:8px 0 0}
+.calendar-date-navigator{min-height:238px;color:var(--ink)}
+.calendar-date-navigator .vanilla-calendar{width:100%;max-width:100%;min-width:0;
+  border:0;box-shadow:none;background:var(--surface-raised);color:var(--ink);padding:6px}
+.calendar-date-navigator .vanilla-calendar-months,
+.calendar-date-navigator .vanilla-calendar-years,
+.calendar-date-navigator .vanilla-calendar-day,
+.calendar-date-navigator .vanilla-calendar-months__month,
+.calendar-date-navigator .vanilla-calendar-years__year{
+  background:var(--surface-raised);color:var(--ink)}
+.calendar-date-navigator .vanilla-calendar-day__btn{color:var(--ink);
+  background:var(--surface-raised);border-radius:9px}
+.calendar-date-navigator .vanilla-calendar-day__btn:hover{background:var(--surface-hover)}
+.calendar-date-navigator .vanilla-calendar-day__btn_selected,
+.calendar-date-navigator .vanilla-calendar-day__btn_selected:hover{
+  background:var(--accent-soft);color:var(--accent);outline:1px solid var(--accent)}
+.calendar-date-navigator .vanilla-calendar-day__btn_disabled{opacity:.32}
+.calendar-date-navigator .vanilla-calendar-week__day{color:var(--muted)}
+.calendar-week-details{border:1px solid var(--line);border-radius:13px;background:var(--surface);
+  padding:0 14px}
+.calendar-week-details>summary{cursor:pointer;min-height:48px;padding:10px 2px;
+  font-weight:650;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.calendar-week-details .calendar-items{padding-bottom:14px}
+@media(max-width:1100px){.calendar-day-focus-shell{grid-template-columns:1fr}}
+@media(max-width:620px){.calendar-day-focus-body{padding:13px}
+  .calendar-day-focus-shell{gap:10px}
+  .calendar-navigator-shell{padding:10px}
+  .calendar-navigator-shell .vanilla-calendar{max-width:350px;margin-inline:auto}}

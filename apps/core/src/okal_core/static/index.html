@@ -7,7 +7,9 @@
   <meta name="theme-color" content="#0B1019" />
   <meta name="description" content="OKAL — private offline-first personal command center." />
   <title>OKAL — Your personal command center</title>
+  <link rel="stylesheet" href="/vanilla-calendar.min.css" />
   <link rel="stylesheet" href="/style.css" />
+  <script defer src="/vanilla-calendar.min.js"></script>
   <script defer src="/app.js"></script>
 </head>
 <body>
@@ -198,9 +200,25 @@
             </div>
             <p id="calendar-coverage" class="calendar-coverage" role="status" aria-live="polite">جارٍ قراءة بيانات التقويم المحفوظة...</p>
             <div class="calendar-layout">
-              <div>
-                <h4>الجدول الموحد <span id="calendar-count" class="counter-pill">—</span></h4>
-                <div id="calendar-items" class="calendar-items"></div>
+              <div class="calendar-primary">
+                <div class="calendar-day-focus-shell">
+                  <div class="calendar-day-focus-body">
+                    <p class="overline">DAY FOCUS · MY TIME</p>
+                    <h4 id="calendar-focus-date">يومك الحالي</h4>
+                    <p id="calendar-focus-summary" class="muted" role="status" aria-live="polite">جارٍ عرض أحداث اليوم من بياناتك المحلية.</p>
+                    <div id="calendar-focus-items" class="calendar-focus-items"></div>
+                    <a class="calendar-task-link" href="#task-section">افتح مهامي لإكمال أو تعديل مهمة</a>
+                  </div>
+                  <div class="calendar-navigator-shell">
+                    <p class="overline">اختر يومًا من الأسبوع المحفوظ</p>
+                    <div id="calendar-date-navigator" class="calendar-date-navigator" aria-label="اختيار تاريخ محلي داخل الأسبوع"></div>
+                    <p class="muted">الأيام المتاحة هنا من نسخة الأسبوع المحلية فقط؛ باقي الأيام لا تعني إنها فاضية.</p>
+                  </div>
+                </div>
+                <details id="calendar-week-details" class="calendar-week-details">
+                  <summary>كل الأحداث والمهام في النطاق <span id="calendar-count" class="counter-pill">—</span></summary>
+                  <div id="calendar-items" class="calendar-items"></div>
+                </details>
               </div>
               <div class="calendar-insights">
                 <h4>تعارضات محتملة</h4>

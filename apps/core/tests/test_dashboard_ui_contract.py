@@ -58,7 +58,9 @@ class DashboardContractTests(unittest.TestCase):
         for href in self.dom.hrefs:
             if href.startswith("#"):
                 self.assertIn(href[1:], ids)
-        self.assertEqual(self.dom.scripts, ["/app.js"])
+        self.assertEqual(self.dom.scripts, ["/vanilla-calendar.min.js", "/app.js"])
+        self.assertIn('href="/vanilla-calendar.min.css"', self.html)
+        self.assertTrue((STATIC / "vendor" / "vanilla-calendar.LICENSE").is_file())
         self.assertIn('href="/style.css"', self.html)
         self.assertNotIn("fonts.googleapis.com", self.html)
         # An original Gmail message is displayed only in a sandboxed frame.

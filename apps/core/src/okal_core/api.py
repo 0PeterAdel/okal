@@ -1020,4 +1020,19 @@ def create_app(
     def styles():
         return FileResponse(STATIC / "style.css", media_type="text/css")
 
+    @app.get("/vanilla-calendar.min.js")
+    def local_calendar_library():
+        """Pinned MIT dependency, self-hosted on localhost."""
+        return FileResponse(
+            STATIC / "vendor" / "vanilla-calendar.min.js",
+            media_type="text/javascript",
+        )
+
+    @app.get("/vanilla-calendar.min.css")
+    def local_calendar_library_styles():
+        return FileResponse(
+            STATIC / "vendor" / "vanilla-calendar.min.css",
+            media_type="text/css",
+        )
+
     return app

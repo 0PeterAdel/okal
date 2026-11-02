@@ -10,6 +10,9 @@ let generation = 0;
 let busy = false;
 let calendarWindowDays = 7;
 let calendarRequestSequence = 0;
+let calendarFocusedDate = null;
+let calendarSnapshot = null;
+let calendarDatePicker = null;
 const selectedInfo = new Set();
 let selectableInfoIds = [];
 let selectionAnchor = null;
@@ -107,7 +110,14 @@ function resetMailStatus() {
   el("tasks-count").textContent = "لم يتم التحميل";
   el("tasks-note").textContent = "مهام محلية بموافقتك؛ لا إنشاء أحداث في Google Calendar.";
   calendarRequestSequence += 1;
+  calendarFocusedDate = null;
+  calendarSnapshot = null;
+  calendarDatePicker = null;
   el("calendar-count").textContent = "—";
+  el("calendar-focus-date").textContent = "يومك الحالي";
+  el("calendar-focus-summary").textContent = "اختر التقويم لعرض يومك.";
+  el("calendar-focus-items").replaceChildren();
+  el("calendar-date-navigator").replaceChildren();
   el("calendar-coverage").textContent = "بيانات التقويم مخفية؛ اقرأ النسخة المحلية مجددًا.";
   for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
     el(id).replaceChildren();
@@ -496,6 +506,111 @@ function cairoDate(seconds, withTime = true) {
   return new Intl.DateTimeFormat("ar-EG", options).format(
     new Date(Number(seconds) * 1000));
 }
+// Display dates in Cairo, never the viewer's system zone. All-day event
+// ends are EXCLUSIVE; midnight must not produce a phantom second-day event.
+function cairoDayKey(epochSeconds) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(Number(epochSeconds) * 1000));
+  const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return values.year + "-" + values.month + "-" + values.day;
+}
+function calendarLastDate(start, offset) {
+  const midday = Date.parse(start + "T12:00:00Z");
+  return new Date(midday + offset * 86400000).toISOString().slice(0, 10);
+}
+function itemOccursOnCalendarDay(item, selected) {
+  const first = cairoDayKey(item.start_ts);
+  if (item.kind === "local_task") return first === selected;
+  const finalSecond = item.end_ts > item.start_ts ?
+    item.end_ts - 1 : item.start_ts;
+  return first <= selected && selected <= cairoDayKey(finalSecond);
+}
+function renderCalendarDayFocus(data) {
+  const start = data.date || cairoDayKey(Date.now() / 1000);
+  const last = calendarLastDate(start, data.window_days - 1);
+  if (!calendarFocusedDate || calendarFocusedDate < start ||
+      calendarFocusedDate > last) calendarFocusedDate = start;
+
+  const selected = calendarFocusedDate;
+  el("calendar-focus-date").textContent =
+    new Intl.DateTimeFormat("ar-EG", {
+      timeZone: "UTC", weekday:"long", day:"numeric",
+      month:"long", year:"numeric"
+    }).format(new Date(selected + "T12:00:00Z"));
+
+  const entries = data.items.filter(item => itemOccursOnCalendarDay(item, selected));
+  const meetings = entries.filter(item => item.kind === "calendar_event");
+  const deadlines = entries.filter(item => item.kind === "local_task");
+  el("calendar-focus-summary").textContent =
+    meetings.length + " حدث محفوظ · " + deadlines.length +
+    " مهمة لها موعد · عرض محلي، قد تكون مصادر Google غير مكتملة.";
+
+  const list = el("calendar-focus-items");
+  list.replaceChildren();
+  const now = Date.now() / 1000;
+  const inFuture = entries.find(item => item.start_ts >= now);
+  if (inFuture) {
+    const next = document.createElement("p");
+    next.className = "calendar-next-action";
+    next.textContent = "القادم في بياناتك: " + inFuture.title +
+      " · " + cairoDate(inFuture.start_ts);
+    list.append(next);
+  }
+  for (const item of entries.slice(0, 12)) {
+    const article = document.createElement("article");
+    article.className = "calendar-focus-entry";
+    const label = item.kind === "local_task" ? "موعد تسليم مهمة" :
+      item.all_day ? "حدث طول اليوم" :
+      item.start_ts === item.end_ts ? "حدث لحظي" : "حدث تقويم";
+    const when = item.all_day ? "يوم كامل" : cairoDate(item.start_ts);
+    article.append(text("p", label + " · " + when),
+                   text("h5", item.title));
+    list.append(article);
+  }
+  if (entries.length > 12)
+    list.append(text("p", "فيه عناصر إضافية؛ افتح قائمة الأسبوع أسفل.", "muted"));
+  if (!entries.length)
+    list.append(text("p",
+      "مافيش أحداث أو مهام محفوظة لليوم ده. ده مش دليل إن الوقت متاح.",
+      "muted"));
+}
+function chooseCalendarFocusDate(chosen) {
+  if (!calendarSnapshot || !/^\d{4}-\d{2}-\d{2}$/.test(chosen)) return false;
+  const start = calendarSnapshot.date;
+  const last = calendarLastDate(start, calendarSnapshot.window_days - 1);
+  if (chosen < start || chosen > last) return false;
+  calendarFocusedDate = chosen;
+  renderCalendarDayFocus(calendarSnapshot);
+  return true;
+}
+function mountCalendarDateNavigator(data) {
+  const container = el("calendar-date-navigator");
+  const start = data.date || cairoDayKey(Date.now() / 1000);
+  const last = calendarLastDate(start, data.window_days - 1);
+  if (!window.VanillaCalendar) {
+    // Safe fallback: the day-focus summary is still fully available.
+    container.textContent = "محدد الأيام المحلي غير متاح. استخدم زر اليوم أو 7 أيام.";
+    return;
+  }
+  if (calendarDatePicker) return;
+  calendarDatePicker = new window.VanillaCalendar("#calendar-date-navigator", {
+    settings: {
+      lang: "ar", iso8601: true,
+      selection: { day:"single", month:false, year:false },
+      selected: { dates: [calendarFocusedDate] },
+      range: { min: start, max: last },
+    },
+    actions: {
+      clickDay(event) {
+        const date = event.target && event.target.dataset ?
+          event.target.dataset.calendarDay : null;
+        if (date) chooseCalendarFocusDate(date);
+      },
+    },
+  });
+  calendarDatePicker.init();
+}
 function renderUnifiedCalendar(data) {
   if (!data || !Array.isArray(data.items) ||
       !Array.isArray(data.conflicts) || !Array.isArray(data.candidate_slots) ||
@@ -533,6 +648,17 @@ function renderUnifiedCalendar(data) {
     notes.push("عدد التعارضات أكبر من حد التحليل المعروض.");
   el("calendar-coverage").textContent = notes.join(" ");
   el("calendar-count").textContent = String(data.items.length) + " عنصر";
+  calendarSnapshot = data;
+  renderCalendarDayFocus(data);
+  // The picker is regenerated only when the server window changes.
+  if (calendarDatePicker &&
+      calendarDatePicker._okalWindow !== data.date + ":" + data.window_days) {
+    el("calendar-date-navigator").replaceChildren();
+    calendarDatePicker = null;
+  }
+  mountCalendarDateNavigator(data);
+  if (calendarDatePicker)
+    calendarDatePicker._okalWindow = data.date + ":" + data.window_days;
   el("calendar-day").setAttribute("aria-pressed", String(data.window_days === 1));
   el("calendar-week").setAttribute("aria-pressed", String(data.window_days === 7));
 
@@ -611,7 +737,12 @@ async function loadUnifiedCalendar(options, active) {
         error.name === "AbortError") return;
     el("calendar-coverage").textContent =
       "تعذر قراءة الجدول المحلي؛ لا تعتبر المعلومات القديمة مؤكدة.";
-    for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
+    calendarSnapshot = null;
+    calendarDatePicker = null;
+    el("calendar-focus-summary").textContent =
+      "تعذر قراءة بيانات اليوم؛ لا تعتمد على العرض القديم.";
+    for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots",
+                      "calendar-focus-items", "calendar-date-navigator"])
       el(id).replaceChildren();
     el("calendar-count").textContent = "غير متاح";
   }
