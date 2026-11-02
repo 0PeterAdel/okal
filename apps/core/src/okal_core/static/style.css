@@ -227,6 +227,14 @@ main{padding:clamp(23px,3vw,42px);max-width:1600px;margin:auto;min-width:0}
 @media(max-width:900px){.calendar-layout{grid-template-columns:1fr}}
 @media(max-width:620px){.calendar-layout{padding:0 13px}.calendar-coverage{margin-inline:13px}
   .calendar-view-switch{width:100%}.calendar-view-switch button{flex:1}}
+.calendar-task-proposals{display:grid;gap:8px;margin-top:10px}
+.calendar-task-proposal{border:1px solid var(--line);background:var(--surface-raised);
+  border-radius:10px;padding:12px;min-width:0}
+.calendar-task-proposal h5{font-size:13px;margin:0;overflow-wrap:anywhere}
+.calendar-task-proposal p{margin:7px 0 0}
+.calendar-mail-proposal{padding:12px 20px;border-top:1px solid var(--line)}
+.calendar-mail-proposal h4{font-size:14px;overflow-wrap:anywhere;margin:6px 0}
+.calendar-mail-proposal .muted{overflow-wrap:anywhere}
 .activity-panel{padding-bottom:18px}
 .activity-panel>p{padding:0 24px;margin:0 0 12px}
 .items{padding:0 18px;display:grid;gap:10px}
