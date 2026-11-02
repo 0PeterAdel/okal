@@ -17,7 +17,11 @@ echo "Fetching pinned MIT FullCalendar Standard $version via npm pack"
 npm pack --ignore-scripts --pack-destination "$work" "fullcalendar@$version" >/dev/null
 package="$work/fullcalendar-$version.tgz"
 test -f "$package" || { echo "Pinned package not found" >&2; exit 1; }
-if ! tar -tzf "$package" | grep -Fxq "package/index.global.min.js"; then
+# grep -q can exit early while tar is still writing. With pipefail that
+# produces a false missing-file result (tar gets SIGPIPE) even if asset exists.
+# Materialize the tiny archive manifest, then query it independently.
+tar -tzf "$package" > "$work/package-list.txt"
+if ! grep -Fxq "package/index.global.min.js" "$work/package-list.txt"; then
   echo "Expected official global bundle missing: do not install" >&2
   exit 1
 fi
