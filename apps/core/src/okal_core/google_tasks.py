@@ -95,8 +95,16 @@ def _pages(resource, base, limit, per_page):
             args["pageToken"] = token
         try:
             response = resource.list(**args).execute(num_retries=0)
-        except Exception:
-            raise GoogleTasksError("google_tasks_read_failed") from None
+        except Exception as exc:
+            # Only inspect the HTTP status integer; never persist/echo Google
+            # error bodies, account identifiers, query URLs or OAuth tokens.
+            http_status = getattr(getattr(exc, "resp", None), "status", None)
+            code = {
+                401: "google_tasks_reauthorization_required",
+                403: "google_tasks_access_denied_or_api_disabled",
+                429: "google_tasks_rate_limited",
+            }.get(http_status, "google_tasks_read_failed")
+            raise GoogleTasksError(code) from None
         if not isinstance(response, dict) or not isinstance(response.get("items", []), list):
             raise GoogleTasksError("invalid_google_tasks_response")
         yield response.get("items", [])
@@ -187,6 +195,8 @@ def sync(store, account="default", service=None):
 # Record only allowlisted error codes; never persist a provider response or token.
 _TASKS_SAFE_ERRORS = frozenset({
     "google_tasks_read_failed",
+    "google_tasks_access_denied_or_api_disabled",
+    "google_tasks_rate_limited",
     "google_tasks_reauthorization_required",
     "tasks_readonly_scope_required",
     "invalid_google_tasks_response",
