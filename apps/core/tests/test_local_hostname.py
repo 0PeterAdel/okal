@@ -21,7 +21,7 @@ class LocalOkalHostTests(unittest.TestCase):
     def browser(self, *, host="okal", client_ip="127.0.0.1", protected=False):
         return TestClient(
             create_app(self.store, require_read_key=protected),
-            base_url="http://" + host,
+            base_url=("https://" if host == "okal" else "http://") + host,
             client=(client_ip,12345),
         )
 
