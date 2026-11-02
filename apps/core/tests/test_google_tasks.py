@@ -121,6 +121,50 @@ class GoogleTasksTests(unittest.TestCase):
                 sync(self.store,service=service)
             self.assertEqual(cached(self.store)["items"],[])
 
+
+    def test_recorded_sync_preserves_cache_and_exposes_safe_failure(self):
+        from okal_core.google_tasks import sync_recorded
+        sync(self.store,service=FakeService(
+            {"items":[{"id":"list-a"}]},
+            {"items":[item("saved")]}
+        ))
+        with patch("okal_core.google_tasks._service",
+                   return_value=FakeService(
+                       {"items":[{"id":"list-a"}]},
+                       RuntimeError("SECRET provider failure"))):
+            with self.assertRaisesRegex(GoogleTasksError,"google_tasks_read_failed"):
+                sync_recorded(self.store)
+        result=status(self.store)
+        self.assertEqual(result["last_result"],"failed")
+        self.assertEqual(result["last_error"],"google_tasks_read_failed")
+        self.assertEqual(result["task_count"],1)
+        self.assertNotIn("SECRET",str(result))
+        self.assertEqual(cached(self.store)["items"][0]["task_id"],"saved")
+        with patch("okal_core.google_tasks._service",
+                   return_value=FakeService(
+                       {"items":[{"id":"list-a"}]},
+                       {"items":[item("fresh")]})):
+            sync_recorded(self.store)
+        self.assertEqual(status(self.store)["last_result"],"complete")
+        self.assertIsNone(status(self.store)["last_error"])
+        self.assertEqual(cached(self.store)["items"][0]["task_id"],"fresh")
+
+    def test_sync_button_is_same_origin_local_only_and_requires_credentials(self):
+        headers={"Origin":"http://127.0.0.1:8766",
+                 "Sec-Fetch-Site":"same-origin"}
+        with TestClient(create_app(self.store),
+                base_url="http://127.0.0.1:8766",
+                client=("127.0.0.1",12000)) as client:
+            response=client.post("/api/v1/google-tasks/sync",json={},headers=headers)
+            self.assertEqual(response.status_code,409)
+            self.assertEqual(response.json()["detail"],
+                             "google_tasks_reauthorization_required")
+            self.assertEqual(client.post("/api/v1/google-tasks/sync",
+                                         json={},headers={
+                   "Origin":"https://example.org",
+                   "Sec-Fetch-Site":"cross-site",
+                 }).status_code,403)
+
     def test_api_never_fetches_live_tasks_or_exposes_tokens(self):
         with patch("okal_core.google_tasks._service",side_effect=AssertionError(
             "NO PROVIDER CALL ON GET"
