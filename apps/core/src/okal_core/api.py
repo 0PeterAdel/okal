@@ -1038,6 +1038,19 @@ def create_app(
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    @app.get("/fullcalendar-standard.min.js")
+    def local_fullcalendar_vendor():
+        """Self-hosted MIT asset, explicitly installed by the owner."""
+        path = STATIC / "vendor" / "fullcalendar" / "index.global.min.js"
+        if not path.is_file():
+            raise HTTPException(404, "fullcalendar_vendor_install_required")
+        return FileResponse(path, media_type="text/javascript")
+
+    @app.get("/fullcalendar-ui.js")
+    def local_fullcalendar_ui():
+        return FileResponse(STATIC / "fullcalendar-ui.js",
+                            media_type="text/javascript")
+
     @app.get("/day-plan.js")
     def local_day_plan_script():
         """Self-hosted browser action UI; no paid or external scripts."""
