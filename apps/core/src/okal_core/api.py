@@ -1038,6 +1038,11 @@ def create_app(
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    @app.get("/day-plan.js")
+    def local_day_plan_script():
+        """Self-hosted browser action UI; no paid or external scripts."""
+        return FileResponse(STATIC / "day-plan.js", media_type="text/javascript")
+
     @app.get("/mail-oauth-return.js")
     def mail_oauth_return_script():
         return FileResponse(
