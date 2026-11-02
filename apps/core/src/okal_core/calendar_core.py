@@ -172,11 +172,21 @@ class CalendarCore:
         for row in rows:
             row["all_day"] = bool(row["all_day"])
             row["busy"] = bool(row["busy"])
+        with self.store.connect() as db:
+            has_sync = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='calendar_google_sync'"
+            ).fetchone()
+            checkpoint = db.execute(
+                "SELECT max(last_success) FROM calendar_google_sync"
+            ).fetchone()[0] if has_sync else None
         return {
             "timezone": "Africa/Cairo", "date": today.isoformat(), "window_days": days,
             "items": rows, "count": len(rows),
-            "connected_providers": [],
-            "provider_status": "not_connected_in_foundation",
+            "connected_providers": ["google"] if checkpoint is not None else [],
+            "provider_status": ("cached_google_synced" if checkpoint is not None
+                                else "not_connected_in_foundation"),
+            "cache_last_success": checkpoint,
             "source": "local_provider_projection",
             "external_reads": False, "external_writes": False,
         }

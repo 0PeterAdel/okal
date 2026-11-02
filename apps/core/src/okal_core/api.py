@@ -52,7 +52,7 @@ def create_app(
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
         "/api/v1/morning", "/api/v1/planner",
         "/api/v1/tasks/history", "/api/v1/calendar/agenda",
-        "/api/v1/calendar/availability",
+        "/api/v1/calendar/availability", "/api/v1/calendar/status",
     }
 
     def public_local_read(path, method):
@@ -771,6 +771,14 @@ def create_app(
         """Cached calendar projection only; never contacts providers."""
         from .calendar_core import CalendarCore
         return CalendarCore(store).agenda()
+
+    @app.get("/api/v1/calendar/status")
+    def local_calendar_status():
+        """Cached sync status only; no provider calls or OAuth information."""
+        from .calendar_google import configured_accounts, status
+        return {"accounts": [
+            status(store, account) for account in configured_accounts(store)
+        ], "external_reads": False, "external_writes": False}
 
     @app.get("/api/v1/calendar/availability")
     def local_calendar_availability():
