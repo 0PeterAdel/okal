@@ -31,6 +31,51 @@ JSON on stdout. This is separate from the missing-source coverage PR #72.
 - Existing single-calendar sync keeps exit **1** and a redacted error on
   failure; unchanged behavior for existing shell scripts.
 
+## Continuous sync and event semantics — post-recovery
+
+- **Zero-duration timed Google events** are now stored faithfully as
+  instantaneous points. OKAL labels them `حدث لحظي`, does not invent a
+  duration, does not mark them busy and does not treat them as an overlap.
+  Reversed intervals and zero-length all-day dates remain invalid and fail
+  closed; durations over 366 days remain out of the current model.
+- Normal background Calendar polling still runs at the existing ~30-minute
+  cadence and tries a **full/incremental token-backed sync first**. On a
+  persistent historical interval validation error, it runs a bounded seven-day
+  recovery for the affected calendar and records the historical error without
+  advancing that calendar's full sync checkpoint.
+- The bounded recovery requires a complete provider response before applying
+  changes and now reconciles **additions, edits and removals in the exact
+  recovered local date window**, leaving past/future rows outside it alone.
+  A separate `calendar_google_window_recovery` SQLite record stores only
+  local coverage metadata; this is **not** a Google syncToken or proof of
+  historical completeness.
+- The Calendar dashboard marks source coverage as unverified, counts partial
+  recoveries and **suppresses free-time proposals** until the owner has an
+  explicit coverage inventory and confirmed source policy. A current-week
+  recovery is not a guarantee that all Google accounts or Google Tasks are
+  represented.
+- The existing Google Calendar read-only OAuth scope is unchanged. No
+  provider create/edit/delete actions occur in this PR. The background
+  fallback writes only local event cache and can never become an authority
+  to schedule external events.
+
+### Owner acceptance after approved merge (Omarchy)
+
+```bash
+cd "$HOME/Projects/okal-production"
+export OKAL_CORE_PYTHON="$HOME/Projects/okal/.venv-okal-core/bin/python"
+bash scripts/run-okal-core.sh calendar audit --account default --days 7
+bash scripts/run-okal-core.sh calendar sync --account default --all
+```
+
+The manual `sync --all` may legitimately return exit code 2 if a *reversed*
+historical event remains. The background worker will then attempt bounded
+current-week recovery. Do not assert full sync complete without a checkpoint
+for each expected calendar. Refresh Firefox after service update and compare
+Google events' titles/times and any deleted/edited test event; also verify
+that zero-duration events appear as points rather than booked time.
+Do not share raw status containing private calendar addresses or titles.
+
 ## Safe targeted current-window recovery (new command)
 
 The real owner audit reported **four valid live Events on the primary calendar,
