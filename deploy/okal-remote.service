@@ -17,4 +17,4 @@ ProtectHome=read-only
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 UMask=0077
 
-# Deliberately no [Install]: service is OFF until owner runs "okal-remote on".
+# No boot-time install target: remote stays OFF until explicit owner command.
