@@ -108,6 +108,37 @@ def recover_window(store, account="default", calendar="primary", days=7,
             )
             written += outcome["written"]
 
+        # Google date-window query is authoritative *only* for this bounded
+        # interval. Reconcile locally deleted/cancelled instances here so
+        # polling reflects removals, without changing any historical rows
+        # outside this window or advancing the full-sync cursor.
+        with store.connect() as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            core._init(db)
+            current = list(db.execute(
+                """SELECT event_id,instance_id FROM calendar_source_events
+                   WHERE provider='google' AND account_id=? AND calendar_id=?
+                   AND ((start_ts<? AND end_ts>?) OR
+                        (start_ts=end_ts AND start_ts>=? AND start_ts<?))""",
+                (account, target["id"], int(last.timestamp()),
+                 int(first.timestamp()), int(first.timestamp()),
+                 int(last.timestamp())),
+            ))
+            current_ids = {
+                (event["id"], event.get("instance_id") or "")
+                for event in all_events
+            }
+            deleted = 0
+            for row in current:
+                if (row["event_id"], row["instance_id"]) not in current_ids:
+                    db.execute(
+                        "DELETE FROM calendar_source_events WHERE provider='google' "
+                        "AND account_id=? AND calendar_id=? AND event_id=? "
+                        "AND instance_id=?",
+                        (account, target["id"], row["event_id"], row["instance_id"]),
+                    )
+                    deleted += 1
+
     return {
         "mode": "bounded_window_recovery",
         "account_alias": account,
@@ -116,6 +147,7 @@ def recover_window(store, account="default", calendar="primary", days=7,
         "window_days": days,
         "received": len(all_events),
         "written": written,
+        "removed_from_window": deleted,
         "source_coverage": "selected_calendar_window_only",
         "full_sync_complete": False,
         "sync_cursor_advanced": False,
