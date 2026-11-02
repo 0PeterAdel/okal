@@ -57,7 +57,7 @@ def create_app(
         "/api/v1/morning", "/api/v1/planner",
         "/api/v1/tasks/history", "/api/v1/calendar/agenda",
         "/api/v1/calendar/availability", "/api/v1/calendar/status",
-        "/api/v1/calendar/plan",
+        "/api/v1/calendar/plan", "/api/v1/calendar/review-plan",
         "/api/v1/mail/oauth/status",
     }
 
@@ -85,7 +85,8 @@ def create_app(
                 "/api/v1/mail/reply-drafts/preview-send",
                 "/api/v1/mail/reply-drafts/confirm-send",
                 "/api/v1/calendar/oauth/start",
-                "/api/v1/mail/oauth/start"
+                "/api/v1/mail/oauth/start",
+                "/api/v1/calendar/mail-proposal"
             }
             and request.method == "POST"
             and request.headers.get("origin") == f"http://{request.headers.get('host')}"
@@ -212,7 +213,9 @@ def create_app(
                 else {"state", "code", "scope", "authuser", "prompt",
                       "error", "error_description", "iss"}
                 if is_google_oauth_callback(request)
-                else {"days"} if request.url.path == "/api/v1/calendar/plan"
+                else {"days"} if request.url.path in {
+                    "/api/v1/calendar/plan", "/api/v1/calendar/review-plan"
+                }
                 else set()
             )
             for k in request.query_params
@@ -939,6 +942,25 @@ def create_app(
         if days not in (1, 7):
             raise HTTPException(422, "invalid_unified_plan_window")
         return unified_plan(store, days=days)
+
+    @app.get("/api/v1/calendar/review-plan")
+    def local_calendar_review_plan(days: int = Query(default=7, ge=1, le=7)):
+        """Tentative task work blocks, never Calendar or Task write actions."""
+        from .calendar_task_proposals import propose_task_blocks
+        if days not in (1, 7):
+            raise HTTPException(422, "invalid_task_proposal_window")
+        return propose_task_blocks(store, days=days)
+
+    @app.post("/api/v1/calendar/mail-proposal")
+    async def local_mail_to_calendar_proposal(request: Request):
+        """Owner-initiated Gmail+Ollama read for a source-grounded draft."""
+        from .calendar_mail_proposals import propose_from_gmail
+        from .mail.contracts import MailError
+        payload = await action_payload(request, {"message_id"})
+        try:
+            return propose_from_gmail(store, payload["message_id"])
+        except MailError as exc:
+            raise action_failure(exc) from None
 
     @app.post("/api/v1/tasks/create")
     async def local_task_create(request: Request):
