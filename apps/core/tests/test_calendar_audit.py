@@ -156,7 +156,7 @@ class AuditTests(unittest.TestCase):
             {"items": [event("A")]}
         )
         output = StringIO()
-        with patch("okal_core.calendar_audit._service", return_value=svc), \\
+        with patch("okal_core.calendar_audit._service", return_value=svc), \
                 redirect_stdout(output):
             rc = main(self.store, ["audit", "--days", "7"])
         self.assertEqual(rc, 0)
