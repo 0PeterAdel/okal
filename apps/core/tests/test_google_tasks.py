@@ -136,7 +136,7 @@ class GoogleTasksTests(unittest.TestCase):
                 self.assertEqual(got.status_code,200)
                 self.assertEqual(got.json()["items"],[])
                 self.assertEqual(client.post(
-                    "/api/v1/google-tasks/cached",json={}).status_code,405)
+                    "/api/v1/google-tasks/cached",json={}).status_code,401)
                 self.assertEqual(client.get("/google-tasks-ui.js").status_code,200)
                 self.assertEqual(client.get(
                     "/api/v1/google-tasks/oauth/callback?state=bad").status_code,400)
