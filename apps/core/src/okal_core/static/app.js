@@ -1825,7 +1825,7 @@ function trashPreviewProblem(status, detail) {
     /^[a-z][a-z0-9_]{1,100}$/.test(detail) ? detail : "";
   const explanation = trashPreviewCodes[code];
   if (explanation) return explanation + " (code: " + code + ")";
-  if (status === 403) return "المتصفح مش مسموح له ينفذ الطلب من العنوان الحالي. افتح OKAL من http://okal/ أو http://127.0.0.1:8766/ مباشرة.";
+  if (status === 403) return "المتصفح مش مسموح له ينفذ الطلب من العنوان الحالي. افتح OKAL من https://okal/ أو http://127.0.0.1:8766/ مباشرة.";
   if (status === 401) return "وضع الحماية مفعل أو جلسة القراءة انتهت. افتح OKAL مجددًا.";
   if (status === 429 || status === 423)
     return "خدمة Gmail مشغولة حاليًا. أعد المعاينة بعد انتهاء العملية الجارية.";

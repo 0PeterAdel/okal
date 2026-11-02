@@ -1,5 +1,6 @@
 """Loopback-only local Core API, with explicit preview-confirmed Gmail Trash."""
 
+import asyncio
 import ipaddress
 from pathlib import Path
 from urllib.parse import quote
@@ -54,12 +55,23 @@ def create_app(
     day_plans = DayPlanManager(store)
     # Only the explicitly supported local reverse-proxy hostname. Never
     # trust arbitrary DNS names or forwarded host headers.
+    from .cloudflare_access import AccessGate
+    remote_access = AccessGate.from_environment()
+    if remote_access is not None:
+        # Defense in depth: even if someone mistakenly rewrites the public
+        # Host to local "okal" in Cloudflare routing, no private read/API is
+        # passwordless. Remote mode adds a mandatory local read-key factor.
+        require_read_key = True
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}", "okal"}
+    if remote_access:
+        hosts.add(remote_access.hostname)
 
     def browser_origin(host):
         # HTTPS is mandatory for the private hostname. Direct 127.0.0.1
         # continues to support Google Desktop OAuth loopback redirects.
-        return "https://okal" if host == "okal" else f"http://{host}"
+        return (f"https://{host}" if host == "okal" or (
+            remote_access is not None and host == remote_access.hostname
+        ) else f"http://{host}")
 
     def oauth_loopback_host(request):
         """Desktop Google OAuth only accepts a loopback redirect, not 'okal'.
@@ -68,6 +80,8 @@ def create_app(
         returned to the existing direct localhost port, preserving PKCE.
         """
         host = request.headers.get("host", "")
+        # Remote browsers cannot complete a localhost Google consent. Routes
+        # reject the action for a remote Host independently below.
         return f"127.0.0.1:{port}" if host == "okal" else host
 
     # Never let a future privileged /api/ endpoint inherit passwordless access.
@@ -192,6 +206,32 @@ def create_app(
                 {"detail": "local same-origin access required"}, status_code=403
             )
         elif (
+            remote_access is not None
+            and host == remote_access.hostname
+            and not await asyncio.to_thread(
+                remote_access.authorize,
+                request.headers.get("cf-access-jwt-assertion")
+            )
+        ):
+            response = JSONResponse(
+                {"detail": "valid Cloudflare Access owner session required"},
+                status_code=403
+            )
+        elif (
+            remote_access is not None
+            and host == remote_access.hostname
+            and request.method == "POST"
+            and request.url.path in {
+                "/api/v1/mail/oauth/start",
+                "/api/v1/calendar/oauth/start",
+                "/api/v1/google-tasks/oauth/start"
+            }
+        ):
+            response = JSONResponse(
+                {"detail":"Google Desktop OAuth must be started locally"},
+                status_code=409
+            )
+        elif (
             not require_read_key
             and request.url.path == "/api/v1/session"
         ):
@@ -296,7 +336,10 @@ def create_app(
         # Loopback HTTP, host-only, HttpOnly and SameSite Strict. No JS storage.
         response.set_cookie(
             "okal_session", session["token"], httponly=True,
-            secure=request.headers.get("host") == "okal",
+            secure=(request.headers.get("host") == "okal" or (
+                remote_access is not None
+                and request.headers.get("host") == remote_access.hostname
+            )),
             samesite="strict", max_age=age, path="/api",
         )
         return response
