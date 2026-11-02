@@ -31,6 +31,41 @@ JSON on stdout. This is separate from the missing-source coverage PR #72.
 - Existing single-calendar sync keeps exit **1** and a redacted error on
   failure; unchanged behavior for existing shell scripts.
 
+## Read-only coverage audit (new command)
+
+The `calendar audit --days 7` operator command makes a fresh, bounded
+Google Events.list query **without syncToken** over the next seven Cairo dates
+(`timeMin`/`timeMax`). It does not modify local event rows, sync checkpoints,
+or any Google Calendar events. It may refresh the existing local OAuth access
+token when necessary. The result is ordinal-based: per calendar, whether
+it is the primary calendar, whether it has a saved sync checkpoint,
+Google's count of visible Events in the date window, the SQLite cached
+count, and aggregate counts by duration shape. **No calendar IDs, names,
+event titles, URLs or tokens appear in the audit response.**
+
+Use it *before* trying another sync if a source is missing:
+
+```bash
+cd "$HOME/Projects/okal-production"
+export OKAL_CORE_PYTHON="$HOME/Projects/okal/.venv-okal-core/bin/python"
+# When testing unmerged PR #73, execute the next line from its detached
+# review checkout rather than using old production code:
+bash scripts/run-okal-core.sh calendar audit --account default --days 7
+```
+
+Read `calendar_number` only as a transient index in Google's current list,
+not an immutable identity. `primary:true` helps distinguish the primary
+calendar without leaking its ID. `zero_duration_timed` versus
+`reversed_interval` helps select the *next safe* targeted change.
+Google can have non-default event types or account calendars that do not
+match the browser session: the audit cannot prove the Firefox account
+identity or Google Tasks visibility. If an audit is incomplete, each
+calendar's `audit_status` indicates why without exposing provider errors.
+
+Audit limits: 20 calendars, eight pages per calendar, 250 events per page,
+1–14 days. The audit is explicit owner action, not a background worker or
+dashboard GET, and is not a full historical reconciliation.
+
 ## Owner live diagnostic (do not share private full JSON)
 
 Review the Draft PR and tests first. Use a temporary detached git worktree
