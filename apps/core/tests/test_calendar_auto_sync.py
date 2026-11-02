@@ -105,7 +105,8 @@ class AutoSyncTests(unittest.TestCase):
             {"items": [{"id": "primary", "summary": "Primary",
                         "primary": True, "accessRole": "owner",
                         "timeZone": "Africa/Cairo"}]},
-            {"items": [row("current-2", end="2026-11-03T10:30:00+02:00")]},
+            {"items": [{**row("current-2", end="2026-11-03T10:30:00+02:00"),
+                        "updated": "2026-11-02T02:00:00Z"}]},
         )
         result = _sync_with_window_fallback(
             self.store, "default", self.item, next_service
