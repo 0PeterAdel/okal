@@ -967,7 +967,7 @@ def create_app(
         # Explicit initial callback is the ONLY background fetch added here.
         # Later updates use the operator CLI; dashboard GET is purely cached.
         background_tasks.add_task(sync, store)
-        return FileResponse(STATIC / "calendar-oauth-complete.html",
+        return FileResponse(STATIC / "tasks-oauth-complete.html",
                             media_type="text/html")
 
     @app.get("/api/v1/calendar/status")
@@ -1091,6 +1091,11 @@ def create_app(
     def local_day_plan_script():
         """Self-hosted browser action UI; no paid or external scripts."""
         return FileResponse(STATIC / "day-plan.js", media_type="text/javascript")
+
+    @app.get("/google-tasks-ui.js")
+    def google_tasks_local_ui_script():
+        return FileResponse(STATIC / "google-tasks-ui.js",
+                            media_type="text/javascript")
 
     @app.get("/mail-oauth-return.js")
     def mail_oauth_return_script():
