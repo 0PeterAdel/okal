@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import time
+import time
 import unittest
 from unittest.mock import patch
 
@@ -35,7 +36,7 @@ class AccessTests(unittest.TestCase):
         cls.jwk={"kid":"owner-test-key","kty":"RSA","alg":"RS256",
                  "n":b64(public.n.to_bytes((public.n.bit_length()+7)//8,"big")),
                  "e":b64(public.e.to_bytes(3,"big"))}
-        cls.now=1793660000
+        cls.now=int(time.time())
 
     def jwt(self, **overrides):
         claims={"type":"app","iss":"https://"+TEAM+".cloudflareaccess.com",
@@ -79,7 +80,8 @@ class AccessTests(unittest.TestCase):
         token=self.jwt()
         a,b,c=token.split(".")
         self.assertFalse(gate.authorize(a+"."+b+"."+c[:-5]+"abcde"))
-        self.assertFalse(gate.authorize(self.jwt().replace("RS256","none")))
+        forged_header=b64(json.dumps({"alg":"none","kid":"owner-test-key"}).encode())
+        self.assertFalse(gate.authorize(forged_header+"."+b+"."+c))
 
     def test_api_remote_host_requires_signed_access_plus_owner_read_key(self):
         with tempfile.TemporaryDirectory() as d:
