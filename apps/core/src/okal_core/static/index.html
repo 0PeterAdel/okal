@@ -12,6 +12,7 @@
   <script defer src="/vanilla-calendar.min.js"></script>
   <script defer src="/app.js"></script>
   <script defer src="/day-plan.js"></script>
+  <script defer src="/day-plan-ai.js"></script>
   <script defer src="/google-tasks-ui.js"></script>
 </head>
 <body>
@@ -239,6 +240,8 @@
                     </div>
                     <p class="muted">9 صباحًا – 6 مساءً مجرد مثال، غيّر ساعات يومك قبل التخطيط.</p>
                     <div id="day-plan-tasks" class="day-plan-task-list"></div>
+                    <button type="button" class="btn-secondary" id="day-plan-ai-suggest">اقترح مدة وأولوية المهام باستخدام Ollama المحلي</button>
+                    <p id="day-plan-ai-feedback" class="muted" role="status" aria-live="polite">اختياري · توصيات AI ليست قرارات نهائية ولا تُطبَّق تلقائيًا.</p>
                     <button type="submit" class="btn-primary" id="day-plan-preview">اقترح خطة اليوم</button>
                   </form>
                   <p id="day-plan-feedback" class="muted" role="status" aria-live="polite">بدون AI مدفوع أو تعديل لمواعيد Google.</p>
