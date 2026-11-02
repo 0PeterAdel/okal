@@ -10,6 +10,7 @@ let generation = 0;
 let busy = false;
 let calendarWindowDays = 7;
 let calendarRequestSequence = 0;
+let taskProposalSequence = 0;
 const selectedInfo = new Set();
 let selectableInfoIds = [];
 let selectionAnchor = null;
@@ -107,6 +108,9 @@ function resetMailStatus() {
   el("tasks-count").textContent = "لم يتم التحميل";
   el("tasks-note").textContent = "مهام محلية بموافقتك؛ لا إنشاء أحداث في Google Calendar.";
   calendarRequestSequence += 1;
+  taskProposalSequence += 1;
+  el("calendar-task-proposals").replaceChildren();
+  el("calendar-task-proposal-status").textContent = "";
   el("calendar-count").textContent = "—";
   el("calendar-coverage").textContent = "بيانات التقويم مخفية؛ اقرأ النسخة المحلية مجددًا.";
   for (const id of ["calendar-items", "calendar-conflicts", "calendar-slots"])
@@ -589,8 +593,61 @@ async function loadUnifiedCalendar(options, active) {
     el("calendar-count").textContent = "غير متاح";
   }
 }
+function renderTaskWorkProposals(result) {
+  if (!result || !Array.isArray(result.proposals) ||
+      !result.coverage || result.external_writes !== false)
+    throw new Error("invalid_calendar_task_proposals");
+  const list = el("calendar-task-proposals");
+  list.replaceChildren();
+  const status = el("calendar-task-proposal-status");
+  if (result.status !== "tentative_local_plan") {
+    status.textContent = "لا يمكن اقتراح أوقات بأمان قبل اكتمال مزامنة Google المحلية وحدود البيانات.";
+    return;
+  }
+  status.textContent = "اقتراحات غير مؤكدة: 30 دقيقة افتراضية للعمل، بدون حجز في Google." +
+    (result.unplaced_tasks ? " " + result.unplaced_tasks + " مهام لم نجد لها فترة قبل الموعد." : "");
+  for (const proposal of result.proposals) {
+    const card = document.createElement("article");
+    card.className = "calendar-task-proposal";
+    card.append(text("h5", proposal.title));
+    card.append(text("p", cairoDate(proposal.start_ts) + " — " +
+      cairoDate(proposal.end_ts) + " · التسليم " +
+      cairoDate(proposal.due_at), "muted"));
+    list.append(card);
+  }
+  if (!result.proposals.length)
+    list.append(text("p", "مفيش مهام بمواعيد تسمح باقتراح وقت حاليًا.", "muted"));
+}
+async function loadTaskWorkProposals() {
+  const seq = ++taskProposalSequence;
+  const generationAtClick = generation;
+  const button = el("calendar-task-propose");
+  button.disabled = true;
+  el("calendar-task-proposal-status").textContent = "بنقترح أوقات من التقويم المحلي...";
+  try {
+    const response = await fetch("/api/v1/calendar/review-plan?days=" + calendarWindowDays, {
+      credentials: "same-origin", cache: "no-store",
+      headers: token ? {Authorization: "Bearer " + token} : {},
+    });
+    if (!response.ok) throw new Error("calendar_review_plan_unavailable");
+    const result = await response.json();
+    if (generationAtClick !== generation || seq !== taskProposalSequence) return;
+    renderTaskWorkProposals(result);
+  } catch (_) {
+    if (generationAtClick !== generation || seq !== taskProposalSequence) return;
+    el("calendar-task-proposal-status").textContent = "تعذر تجهيز المقترحات محليًا.";
+    el("calendar-task-proposals").replaceChildren();
+  } finally {
+    button.disabled = false;
+  }
+}
+el("calendar-task-propose").addEventListener("click", loadTaskWorkProposals);
+
 function changeCalendarWindow(days) {
   calendarWindowDays = days;
+  taskProposalSequence += 1;
+  el("calendar-task-proposal-status").textContent = "";
+  el("calendar-task-proposals").replaceChildren();
   const options = {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     cache: "no-store", credentials: "same-origin",
@@ -1128,9 +1185,12 @@ async function openMailViewer(item) {
   el("viewer-ai-action").textContent = "";
   el("viewer-category").textContent = "";
   el("viewer-action-note").textContent = "";
+  el("viewer-calendar-propose-status").textContent = "";
+  el("viewer-calendar-propose-details").replaceChildren();
   for (const name of ["viewer-copy-summary","viewer-select","viewer-delete",
                       "viewer-mark-read","viewer-mark-unread","viewer-archive",
-                      "viewer-create-task","viewer-reply-generate"])
+                      "viewer-create-task","viewer-reply-generate",
+                      "viewer-calendar-propose"])
     el(name).disabled = true;
   currentReplyDraft = null;
   savedReplyBody = "";
@@ -1187,6 +1247,7 @@ async function openMailViewer(item) {
     el("viewer-mark-unread").disabled = !writable || nativeLabels.includes("UNREAD");
     el("viewer-archive").disabled = !writable || !nativeLabels.includes("INBOX");
     el("viewer-create-task").disabled = data.ai_category === "manual_review";
+    el("viewer-calendar-propose").disabled = data.ai_category === "manual_review";
     el("viewer-reply-generate").disabled = data.ai_category === "manual_review";
     if (!canTrash)
       el("viewer-action-note").textContent =
@@ -1257,7 +1318,7 @@ el("mail-viewer").addEventListener("close", () => {
   for (const name of ["viewer-copy-summary","viewer-select","viewer-delete",
                       "viewer-mark-read","viewer-mark-unread","viewer-archive",
                       "viewer-create-task","viewer-reply-generate",
-                      "viewer-reply-save","viewer-reply-copy"])
+                      "viewer-calendar-propose","viewer-reply-save","viewer-reply-copy"])
     el(name).disabled = true;
   currentReplyDraft = null;
   savedReplyBody = "";
@@ -1270,6 +1331,8 @@ el("mail-viewer").addEventListener("close", () => {
   el("viewer-attachments").replaceChildren();
   el("viewer-frame").srcdoc = "";
   el("viewer-image-status").textContent = "";
+  el("viewer-calendar-propose-status").textContent = "";
+  el("viewer-calendar-propose-details").replaceChildren();
 
   setViewerFocus(false);
 });
@@ -1417,6 +1480,52 @@ el("mail-action-confirm").addEventListener("click", async () => {
     el("mail-action-result").textContent = String(error.message).slice(0,220);
   } finally {
     el("mail-action-confirm").disabled = false;
+  }
+});
+
+function renderMailCalendarCandidate(result) {
+  const node = el("viewer-calendar-propose-details");
+  node.replaceChildren();
+  if (!result || result.calendar_event_created !== false ||
+      result.owner_review_required !== true ||
+      result.external_writes !== false)
+    throw new Error("invalid_mail_calendar_proposal");
+  if (result.status === "no_calendar_intent_detected") {
+    el("viewer-calendar-propose-status").textContent =
+      "الموديل المحلي لم يجد موعدًا واضحًا؛ راجع أصل الرسالة.";
+    return;
+  }
+  el("viewer-calendar-propose-status").textContent =
+    "اقتراح للمراجعة فقط، لم يتم إنشاء موعد أو حجز أي وقت في Google.";
+  node.append(text("h4", result.title));
+  node.append(text("p", "الدليل من الرسالة: " + result.evidence_quote, "muted"));
+  node.append(text("p", result.start_iso
+    ? "بداية مذكورة بصيغة تاريخ صريحة: " + result.start_iso +
+      (result.end_iso ? " · نهاية: " + result.end_iso : " · النهاية غير محددة")
+    : "التاريخ/الوقت يحتاج إدخالًا وتأكيدًا منك؛ لم نستنتج منطقة زمنية.",
+    "muted"));
+}
+el("viewer-calendar-propose").addEventListener("click", async () => {
+  const mid = currentViewerMessage?.id;
+  if (!mid) return;
+  const seq = viewerGeneration;
+  const button = el("viewer-calendar-propose");
+  button.disabled = true;
+  el("viewer-calendar-propose-status").textContent =
+    "بنراجع الرسالة مع Ollama المحلي، بدون إنشاء حدث في Google...";
+  el("viewer-calendar-propose-details").replaceChildren();
+  try {
+    const result = await fetchMailAgent("/api/v1/calendar/mail-proposal", {
+      message_id: mid,
+    });
+    if (seq !== viewerGeneration || currentViewerMessage?.id !== mid) return;
+    renderMailCalendarCandidate(result);
+  } catch (error) {
+    if (seq !== viewerGeneration) return;
+    el("viewer-calendar-propose-status").textContent =
+      "تعذر تجهيز موعد موثّق: " + String(error.message).slice(0,170);
+  } finally {
+    if (seq === viewerGeneration) button.disabled = false;
   }
 });
 
