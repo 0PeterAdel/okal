@@ -15,6 +15,7 @@
   <script defer src="/day-plan.js"></script>
   <script defer src="/day-plan-ai.js"></script>
   <script defer src="/google-tasks-ui.js"></script>
+  <script defer src="/calendar-mail-proposal.js"></script>
   <script defer src="/fullcalendar-ui.js"></script>
 </head>
 <body>
@@ -337,8 +338,13 @@
             <button id="viewer-mark-unread" class="btn-secondary" type="button" disabled>Mark Unread</button>
             <button id="viewer-archive" class="btn-secondary" type="button" disabled>Archive</button>
             <button id="viewer-create-task" class="btn-secondary" type="button" disabled>إنشاء Task</button>
+            <button id="viewer-calendar-propose" class="btn-secondary" type="button" disabled>اقتراح موعد من البريد</button>
             <span id="viewer-action-note" class="muted" role="status"></span>
           </div>
+          <section class="calendar-mail-proposal" aria-label="اقتراح موعد من البريد" aria-live="polite">
+            <p id="viewer-calendar-propose-status" class="muted" role="status"></p>
+            <div id="viewer-calendar-propose-details"></div>
+          </section>
           <details id="viewer-task-options" class="viewer-reply-panel">
             <summary>اختياري · تأكيد موعد المهمة من هذا البريد</summary>
             <p class="muted">اكتب الموعد بنفسك إن كان مؤكدًا. تركه فارغًا ينشئ Task بدون موعد.</p>
