@@ -90,6 +90,7 @@ def create_app(
                 "/api/v1/calendar/oauth/start",
                 "/api/v1/mail/oauth/start",
                 "/api/v1/calendar/day-plan/preview",
+                "/api/v1/calendar/day-plan/ai-suggest",
                 "/api/v1/calendar/day-plan/confirm"
             }
             and request.method == "POST"
@@ -944,6 +945,26 @@ def create_app(
         if days not in (1, 7):
             raise HTTPException(422, "invalid_unified_plan_window")
         return unified_plan(store, days=days)
+
+    @app.post("/api/v1/calendar/day-plan/ai-suggest")
+    async def local_ai_day_plan_suggestions(request: Request):
+        """Explicit owner click only, localhost Ollama, no plan confirmation."""
+        from .day_plan_ai import PlannerAIError, suggest
+        payload = await action_payload(request, {"task_ids"})
+        try:
+            return suggest(store, payload["task_ids"])
+        except PlannerAIError as error:
+            code=str(error)
+            # Never leak raw model/provider responses or private task titles.
+            raise HTTPException(
+                503 if code=="local_ai_unavailable" else 422,
+                code if code in {
+                    "local_ai_unavailable","invalid_ai_task_selection",
+                    "ai_task_not_open","incomplete_task_source",
+                    "invalid_local_ai_model","invalid_local_ai_estimates",
+                    "local_ai_request_too_large","local_ai_response_too_large"
+                } else "invalid_local_ai_estimates"
+            ) from None
 
     @app.post("/api/v1/calendar/day-plan/preview")
     async def preview_local_day_plan(request: Request):
