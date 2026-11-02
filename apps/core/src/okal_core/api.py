@@ -1228,6 +1228,11 @@ def create_app(
         """Self-hosted browser action UI; no paid or external scripts."""
         return FileResponse(STATIC / "day-plan.js", media_type="text/javascript")
 
+    @app.get("/remote-settings-ui.js")
+    def remote_settings_ui_script():
+        return FileResponse(STATIC / "remote-settings-ui.js",
+                            media_type="text/javascript")
+
     @app.get("/google-tasks-ui.js")
     def google_tasks_local_ui_script():
         return FileResponse(STATIC / "google-tasks-ui.js",
