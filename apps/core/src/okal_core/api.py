@@ -45,7 +45,9 @@ def create_app(
     from .mail.approval import PendingTrashConfirmations
     approvals = PendingTrashConfirmations(store.clock)
     from .calendar_web_oauth import CalendarOAuthWeb, CALLBACK
+    from .google_tasks_oauth import TasksOAuthWeb, CALLBACK as TASKS_CALLBACK
     calendar_oauth = CalendarOAuthWeb(store.clock)
+    tasks_oauth = TasksOAuthWeb(store.clock)
     from .mail.web_oauth import GmailOAuthWeb, CALLBACK as GMAIL_CALLBACK
     gmail_oauth = GmailOAuthWeb(store.clock)
     from .day_planner import DayPlanManager
@@ -61,6 +63,7 @@ def create_app(
         "/api/v1/calendar/availability", "/api/v1/calendar/status",
         "/api/v1/calendar/plan",
         "/api/v1/calendar/day-plan/saved",
+        "/api/v1/google-tasks/status", "/api/v1/google-tasks/cached",
         "/api/v1/mail/oauth/status",
     }
 
@@ -88,6 +91,7 @@ def create_app(
                 "/api/v1/mail/reply-drafts/preview-send",
                 "/api/v1/mail/reply-drafts/confirm-send",
                 "/api/v1/calendar/oauth/start",
+                "/api/v1/google-tasks/oauth/start",
                 "/api/v1/mail/oauth/start",
                 "/api/v1/calendar/day-plan/preview",
                 "/api/v1/calendar/day-plan/confirm"
@@ -115,7 +119,7 @@ def create_app(
         origin = request.headers.get("origin")
         return (
             request.method == "GET"
-            and request.url.path in {CALLBACK, GMAIL_CALLBACK}
+            and request.url.path in {CALLBACK, GMAIL_CALLBACK, TASKS_CALLBACK}
             and origin in (None, "null", "https://accounts.google.com",
                            f"http://{host}")
             and request.headers.get("sec-fetch-mode") in (None, "navigate")
@@ -920,6 +924,51 @@ def create_app(
         return FileResponse(
             STATIC / "calendar-oauth-complete.html", media_type="text/html"
         )
+
+
+    @app.get("/api/v1/google-tasks/status")
+    def local_google_tasks_status():
+        from .google_tasks import status
+        from .calendar_web_oauth import client_available
+        return {"sync": status(store), "oauth_client_ready":client_available(store)}
+
+    @app.get("/api/v1/google-tasks/cached")
+    def local_google_tasks_cached():
+        from .google_tasks import cached
+        return cached(store)
+
+    @app.post("/api/v1/google-tasks/oauth/start")
+    async def start_google_tasks_oauth(request: Request):
+        await action_payload(request, set())
+        try:
+            return tasks_oauth.start(store, request.headers["host"])
+        except ValueError:
+            raise HTTPException(409, "tasks_oauth_unavailable") from None
+
+    @app.get("/api/v1/google-tasks/oauth/callback")
+    def finish_google_tasks_oauth(request: Request, background_tasks: BackgroundTasks):
+        params = request.query_params
+        if (len(params.getlist("state")) != 1
+                or len(params.getlist("code")) > 1
+                or len(params.getlist("iss")) > 1
+                or ("iss" in params and
+                    params.get("iss") != "https://accounts.google.com")):
+            return FileResponse(STATIC / "calendar-oauth-error.html",
+                                media_type="text/html", status_code=400)
+        try:
+            tasks_oauth.finish(
+                store, params.get("state"), params.get("code"),
+                params.get("error"),
+            )
+        except ValueError:
+            return FileResponse(STATIC / "calendar-oauth-error.html",
+                                media_type="text/html", status_code=400)
+        from .google_tasks import sync
+        # Explicit initial callback is the ONLY background fetch added here.
+        # Later updates use the operator CLI; dashboard GET is purely cached.
+        background_tasks.add_task(sync, store)
+        return FileResponse(STATIC / "calendar-oauth-complete.html",
+                            media_type="text/html")
 
     @app.get("/api/v1/calendar/status")
     def local_calendar_status():
