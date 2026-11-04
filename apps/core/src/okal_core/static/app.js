@@ -84,6 +84,7 @@ function chooseInformation(mid, modifiers = {}, checkboxToggle = false) {
 
 
 function resetMailStatus() {
+  if (typeof resetLocalCalendarView === "function") resetLocalCalendarView();
   trashPermissionConfigured = null;
   selectedInfo.clear();
   selectionAnchor = null;
@@ -131,9 +132,10 @@ function renderMorning(data) {
     throw new Error("invalid daily briefing");
   el("morning-title").textContent = data.greeting;
   el("morning-text").textContent = data.spoken_text;
+  if (typeof renderDailyPoints === "function") renderDailyPoints(data);
   el("morning-status").textContent = data.mail_sync_stale
-    ? "تحديث البريد غير مؤكد أو غير مكتمل؛ الموجز ممكن يكون ناقص. مواعيد هذا الموجز من المهام المحلية فقط."
-    : "ملخص من البريد المحفوظ والمهام المؤكدة محليًا، جاهز للصوت فيما بعد.";
+    ? "تحديث البريد غير مؤكد أو غير مكتمل؛ الموجز ممكن يكون ناقص. المواعيد من تقويمك المحلي والنسخ المحفوظة."
+    : "ملخص محلي من المواعيد والمهام والبريد المحفوظ، جاهز للصوت فيما بعد.";
 }
 
 function renderMailStatus(mail) {
@@ -1029,6 +1031,7 @@ async function load(reset) {
       el("tasks-count").textContent = "تعذر تحميل المهام المحلية";
     }
     await loadUnifiedCalendar(options, active);
+    if (typeof loadLocalCalendar === "function") await loadLocalCalendar(options, active);
     if (active !== generation) return;
     if (reset) el("items").replaceChildren();
     for (const item of result.items) el("items").append(card(item));
@@ -2158,7 +2161,7 @@ window.addEventListener("DOMContentLoaded", () => load(true));
 // and never replace an open message or a Delete approval dialog mid-review.
 function refreshLocalInboxIfIdle() {
   if (busy || selectedInfo.size ||
-      el("inbox-panel").hidden ||
+      (el("inbox-panel").hidden && el("overview").hidden) ||
       el("mail-viewer").open || el("trash-dialog").open ||
       document.hidden) return;
   load(true);

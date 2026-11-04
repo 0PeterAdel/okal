@@ -89,7 +89,7 @@ def create_app(
     local_read_paths = {
         "/api/v1/health", "/api/v1/capabilities", "/api/v1/summaries",
         "/api/v1/mail/triage", "/api/v1/mail/assistant", "/api/v1/tasks",
-        "/api/v1/morning", "/api/v1/planner",
+        "/api/v1/morning", "/api/v1/planner", "/api/v1/calendar/local",
         "/api/v1/tasks/history", "/api/v1/calendar/agenda",
         "/api/v1/calendar/availability", "/api/v1/calendar/status",
         "/api/v1/calendar/plan",
@@ -118,6 +118,7 @@ def create_app(
                 "/api/v1/mail/tasks/from-message",
                 "/api/v1/tasks/create", "/api/v1/tasks/edit",
                 "/api/v1/tasks/transition",
+                "/api/v1/calendar/local/save", "/api/v1/calendar/local/transition",
                 "/api/v1/mail/reply-drafts/generate",
                 "/api/v1/mail/reply-drafts/revise",
                 "/api/v1/mail/reply-drafts/preview-send",
@@ -594,9 +595,9 @@ def create_app(
             )
             raise HTTPException(status, code) from None
 
-    async def action_payload(request, required):
+    async def action_payload(request, required, max_bytes=3000):
         body = await request.body()
-        if len(body) > 3000:
+        if len(body) > max_bytes:
             raise HTTPException(413, "mail_agent_request_too_large")
         try:
             payload = json.loads(body)
@@ -874,7 +875,7 @@ def create_app(
     @app.get("/api/v1/morning")
     def morning():
         """Read-only cached AI morning view; NEVER invokes Ollama on HTTP GET."""
-        from .morning_ai import view
+        from .daily_brief import view
 
         return view(store)
 
@@ -1098,6 +1099,40 @@ def create_app(
         from .calendar_core import CalendarCore
         return CalendarCore(store).availability()
 
+    @app.get("/api/v1/calendar/local")
+    def local_commitments():
+        from .local_calendar import LocalCalendar
+        return LocalCalendar(store).list()
+
+    @app.post("/api/v1/calendar/local/save")
+    async def save_local_commitment(request: Request):
+        if not authorized_ui_trash(request):
+            raise HTTPException(403, "owner_browser_session_required")
+        from .local_calendar import LocalCalendar, LocalCalendarConflict
+        payload = await action_payload(request, {
+            "id", "revision", "kind", "title", "notes", "start", "end",
+            "target_date", "reminder_minutes"
+        }, max_bytes=16000)
+        try:
+            return LocalCalendar(store).save(payload)
+        except LocalCalendarConflict as exc:
+            raise HTTPException(409, str(exc)) from None
+        except (ValueError, TypeError):
+            raise HTTPException(422, "invalid_local_commitment") from None
+
+    @app.post("/api/v1/calendar/local/transition")
+    async def transition_local_commitment(request: Request):
+        if not authorized_ui_trash(request):
+            raise HTTPException(403, "owner_browser_session_required")
+        from .local_calendar import LocalCalendar, LocalCalendarConflict
+        payload = await action_payload(request, {"id", "revision", "status"})
+        try:
+            return LocalCalendar(store).transition(payload["id"], payload["revision"], payload["status"])
+        except LocalCalendarConflict as exc:
+            raise HTTPException(409, str(exc)) from None
+        except (ValueError, TypeError):
+            raise HTTPException(422, "invalid_local_commitment") from None
+
     @app.get("/api/v1/calendar/plan")
     def local_unified_calendar_plan(days: int = Query(default=7, ge=1, le=7)):
         """Read cached calendar + confirmed tasks; no provider I/O or AI actions."""
@@ -1231,6 +1266,10 @@ def create_app(
         if not path.is_file():
             raise HTTPException(404, "fullcalendar_vendor_install_required")
         return FileResponse(path, media_type="text/javascript")
+
+    @app.get("/local-calendar-ui.js")
+    def local_calendar_script():
+        return FileResponse(STATIC / "local-calendar-ui.js", media_type="text/javascript")
 
     @app.get("/fullcalendar-ui.js")
     def local_fullcalendar_ui():
