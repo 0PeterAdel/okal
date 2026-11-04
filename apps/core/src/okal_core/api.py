@@ -1271,29 +1271,15 @@ def create_app(
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
     @app.get("/assets/okal-identity")
-    def owner_approved_okal_identity():
-        """Private owner PNG when valid; full-resolution bundled logo otherwise.
+    def bundled_okal_identity_legacy_alias():
+        """Compatibility endpoint: always serve the bundled Git-tracked logo.
 
-        The approved 1254px WebP is versioned in Git and works on fresh
-        Production clones without a local override or network dependency.
+        Never select private machine-specific state files; all clones render
+        the same official 1254px OKAL identity straight from this repository.
         """
-        import stat
-        private = store.directory / "brand" / "okal-approved-master.png"
-        private_cache_headers = {"Cache-Control": "private, no-cache"}
-        try:
-            metadata = private.lstat()
-            if (stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.getuid()
-                    and metadata.st_mode & 0o077 == 0
-                    and 10_000 <= metadata.st_size <= 8_000_000):
-                with private.open("rb") as image:
-                    if image.read(8) == b"\x89PNG\r\n\x1a\n":
-                        return FileResponse(private, media_type="image/png",
-                                            headers=private_cache_headers)
-        except (FileNotFoundError, OSError):
-            pass
         return FileResponse(STATIC / "assets" / "okal-master-hq.webp",
                             media_type="image/webp",
-                            headers=private_cache_headers)
+                            headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/assets/okal-master-hq.webp")
     def bundled_okal_brand_master():
