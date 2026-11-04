@@ -53,6 +53,7 @@ class CoreCase(unittest.TestCase):
     def test_refuse_shared_directory_and_symlinks(self):
         bad = Path(self.tmp.name) / "shared"
         bad.mkdir(mode=0o755)
+        bad.chmod(0o755)  # Fixture must stay shared under a private deployment umask.
         with self.assertRaises(ValueError):
             Store(bad)
         link = Path(self.tmp.name) / "link"

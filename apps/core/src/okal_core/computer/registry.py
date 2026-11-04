@@ -574,7 +574,18 @@ def status(ctx, args):
     )
 
 
+def command_scope(ctx):
+    # Directory mounts bypass Files' hidden-component filtering. Broad home or
+    # private-state ancestor grants must never be exposed to a command profile.
+    for grant in ctx.policy.roots:
+        if Path.home().is_relative_to(grant.root) or Path(
+            ctx.store.directory
+        ).is_relative_to(grant.root):
+            raise Denied("command_scope_includes_private_home_or_state")
+
+
 def command_preview(ctx, args):
+    command_scope(ctx)
     if args.name not in ctx.policy.commands:
         raise Denied("command_profile_not_granted")
     return {
@@ -585,6 +596,7 @@ def command_preview(ctx, args):
 
 
 def command(ctx, args):
+    command_scope(ctx)
     profile = ctx.policy.commands.get(args.name)
     if not profile or not shutil.which("bwrap"):
         raise Denied("command_profile_or_sandbox_unavailable")
