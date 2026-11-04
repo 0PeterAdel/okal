@@ -1,53 +1,46 @@
-# OKAL Design System — Git-tracked master logo
+# OKAL Design System — single Git-tracked logo
 
-The primary OKAL logo on this branch is the exact approved
-`1254×1254` WebP committed at:
+The only active OKAL logo is the owner's approved transparent
+**1254 × 1254 WebP** committed at:
 
 `apps/core/src/okal_core/static/assets/okal-master-hq.webp`
 
-**The owner must add and push the binary once from their Omarchy machine.**
-The branch intentionally has no substitute graphic or automatic external
-download. A fresh clone of this branch, once the asset is committed,
-contains the logo and works offline with no owner home-directory copy.
+The file is **already committed and pushed to GitHub**. Any fresh clone of
+this branch (and of `main` after an owner-approved merge) includes the
+exact same artwork. No external image URL, local Downloads file, private
+state override, or post-installation image copy is necessary.
 
-The web application references only:
-`/assets/okal-master-hq.webp?v=1254-design-v1`
-for both sidebar and Chat hero. FastAPI serves the file from the checkout
-via `STATIC / "assets" / "okal-master-hq.webp"`. The old
-`/assets/okal-identity` route remains a backward-compatible alias to the
-**same Git file**. It does not check `~/Downloads`,
-`~/.local/state/okal-core/brand`, or any private PNG.
+## Frontend and backend source of truth
 
-## Owner setup
+Both the Sidebar and Chat hero reference:
 
-Use the sibling Git worktree to avoid switching the running Production
-checkout away from `main`. A single-branch fetch may update only `FETCH_HEAD`;
-explicitly create the tracking ref first with:
+    /assets/okal-master-hq.webp?v=1254-design-v1
 
-    git -C ~/Projects/Okal fetch origin \
-      '+refs/heads/feat/okal-design-system:refs/remotes/origin/feat/okal-design-system'
+FastAPI serves the file from `STATIC / "assets" / "okal-master-hq.webp"`.
+The legacy `/assets/okal-identity` and `/assets/okal-master.webp`
+URLs return the **same high-resolution bytes**, not an old thumbnail.
 
-Then create
-`~/Projects/.okal-design-work` as a separate worktree of that same repo.
-Copy `~/Downloads/okal-master-hq.webp` into the path above, verify that
-it is WebP VP8X and 1254 by 1254, `git add`, commit using conventional
-commits, and `git push` to the feature branch.
+The obsolete 9 KB `okal-master.webp` file was removed from Git.
+The old private-logo installer and PR #113 logo preview are obsolete and
+are removed from this feature branch. This does not delete or alter
+anything in a user's home directory, private SQLite state, OAuth
+credentials, or running Production instance.
 
-Do not commit the private original PNG, user keys, runtime state,
-temporary virtual environments, or experimental folders.
+## Verification and visual acceptance
 
-## Acceptance
+On the feature branch worktree:
 
-After committing the asset, on the design worktree run:
-
+    git ls-files apps/core/src/okal_core/static/assets/
     bash scripts/preview-design-logo.sh
 
-It creates a temporary source snapshot and Python environment, verifies
-that the logo is **in Git** before serving, runs Python brand/API/UI tests
-and opens the page on loopback port 8767. The running Production service
-on 8766 and its database are untouched. Test in Firefox with
-Ctrl+Shift+R if the image is cached.
+The preview starts only on local port 8767, using an isolated temporary
+working directory, Python environment and SQLite database. It verifies
+the Git-archived image dimensions and runs the logo route and HTML
+contract tests before serving it. Production on 8766 is untouched.
 
-The logo asset and design branch should only be merged to `main` after
-owner visual approval and successful CI. This work is independent of
-older PR #114; do not merge both variants without reconciling them.
+In Firefox refresh with Ctrl+Shift+R to invalidate stale image caches.
+Inspect the hero logo, Sidebar logo, and direct asset URL. Only merge
+into `main` after review and all required CI checks pass.
+
+The old PR #114 has overlapping changes and should not be merged
+separately alongside the design branch.
