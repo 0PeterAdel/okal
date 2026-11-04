@@ -1,6 +1,7 @@
 """Git-tracked OKAL master logo: no machine-specific fallback or override."""
 
 import hashlib
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -35,13 +36,40 @@ class BrandAssetTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(raw[24:27], "little") + 1, 1254)
         self.assertEqual(int.from_bytes(raw[27:30], "little") + 1, 1254)
 
-    def test_ui_uses_repo_master_in_both_logo_positions(self):
-        html = (STATIC / "index.html").read_text(encoding="utf-8")
+    def test_browser_image_urls_are_routable_and_return_exact_git_bytes(self):
+        """Catch HTML URL query strings that middleware would reject with 400."""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+        img_urls = re.findall(r'<img\\b[^>]*\\bsrc="([^"]+)"', html)
+        self.assertEqual(img_urls, ["/assets/okal-master-hq.webp"] * 2)
+        source_bytes = (STATIC / "assets" / "okal-master-hq.webp").read_bytes()
+        for url in img_urls:
+            with self.subTest(url=url):
+                image_response = self.client.get(
+                    url,
+                    headers={
+                        "accept": "image/avif,image/webp,image/*;q=0.8",
+                        "referer": "http://127.0.0.1:8766/",
+                        "sec-fetch-dest": "image",
+                        "sec-fetch-mode": "no-cors",
+                        "sec-fetch-site": "same-origin",
+                    },
+                )
+                self.assertEqual(image_response.status_code, 200,
+                                 image_response.text[:200] if image_response.status_code != 200 else "")
+                self.assertEqual(image_response.headers["content-type"].split(";")[0],
+                                 "image/webp")
+                self.assertEqual(image_response.content, source_bytes)
+
+    def test_query_parameters_are_not_needed_for_same_origin_brand_images(self):
+        """Global query policy must not be bypassed to load static images."""
         self.assertEqual(
-            html.count('src="/assets/okal-master-hq.webp?v=1254-design-v1"'),
-            2,
+            self.client.get("/assets/okal-master-hq.webp?v=1254-design-v1").status_code,
+            400,
         )
-        self.assertNotIn('src="/assets/okal-identity"', html)
+        self.assertIn("no-store",
+                      self.client.get("/assets/okal-master-hq.webp").headers["cache-control"])
 
     def test_repo_master_route_serves_same_bytes_as_git_file(self):
         file_bytes = (STATIC / "assets" / "okal-master-hq.webp").read_bytes()
