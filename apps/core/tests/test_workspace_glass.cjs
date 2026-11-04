@@ -87,7 +87,9 @@ test("Chat viewport stays fixed while individual panes scroll", () => {
   assert.ok(rule('body[data-view="chat"] .workspace > main').includes("overflow:hidden;"));
   assert.ok(rule('body[data-view="chat"] #chat-home').includes("overflow:hidden;"));
   assert.ok(rule('body[data-view="chat"] .chat-room > .chat-messages').includes("overflow-y:auto;"));
-  assert.ok(rule('body[data-view="chat"] .chat-layout > .chat-context').includes("overflow-y:auto;"));
+  // The first occurrence is a shared sizing rule; the last adds scrolling.
+  assert.ok(layer.slice(layer.lastIndexOf('body[data-view="chat"] .chat-layout > .chat-context{'))
+    .split("}")[0].includes("overflow-y:auto;"));
   assert.ok(layer.includes("@media (max-width:900px){"));
   assert.ok(!layer.includes("html{overflow:hidden"), "No global scroll lock");
 });
