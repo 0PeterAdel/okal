@@ -4,6 +4,12 @@ This experimental feature is **stacked on PR #43**, itself based on Gmail
 PR #42. It is not active on the owner's Omarchy laptop until reviewed and
 installed. Do not merge out of dependency order.
 
+## Current local-calendar extension
+
+The November 4 owner-local calendar and concise briefing extend the historical
+contract below. See [Local Calendar and Brief](LOCAL-CALENDAR-BRIEF.md) for
+current sources, refresh rules, details and limitations.
+
 ## Morning briefing
 
 Mail freshness requires a completed checkpoint from the last 15 minutes, no

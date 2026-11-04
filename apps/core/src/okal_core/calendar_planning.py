@@ -40,7 +40,7 @@ def _calendar_items(events):
             "end_ts": event["end_ts"],
             "busy": bool(event["busy"]),
             "all_day": bool(event["all_day"]),
-            "source": "provider_cache",
+            "source": "owner_local_calendar" if event["provider"] == "local" else "provider_cache",
         })
     return items
 

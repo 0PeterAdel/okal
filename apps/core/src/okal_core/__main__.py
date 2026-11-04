@@ -93,7 +93,8 @@ def main():
         store = Store(args.state_dir)
         if args.command == "morning":
             from .morning import notify_login_once
-            from .morning_ai import refresh, view
+            from .morning_ai import refresh
+            from .daily_brief import view
 
             # Generation is opt-in and never runs on HTTP dashboard GET.
             if args.refresh_ai:

@@ -12,6 +12,15 @@ R1a is not full R1 acceptance: phone TLS/pairing and owner boot/lifecycle tests
 remain pending. The endpoint and dependency proposals below describe the full
 target; the runbook identifies the narrower implemented contract.
 
+## Owner clarification · 2026-11-04
+
+The daily experience uses a short Egyptian-Arabic bullet briefing with expandable
+details and a speech-ready payload. Voice execution remains deferred. OKAL owns
+a local SQLite calendar for explicitly entered appointments and date-only goals;
+Google is optional. Planning remains request-only, never inferred from adding a
+commitment. See [local calendar implementation](../docs/LOCAL-CALENDAR-BRIEF.md)
+for the current bounded scope and runtime acceptance checks.
+
 ## Scope and authority
 
 One owner, one laptop, one center. Four workflows: mail, planning, social and
