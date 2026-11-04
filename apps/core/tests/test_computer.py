@@ -607,3 +607,22 @@ class ComputerTests(unittest.TestCase):
                 403,
                 path,
             )
+
+    def test_owner_http_policy_save_and_revision_round_trip(self):
+        with TestClient(create_app(self.store), base_url="http://127.0.0.1:8766",
+                        client=("127.0.0.1", 12345)) as client:
+            headers = {"Origin": "http://127.0.0.1:8766", "Sec-Fetch-Site": "same-origin"}
+            before = client.post("/api/v1/actions/capabilities", json={}, headers=headers).json()["policy"]
+            policy = before["policy"]
+            policy["mode"] = "assisted"
+            policy["tools"] = ["files.list", "files.write"]
+            policy["roots"] = [{"root": str(self.root), "write": True}]
+            saved = client.post("/api/v1/actions/policy", json={"policy": policy,
+                                "revision": before["revision"]}, headers=headers)
+            self.assertEqual(saved.status_code, 200, saved.text)
+            self.assertEqual(saved.json()["revision"], before["revision"] + 1)
+            current = client.post("/api/v1/actions/capabilities", json={}, headers=headers).json()["policy"]
+            self.assertEqual(current, saved.json())
+            stale = client.post("/api/v1/actions/policy", json={"policy": policy,
+                                "revision": before["revision"]}, headers=headers)
+            self.assertEqual(stale.status_code, 409)

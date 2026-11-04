@@ -58,7 +58,7 @@ def register(app, store, authorized):
     engine = Engine(store)
     routes = {
         "capabilities": (Empty, engine.capabilities),
-        "policy": (Configure, engine.configure),
+        "policy": (Configure, lambda policy, revision: engine.configure(policy, revision)),
         "propose": (Propose, engine.propose),
         "get": (Reference, engine.get),
         "history": (History, engine.history),
