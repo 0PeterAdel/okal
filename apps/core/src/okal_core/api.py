@@ -1270,23 +1270,23 @@ def create_app(
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
 
+    @app.get("/assets/okal-master-hq.webp")
+    def okal_repo_logo_master():
+        """Official high-resolution logo is served only from this Git checkout.
+
+        Never read the logo from user Downloads, SQLite, or private local
+        state. Every cloned deployment must render the identical asset.
+        """
+        return FileResponse(STATIC / "assets" / "okal-master-hq.webp",
+                            media_type="image/webp",
+                            headers={"Cache-Control": "public, max-age=86400"})
+
     @app.get("/assets/okal-identity")
-    def owner_approved_okal_identity():
-        """Use installed private high-resolution master; existing WebP fallback."""
-        import stat
-        private = store.directory / "brand" / "okal-approved-master.png"
-        try:
-            metadata = private.lstat()
-            if (stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.getuid()
-                    and metadata.st_mode & 0o077 == 0
-                    and 10_000 <= metadata.st_size <= 8_000_000):
-                with private.open("rb") as image:
-                    if image.read(8) == b"\x89PNG\r\n\x1a\n":
-                        return FileResponse(private, media_type="image/png")
-        except (FileNotFoundError, OSError):
-            pass
-        return FileResponse(STATIC / "assets" / "okal-master.webp",
-                            media_type="image/webp")
+    def okal_logo_legacy_alias():
+        """Compatibility alias for older UI bookmarks; same bundled image."""
+        return FileResponse(STATIC / "assets" / "okal-master-hq.webp",
+                            media_type="image/webp",
+                            headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/assets/okal-master.webp")
     def approved_okal_brand_asset():
