@@ -66,6 +66,8 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('id="sidebar-toggle"', self.html)
         self.assertIn('aria-controls="okal-sidebar"', self.html)
         self.assertTrue((STATIC / "chat.css").is_file())
+        self.assertTrue((STATIC / "workspace-glass.css").is_file())
+        self.assertIn('href="/workspace-glass.css"', self.html)
         self.assertIn('href="/chat.css"', self.html)
         self.assertIn('href="#chat-home"', self.html)
         self.assertTrue((STATIC / "remote-settings-ui.js").is_file())
