@@ -1,6 +1,7 @@
 """Brand route uses validated owner PNG or committed full-resolution WebP."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import hashlib
 import os
 import struct
 import unittest
@@ -31,6 +32,8 @@ class BrandAssetTests(unittest.TestCase):
         self.assertEqual(response.content[8:16], b"WEBPVP8X")
         self.assertEqual(int.from_bytes(response.content[24:27], "little") + 1, 1254)
         self.assertEqual(int.from_bytes(response.content[27:30], "little") + 1, 1254)
+        self.assertEqual(hashlib.sha256(response.content).hexdigest(),
+                         "43d864616984749a29bbe636d5e312fcf0ad65ecc6b84c1ca2127eb47cfd7d24")
         self.assertIn("no-cache", response.headers["cache-control"])
         self.assertEqual(response.headers["content-security-policy"][:16],
                          "default-src 'non")
