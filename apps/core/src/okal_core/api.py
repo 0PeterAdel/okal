@@ -1289,10 +1289,14 @@ def create_app(
                             headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/assets/okal-master.webp")
-    def approved_okal_brand_asset():
-        """Bundled optimized export of owner's approved original artwork."""
-        return FileResponse(STATIC / "assets" / "okal-master.webp",
-                            media_type="image/webp")
+    def deprecated_okal_thumbnail_alias():
+        """Old URL preserved but now serves the same Git-tracked HQ master.
+
+        This path never reads or serves the deleted low-resolution thumbnail.
+        """
+        return FileResponse(STATIC / "assets" / "okal-master-hq.webp",
+                            media_type="image/webp",
+                            headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/workspace-glass.css")
     def workspace_glass_stylesheet():
