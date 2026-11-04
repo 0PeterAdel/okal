@@ -28,6 +28,8 @@ class BrandAssetTests(unittest.TestCase):
         self.assertTrue(path.is_file(), "Copy and commit okal-master-hq.webp to Git")
         raw = path.read_bytes()
         self.assertGreater(len(raw), 200_000)
+        self.assertFalse((STATIC / "assets" / "okal-master.webp").exists(),
+                         "Remove obsolete 9 KB thumbnail from Git")
         self.assertEqual(raw[0:4], b"RIFF")
         self.assertEqual(raw[8:16], b"WEBPVP8X")
         self.assertEqual(int.from_bytes(raw[24:27], "little") + 1, 1254)
@@ -43,7 +45,8 @@ class BrandAssetTests(unittest.TestCase):
 
     def test_repo_master_route_serves_same_bytes_as_git_file(self):
         file_bytes = (STATIC / "assets" / "okal-master-hq.webp").read_bytes()
-        for url in ("/assets/okal-master-hq.webp", "/assets/okal-identity"):
+        for url in ("/assets/okal-master-hq.webp", "/assets/okal-identity",
+                    "/assets/okal-master.webp"):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
