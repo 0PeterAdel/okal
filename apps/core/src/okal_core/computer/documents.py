@@ -84,6 +84,7 @@ def extract(path, data, check):
                     and i.filename.endswith(".xml")
                 ][:20]
             )
+            names.sort(key=lambda name: (name != "xl/sharedStrings.xml", name))
             strings = []
             shared = []
             for name in names:

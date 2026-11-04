@@ -462,6 +462,22 @@ class ComputerTests(unittest.TestCase):
                 archive.writestr(name, xml)
             value = extract("synthetic" + suffix, data.getvalue(), lambda: None)
             self.assertIn(expected, value["text"])
+        # Real XLSX archives may put worksheets before the shared string
+        # table. Resolve string IDs independently of ZIP entry ordering.
+        shared_data = io.BytesIO()
+        with zipfile.ZipFile(shared_data, "w") as archive:
+            archive.writestr(
+                "xl/worksheets/sheet1.xml",
+                '<worksheet xmlns="urn:test"><row><c t="s"><v>0</v></c></row></worksheet>',
+            )
+            archive.writestr(
+                "xl/sharedStrings.xml",
+                '<sst xmlns="urn:test"><si><t>Grounded shared value</t></si></sst>',
+            )
+        self.assertIn(
+            "Grounded shared value",
+            extract("shared.xlsx", shared_data.getvalue(), lambda: None)["text"],
+        )
         data = io.BytesIO()
         with zipfile.ZipFile(data, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("word/document.xml", "X" * (8 * 1024 * 1024 + 1))
