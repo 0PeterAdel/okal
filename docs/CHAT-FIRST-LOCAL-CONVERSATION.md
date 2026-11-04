@@ -115,3 +115,59 @@ Do not deploy the feature branch. Merge only through a reviewed
 squash PR with all checks passing, back up SQLite, then update the
 single production checkout to latest main. If an independent coding
 agent changes the same HTML/API/JS files, inspect the combined diff.
+
+
+## Approved brand master and restrained spatial glass
+
+The repo keeps a small WebP fallback so the app can boot offline, but
+the owner-approved full-resolution original PNG is installed in private
+local OKAL state rather than replacing it with a pixelated thumbnail.
+
+To register the approved original PNG for a local state directory:
+
+    bash scripts/install-okal-master.sh "/path/to/OKAL_APPROVED_ORIGINAL_UNEDITED.png" "$HOME/.local/state/okal-core"
+
+The script checks the PNG signature, dimensions and owner-only
+permissions, then installs it atomically. The app serves
+`/assets/okal-identity` using the PNG when present and falls back to
+the bundled WebP otherwise. The master never leaves the owner's machine.
+
+The separate `chat-glass.css` layer and existing `chat.css` keep the
+chat layout, adding translucent panels, subtle icy reflections, HUD
+details and gold focus. No fake telemetry or active-voice claims.
+
+## Familiar rich Markdown answers
+
+Assistant answers use pinned locally vendored `markdown-it` 13.0.2
+(MIT license retained), without external CDNs or paid APIs. Supported
+formatting includes headings, paragraphs, lists, emphasis, blockquotes,
+tables, fenced code blocks, inline code and HTTP(S) links. Code blocks
+have a language label and Copy Code action; wide tables scroll.
+
+The parser has raw HTML disabled, autolinks disabled, remote images
+disabled and non-HTTP(S) links rejected. External links use
+`noopener noreferrer nofollow`. User messages remain literal text;
+only assistant responses are formatted. Both server and client cap
+answer length. This follows familiar ChatGPT Markdown presentation
+conventions but is not a copy of ChatGPT's private renderer, math
+engine or executable code previews.
+
+The current pinned parser is used only with constrained, short model
+answers; review the upstream version before expanding untrusted input
+limits substantially.
+
+## Owner preview — always before merge
+
+From the exact PR feature branch:
+
+    bash scripts/preview-chat-pr113.sh "/home/okal/Downloads/OKAL_APPROVED_ORIGINAL_UNEDITED(1).png"
+
+Without a logo argument the script searches Downloads for known master
+filenames, warning if none exists. It uses temporary SQLite and model
+metadata only, does not copy OAuth credentials, and binds only to
+127.0.0.1:8767. Production 8766 remains untouched.
+
+Test an AI response containing a heading, ordered list, Markdown
+table and fenced Python block. Confirm Copy Code appears and model
+text is not treated as executable HTML. Open the local browser at
+`http://127.0.0.1:8767/#chat-home`.
