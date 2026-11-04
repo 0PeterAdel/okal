@@ -1312,6 +1312,10 @@ def create_app(
         return FileResponse(STATIC / "chat-markdown.js",
                             media_type="text/javascript")
 
+    @app.get("/sidebar-ui.js")
+    def sidebar_ui_script():
+        return FileResponse(STATIC / "sidebar-ui.js", media_type="text/javascript")
+
     @app.get("/chat-ui.js")
     def chat_ui_script():
         return FileResponse(STATIC / "chat-ui.js", media_type="text/javascript")
