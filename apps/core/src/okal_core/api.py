@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from .store import InvalidCursor, Store
 from .intelligence_api import PATHS as CHAT_PATHS, register as register_intelligence
+from .computer.api import PATHS as ACTION_PATHS, register as register_computer
 
 def _owner_trash_is_configured(store):
     """Configuration hint only — not live OAuth confirmation."""
@@ -111,7 +112,7 @@ def create_app(
         # This route is write-sensitive even when the rest of the dashboard
         # auto-opens: enforce browser same-origin + JSON + fresh preview ticket.
         return (
-            request.url.path in CHAT_PATHS | {
+            request.url.path in CHAT_PATHS | ACTION_PATHS | {
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
                 "/api/v1/mail/viewed",
@@ -718,47 +719,15 @@ def create_app(
     @app.post("/api/v1/mail/reply-drafts/generate")
     async def generate_local_mail_reply(request: Request):
         """Explicit, pinned local Ollama; saves draft to SQLite, NEVER sends."""
-        from .mail.private import config, locked
         from .mail.contracts import MailError
-        from .mail.provider import Gmail
-        from .mail.inference import LocalModel
-        from .mail.viewer import allowed_source
-        from .mail.workflows import reply_draft
-        from .mail.state import MailState
         payload = await action_payload(request, {"message_id","language"})
         mid, language = payload["message_id"], payload["language"]
         if (not isinstance(mid,str) or not re.fullmatch(r"[a-fA-F0-9]{1,64}",mid)
                 or not isinstance(language,str) or language not in {"ar","en"}):
             raise HTTPException(400,"invalid_reply_request")
         try:
-            with locked(store):
-                cfg = config(store)
-                if allowed_source(store,cfg.account.casefold(),mid) is None:
-                    raise MailError("reply_manual_review_required")
-                api = Gmail.open(store,cfg)
-                model = LocalModel(cfg)
-                try:
-                    language_instruction = (
-                        "Draft a concise professional Egyptian Arabic reply. "
-                        "Do not invent any commitments, dates or prices. "
-                        "No send; owner will inspect and edit."
-                        if language == "ar" else
-                        "Draft a concise professional English reply. "
-                        "Do not invent commitments, dates or prices. "
-                        "No send; owner will inspect and edit."
-                    )
-                    draft_id = reply_draft(store,cfg,api,model,mid,language_instruction)
-                    row = MailState(store).draft(draft_id)
-                    saved = json.loads(row["payload"])
-                    return {
-                        "status":"draft_saved_local_only","draft_id":draft_id,
-                        "recipient":saved["recipient"],
-                        "subject":saved["subject"],"body":saved["body"],
-                        "sent":False,"owner_review_required":True,
-                    }
-                finally:
-                    model.close()
-                    api.close()
+            from .mail.owner_reply import generate
+            return await asyncio.to_thread(generate, store, mid, language)
         except MailError as exc:
             raise action_failure(exc) from None
 
@@ -1099,6 +1068,7 @@ def create_app(
             "external_reads": False, "external_writes": False}
 
     register_intelligence(app, store, authorized_ui_trash)
+    register_computer(app, store, authorized_ui_trash)
 
     @app.post("/api/v1/chat")
     async def ask_local_chat(request: Request):
@@ -1326,6 +1296,10 @@ def create_app(
     @app.get("/sidebar-ui.js")
     def sidebar_ui_script():
         return FileResponse(STATIC / "sidebar-ui.js", media_type="text/javascript")
+
+    @app.get("/computer-ui.js")
+    def computer_ui_script():
+        return FileResponse(STATIC / "computer-ui.js", media_type="text/javascript")
 
     @app.get("/chat-ui.js")
     def chat_ui_script():

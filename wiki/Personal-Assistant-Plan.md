@@ -21,6 +21,16 @@ Google is optional. Planning remains request-only, never inferred from adding a
 commitment. See [local calendar implementation](../docs/LOCAL-CALENDAR-BRIEF.md)
 for the current bounded scope and runtime acceptance checks.
 
+## Owner directive · 2026-11-05
+
+The owner explicitly requested persistent intelligence followed by governed
+personal computer operations. Stage 1 merged in PR #116. Stage 2 is tracked in
+issue #117 and implemented through its separate reviewed PR. See
+[governed computer actions](../docs/COMPUTER-ACTIONS.md) for the actual typed tools,
+permission boundaries, on-device evidence and limitations. This supersedes the
+older deferral of personal filesystem/browser/desktop adapters below; raw model
+shell execution, coding/research agents and voice remain outside this delivery.
+
 ## Scope and authority
 
 One owner, one laptop, one center. Four workflows: mail, planning, social and

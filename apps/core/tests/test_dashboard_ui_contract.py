@@ -59,7 +59,7 @@ class DashboardContractTests(unittest.TestCase):
             if href.startswith("#"):
                 self.assertIn(href[1:], ids)
         self.assertEqual(self.dom.scripts,
-            ["/vanilla-calendar.min.js", "/fullcalendar-standard.min.js", "/app.js", "/sidebar-ui.js", "/vendor/markdown-it.min.js", "/chat-markdown.js", "/chat-ui.js", "/local-calendar-ui.js", "/day-plan.js", "/day-plan-ai.js", "/google-tasks-ui.js", "/remote-settings-ui.js", "/fullcalendar-ui.js"])
+            ["/vanilla-calendar.min.js", "/fullcalendar-standard.min.js", "/app.js", "/sidebar-ui.js", "/vendor/markdown-it.min.js", "/chat-markdown.js", "/computer-ui.js", "/chat-ui.js", "/local-calendar-ui.js", "/day-plan.js", "/day-plan-ai.js", "/google-tasks-ui.js", "/remote-settings-ui.js", "/fullcalendar-ui.js"])
         self.assertTrue((STATIC / "day-plan.js").exists())
         self.assertTrue((STATIC / "chat-ui.js").is_file())
         self.assertTrue((STATIC / "sidebar-ui.js").is_file())

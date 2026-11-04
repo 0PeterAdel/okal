@@ -199,6 +199,10 @@ class Intelligence:
                 'response': json.loads(row['response']) if row['response'] else None}
 
     def _delete(self, db, conversation_id):
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='computer_runs'").fetchone():
+            if db.execute("SELECT 1 FROM computer_runs WHERE conversation_id=? AND status='running'",
+                          (conversation_id,)).fetchone():
+                raise Conflict('cancel_running_actions_before_deleting_conversation')
         for row in db.execute('SELECT id FROM chat_memories WHERE conversation_id=? '
                               'OR source_turn IN (SELECT id FROM chat_turns WHERE conversation_id=?)',
                               (conversation_id, conversation_id)).fetchall():
@@ -351,7 +355,13 @@ class Intelligence:
         # Rebuilt from source on every call, no independent summary accumulation.
         older = [{'turn_id': r['id'], 'owner_excerpt': r['user_text'][:150]}
                  for r in reversed(rows[4:12])]
-        return recent, {'memories': selected, 'older_owner_excerpts': older,
+        action_receipts=[]
+        with self.store.connect() as db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='computer_runs'").fetchone():
+                action_receipts=[dict(r) for r in db.execute(
+                    'SELECT id,instruction,status FROM computer_runs WHERE conversation_id=? ORDER BY created_at DESC LIMIT 3',
+                    (conversation_id,))]
+        return recent, {'action_receipts': action_receipts, 'memories': selected, 'older_owner_excerpts': older,
                         'history_limited': len(rows) >= 12,
                         'memory_selection': 'bounded_lexical_overlap',
                         'memory_assertion': 'owner_statement_not_independently_verified'}
@@ -369,7 +379,7 @@ class Intelligence:
             changed = db.execute("UPDATE chat_turns SET response=?,status=?,lease=NULL,lease_until=NULL "
                                  "WHERE id=? AND lease=? AND lease_until>? AND status='running'",
                                  (json.dumps(response, ensure_ascii=False),
-                                  'complete' if response['mode'] in {'pinned_local_ollama', 'owner_memory'} else 'failed',
+                                  'complete' if response['mode'] in {'pinned_local_ollama', 'owner_memory', 'action_plan'} else 'failed',
                                   turn_id, lease, self.now)).rowcount
             if not changed:
                 raise Conflict('turn_expired_deleted_or_forgotten')
@@ -406,7 +416,9 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
                             'proposal': None, 'mode': 'owner_memory', 'saved': False,
                             'source': 'owner_memory_policy', 'voice_enabled': False}
         else:
-            response = ask(store, message, history, infer=infer, memory_context=context)
+            from .computer.chat import propose_for_chat
+            action = propose_for_chat(store, conversation_id, request_id, message) if infer is None else None
+            response = action or ask(store, message, history, infer=infer, memory_context=context)
         response.setdefault('context_sources', [])
         response.setdefault('history_limited', context['history_limited'])
         return state.finish(turn_id, lease, response)
