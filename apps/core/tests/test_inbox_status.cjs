@@ -1116,3 +1116,68 @@ test("local Plan My Day previews and saves without ever writing to Google",async
   assert.equal(get("day-plan-saved").children.length,0);
   assert.equal(get("day-plan-save").disabled,true);
 });
+
+test("source browser filters GitHub PRs, Issues and Actions without losing priority view", () => {
+  const {context, get} = harness();
+  const mk = (id, sender, group, kind, subject, category="information") => ({
+    id, sender, source_group:group, source_type:kind, subject, category,
+    labels:["INBOX"], summary:"Locally saved insight", suggested_action:"",
+    has_unread_attachments:false, link:"https://mail.google.com/mail/#all/" + id,
+  });
+  const items = [
+    mk("a1","GitHub <notifications@github.com>","github","pull_requests","PR #101","action"),
+    mk("a2","GitHub <notifications@github.com>","github","issues","Issue #42"),
+    mk("a3","GitHub <notifications@github.com>","github","actions","Workflow run failed"),
+    mk("a4","LinkedIn <updates@linkedin.com>","linkedin","other","Your jobs"),
+    mk("a5","Personal <friend@example.com>","other","other","Hello"),
+  ];
+  context.renderTriage({state:"recorded_local_insights",items});
+  assert.match(get("triage-count").textContent,/5 رسالة/);
+  const find = (id, match) => get(id).children.find(node =>
+    node.textContent.startsWith(match));
+  const github = find("mail-source-groups","GitHub");
+  assert.ok(github);
+  assert.match(github.textContent,/3$/);
+  github.handlers.click();
+  assert.match(get("triage-count").textContent,/3 رسالة/);
+  assert.equal(github.attributes["aria-pressed"],"false");
+  assert.equal(find("mail-source-groups","GitHub").attributes["aria-pressed"],"true");
+  assert.ok(find("mail-source-kinds","Pull Requests"));
+  assert.ok(find("mail-source-kinds","Issues"));
+  assert.ok(find("mail-source-kinds","CI / Actions"));
+  find("mail-source-kinds","Pull Requests").handlers.click();
+  assert.match(get("triage-count").textContent,/1 رسالة/);
+  assert.equal(get("triage-groups").children.length,1);
+  assert.equal(get("triage-groups").children[0].children[1].children[1].textContent,"PR #101");
+  assert.match(get("trash-count").textContent,/0 من 1/);
+  find("mail-source-kinds","Issues").handlers.click();
+  assert.equal(get("triage-groups").children[0].children[1].children[1].textContent,"Issue #42");
+  find("mail-source-kinds","CI / Actions").handlers.click();
+  assert.equal(get("triage-groups").children[0].children[1].children[1].textContent,"Workflow run failed");
+  find("mail-source-groups","LinkedIn").handlers.click();
+  assert.equal(get("mail-source-kinds").children.length,0);
+  assert.match(get("triage-count").textContent,/1 رسالة/);
+  find("mail-source-groups","كل الرسائل").handlers.click();
+  assert.match(get("triage-count").textContent,/5 رسالة/);
+  assert.equal(get("metric-mail").textContent,"5");
+  assert.equal(items.length,5);
+  context.lock();
+  assert.equal(get("mail-source-groups").children.length,0);
+  assert.equal(get("mail-source-kinds").children.length,0);
+});
+
+test("source browser renders untrusted notification labels as text without HTML", () => {
+  const {context, get} = harness();
+  context.renderTriage({items:[{
+    id:"b1", sender:"<script>evil</script>", source_group:"other", source_type:"other",
+    subject:"<svg onload=alert(1)>", category:"information",
+    labels:["INBOX"], summary:"Untrusted content", suggested_action:"",
+    link:"#inbox-panel",
+  }]});
+  const other = get("mail-source-groups").children.find(
+    child => child.textContent.startsWith("مصادر أخرى"));
+  assert.ok(other);
+  other.handlers.click();
+  const row = get("triage-groups").children[0].children[1];
+  assert.equal(row.children[1].textContent,"<svg onload=alert(1)>");
+});
