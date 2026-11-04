@@ -429,3 +429,215 @@ body[data-view="dashboard"] .section-overline .eyebrow-mark {
 @media(prefers-reduced-motion:reduce){
   body[data-view="dashboard"] .nav-item{transition:none}
 }
+
+
+/* OKAL fullscreen shell and uncropped official identity — PR #115 */
+/*
+ * Put the atmosphere on the common app shell, behind both Sidebar and
+ * Workspace. Chat owns one viewport; long records scroll in their panels.
+ * All other routes retain their normal document scrolling behavior.
+ */
+body[data-view="chat"]{
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
+}
+body[data-view="chat"] .app-layout{
+  height:100dvh;
+  min-height:0;
+  max-width:none;
+  overflow:hidden;
+  background:
+    radial-gradient(ellipse 60% 54% at 27% -13%,rgba(61,105,140,.20),transparent 75%),
+    radial-gradient(ellipse 40% 55% at 100% 95%,rgba(213,162,76,.065),transparent 80%),
+    repeating-linear-gradient(0deg,transparent 0 47px,rgba(185,219,246,.018) 48px,transparent 49px),
+    repeating-linear-gradient(90deg,transparent 0 47px,rgba(185,219,246,.018) 48px,transparent 49px),
+    #070A10;
+}
+body[data-view="chat"] .app-layout > .sidebar{
+  height:100%;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  background:linear-gradient(170deg,rgba(30,56,77,.65),rgba(11,23,38,.72) 72%,rgba(15,28,43,.64));
+}
+body[data-view="chat"] .app-layout > .workspace{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+  background:transparent;
+}
+body[data-view="chat"] .workspace > .topbar{
+  flex:0 0 76px;
+  position:relative;
+}
+body[data-view="chat"] .workspace > main{
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding:clamp(11px,1.5vw,24px);
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+body[data-view="chat"] #chat-home{
+  flex:1 1 auto;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+  gap:clamp(10px,1.4vh,17px);
+}
+body[data-view="chat"] #chat-home > .chat-heading{
+  flex:0 0 auto;
+}
+body[data-view="chat"] #chat-home > .chat-layout{
+  flex:1 1 auto;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+body[data-view="chat"] .chat-layout > .chat-room,
+body[data-view="chat"] .chat-layout > .chat-context{
+  min-height:0;
+  height:100%;
+}
+body[data-view="chat"] .chat-room > .chat-greeting{
+  min-height:0;
+  flex:0 1 auto;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+body[data-view="chat"] .chat-room > .chat-messages{
+  flex:1 1 auto;
+  min-height:0;
+  max-height:none;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+body[data-view="chat"] .chat-room > .chat-composer{
+  flex:0 0 auto;
+}
+body[data-view="chat"] .chat-layout > .chat-context{
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+
+/* The artwork contains its own wordmark: render the entire image, NEVER crop. */
+.app-layout .sidebar .brand-emblem-crop{
+  position:relative;
+  display:grid;
+  place-items:center;
+  flex:0 0 80px!important;
+  width:80px!important;
+  height:88px!important;
+  overflow:visible!important;
+  border:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+.app-layout .sidebar .brand-emblem-crop img{
+  position:static!important;
+  inset:auto!important;
+  display:block;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain;
+  object-position:center;
+}
+.app-layout .sidebar .brand{
+  min-width:0;
+  gap:9px;
+  padding-top:0;
+  padding-bottom:18px;
+}
+@media (min-width:901px){
+  /* Slightly wider icon rail so the complete artwork fits, including text. */
+  body[data-sidebar="collapsed"] .app-layout{
+    grid-template-columns:94px minmax(0,1fr);
+  }
+  body[data-sidebar="collapsed"] .app-layout > .sidebar{
+    top:8px;
+    margin:8px 4px;
+    height:calc(100dvh - 16px);
+    min-height:0;
+    padding:14px 8px 12px;
+    overflow-y:auto;
+    overflow-x:hidden;
+  }
+  body[data-sidebar="collapsed"] .app-layout .sidebar .brand{
+    padding:0 0 12px;
+    justify-content:center;
+  }
+  body[data-sidebar="collapsed"] .app-layout .sidebar .brand-emblem-crop{
+    flex:0 0 68px!important;
+    width:68px!important;
+    height:82px!important;
+    margin:0 auto;
+  }
+  body[data-sidebar="collapsed"] .app-layout .sidebar .nav-item{
+    width:64px;
+  }
+  body[data-sidebar="collapsed"] .app-layout .sidebar-toggle{
+    width:64px;
+    min-width:64px;
+  }
+  body[data-view="chat"][data-sidebar="collapsed"] .app-layout > .sidebar{
+    background:linear-gradient(165deg,rgba(37,66,87,.77),rgba(14,27,44,.84) 75%);
+  }
+}
+/* On touch devices the sidebar becomes a compact horizontal header, but the
+ * document still fits the viewport; content scroll stays inside the chat. */
+@media (max-width:900px){
+  body[data-view="chat"] .app-layout{
+    display:flex;
+    flex-direction:column;
+  }
+  body[data-view="chat"] .app-layout > .sidebar{
+    position:relative;
+    top:auto;
+    flex:0 0 auto;
+    height:auto;
+    min-height:0;
+    max-height:150px;
+    overflow-y:hidden;
+  }
+  body[data-view="chat"] .app-layout > .workspace{
+    flex:1 1 auto;
+    height:auto;
+  }
+  body[data-view="chat"] .workspace > .topbar{
+    flex-basis:62px;
+  }
+  body[data-view="chat"] .workspace > main{
+    padding:10px 12px;
+  }
+  .app-layout .sidebar .brand-emblem-crop{
+    flex-basis:48px!important;
+    width:48px!important;
+    height:54px!important;
+  }
+}
+@media (max-height:650px){
+  body[data-view="chat"] .chat-hero-stage{
+    height:190px;
+  }
+  body[data-view="chat"] .chat-hero-logo{
+    width:185px;
+    height:185px;
+  }
+}
+/* No chrome or layout scroll at 100dvh; support users with reduced effects. */
+@media(prefers-reduced-motion:reduce){
+  body[data-view="chat"] :is(.chat-greeting,.chat-messages,.chat-context){
+    scroll-behavior:auto;
+  }
+}
