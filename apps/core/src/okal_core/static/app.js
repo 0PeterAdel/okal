@@ -100,6 +100,10 @@ function resetMailStatus() {
   el("integration-status").textContent =
     "افتح الصندوق لعرض حالة البريد المسجلة محليًا. لا يتم فحص Google أو تشغيل الموديل بمجرد فتح الصفحة.";
   el("sync").textContent = "لم يتم التحديث بعد";
+  mailSourceFilter = "all";
+  githubTopicFilter = "all";
+  el("mail-source-groups").replaceChildren();
+  el("mail-source-kinds").replaceChildren();
   el("triage-groups").replaceChildren();
   el("triage-count").textContent = "لا توجد بيانات بعد";
   el("triage-note").textContent = "الواجهة تعرض نتائج محفوظة فقط؛ لا تُنفّذ أفعالًا على Gmail.";
@@ -211,13 +215,99 @@ function clusterKey(item) {
   return domain ? domain + ":" + normalized : null;
 }
 
+// Source/topic browsing is presentation-only over the cached triage projection.
+// It does not mutate Gmail labels, rerun Ollama, or grant action permissions.
+const mailSources = [
+  ["all", "كل الرسائل"],
+  ["github", "GitHub"],
+  ["linkedin", "LinkedIn"],
+  ["atlassian", "Jira / Atlassian"],
+  ["google", "Google"],
+  ["cloudflare", "Cloudflare"],
+  ["freelance", "Freelance"],
+  ["microsoft", "Microsoft"],
+  ["other", "مصادر أخرى"],
+];
+const githubTopics = [
+  ["all", "كل GitHub"],
+  ["pull_requests", "Pull Requests"],
+  ["issues", "Issues"],
+  ["actions", "CI / Actions"],
+  ["security", "Security"],
+  ["discussions", "Discussions"],
+  ["releases", "Releases"],
+  ["repositories", "Repositories"],
+  ["other", "إشعارات أخرى"],
+];
+let mailSourceFilter = "all";
+let githubTopicFilter = "all";
+
+function renderMailSourceFilters(items) {
+  const sources = el("mail-source-groups");
+  const kinds = el("mail-source-kinds");
+  sources.replaceChildren();
+  kinds.replaceChildren();
+  const counts = new Map();
+  for (const item of items) {
+    const group = typeof item.source_group === "string"
+      ? item.source_group : "other";
+    counts.set(group, (counts.get(group) || 0) + 1);
+  }
+  for (const [key, label] of mailSources) {
+    const count = key === "all" ? items.length : (counts.get(key) || 0);
+    if (!count && key !== "all" && key !== "github" && key !== mailSourceFilter)
+      continue;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mail-source-chip";
+    button.setAttribute("aria-pressed", String(mailSourceFilter === key));
+    button.textContent = label + " · " + count;
+    button.addEventListener("click", () => {
+      if (mailSourceFilter === key) return;
+      mailSourceFilter = key;
+      githubTopicFilter = "all";
+      if (lastTriageResult) renderTriage(lastTriageResult);
+    });
+    sources.append(button);
+  }
+  if (mailSourceFilter !== "github") return;
+  const githubItems = items.filter(item => item.source_group === "github");
+  const kindCounts = new Map();
+  for (const item of githubItems) {
+    const kind = typeof item.source_type === "string" ? item.source_type : "other";
+    kindCounts.set(kind, (kindCounts.get(kind) || 0) + 1);
+  }
+  for (const [key, label] of githubTopics) {
+    const count = key === "all" ? githubItems.length : (kindCounts.get(key) || 0);
+    // Always expose key GitHub sections; zero-count secondary topics can hide.
+    if (!count && !["all", "pull_requests", "issues", "actions", "security"].includes(key)
+        && key !== githubTopicFilter) continue;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mail-source-chip mail-topic-chip";
+    button.setAttribute("aria-pressed", String(githubTopicFilter === key));
+    button.textContent = label + " · " + count;
+    button.addEventListener("click", () => {
+      if (githubTopicFilter === key) return;
+      githubTopicFilter = key;
+      if (lastTriageResult) renderTriage(lastTriageResult);
+    });
+    kinds.append(button);
+  }
+}
+
 let lastTriageResult = null;
 let lastAssistantResult = null;
 const viewedThisSession = new Set();
 function renderTriage(result) {
   if (!result || !Array.isArray(result.items)) throw new Error("invalid triage payload");
   lastTriageResult = result;
-  result = {...result, items:result.items.filter(item => !viewedThisSession.has(item.id))};
+  const activeItems = result.items.filter(item => !viewedThisSession.has(item.id));
+  renderMailSourceFilters(activeItems);
+  result = {...result, items:activeItems.filter(item =>
+    (mailSourceFilter === "all" || (item.source_group || "other") === mailSourceFilter) &&
+    (mailSourceFilter !== "github" || githubTopicFilter === "all" ||
+      (item.source_type || "other") === githubTopicFilter))};
   const groups = el("triage-groups");
   groups.replaceChildren();
   selectedInfo.clear();
@@ -241,9 +331,10 @@ function renderTriage(result) {
   el("triage-count").textContent =
     `${result.items.length} رسالة · ${counts[1]} تحتاج إجراء · ${counts[0]} للمراجعة اليدوية`;
   el("triage-note").textContent =
-    "حدد من أي تصنيف؛ الرسائل المحمية في Gmail غير قابلة للحذف. اضغط على عنوان الرسالة لعرض محتواها هنا.";
-  el("metric-mail").textContent = String(result.items.length);
-  el("metric-action").textContent = String(counts[0] + counts[1]);
+    "التصفية حسب المصدر ونوع الإشعار محلية فقط؛ اختار الرسالة لفتحها. الرسائل المحمية غير قابلة للنقل إلى Trash.";
+  el("metric-mail").textContent = String(activeItems.length);
+  el("metric-action").textContent = String(activeItems.filter(item =>
+    item.category === "action" || item.category === "manual_review").length);
   for (const [key, number, arabic, english] of categories) {
     const items = result.items.filter((item) => item.category === key);
     if (!items.length) continue;
