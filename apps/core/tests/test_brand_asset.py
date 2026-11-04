@@ -41,7 +41,7 @@ class BrandAssetTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         html = response.text
-        img_urls = re.findall(r'<img\\b[^>]*\\bsrc="([^"]+)"', html)
+        img_urls = re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', html)
         self.assertEqual(img_urls, ["/assets/okal-master-hq.webp"] * 2)
         source_bytes = (STATIC / "assets" / "okal-master-hq.webp").read_bytes()
         for url in img_urls:
