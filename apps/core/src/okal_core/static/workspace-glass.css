@@ -388,7 +388,8 @@ body[data-view="dashboard"] .section-overline .eyebrow-mark {
 
 /* Compact safety/performance fallbacks */
 @media(max-width:1230px) and (min-width:901px){
-  .app-layout{grid-template-columns:208px minmax(0,1fr)}
+  /* Same width on Chat and non-Chat; avoid a layout jump at each route. */
+  body[data-view] .app-layout{grid-template-columns:208px minmax(0,1fr)}
   body[data-sidebar="collapsed"] .app-layout{grid-template-columns:76px minmax(0,1fr)}
 }
 @media(max-width:900px){
