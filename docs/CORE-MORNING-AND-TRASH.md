@@ -6,6 +6,29 @@ installed. Do not merge out of dependency order.
 
 ## Morning briefing
 
+Mail freshness requires a completed checkpoint from the last 15 minutes, no
+recorded failed attempt for the configured account, and no pending history
+batch. A future checkpoint timestamp is not accepted as fresh. The existing
+`mail_sync_stale` field means freshness is unverified, not necessarily that the
+saved messages themselves are old. Saved highlights remain visible with an
+early warning; an empty local selection is never proof of an empty live inbox.
+Freshness changes invalidate the cached AI editorial plan. Reading the brief
+does not refresh Gmail, invoke Ollama, clear failures, or advance the cursor.
+
+Owner verification after installing the reviewed change:
+
+```bash
+cd ~/Projects/okal-production
+bash scripts/run-okal-core.sh morning
+```
+
+Check `mail_sync_stale` and `spoken_text` locally. During a recorded failure or
+pending batch, expect `true` and a warning even when saved action highlights
+exist. After a complete successful sync within 15 minutes, expect `false`.
+Do not post the full output publicly: it contains private mail/task content.
+This read-only command does not prove live Gmail recovery or browser rendering.
+No database migration is needed; rollback uses the previous reviewed code.
+
 Open `http://127.0.0.1:8766` after boot/login. Above the inbox, OKAL displays
 a friendly Egyptian Arabic **voice-ready** briefing constructed locally from:
 

@@ -185,6 +185,52 @@ class MorningAndTrashTests(unittest.TestCase):
         self.assertTrue(result["mail_sync_stale"])
         self.assertIn("مش هفترض", result["spoken_text"])
 
+    def test_recent_checkpoint_does_not_hide_failed_attempt_and_recovers(self):
+        state = HistoryState(self.store)
+        state.failure(self.cfg.account, "provider_read_failed")
+        result = morning_brief(self.store)
+        self.assertTrue(result["mail_sync_stale"])
+        self.assertIn("مش هفترض", result["spoken_text"])
+        state.commit(self.cfg.account, "100", "101", "history_delta", [], "")
+        self.assertFalse(morning_brief(self.store)["mail_sync_stale"])
+
+    def test_pending_history_batch_is_not_complete_even_with_recent_checkpoint(self):
+        state = HistoryState(self.store)
+        state.commit(self.cfg.account, "100", "101", "history_chunk_pending", [], "",
+                     advance=False)
+        self.assertTrue(morning_brief(self.store)["mail_sync_stale"])
+        state.commit(self.cfg.account, "100", "101", "history_delta", [], "")
+        self.assertFalse(morning_brief(self.store)["mail_sync_stale"])
+
+    def test_freshness_rejects_future_and_expired_checkpoints(self):
+        for offset, stale in ((1, True), (0, False), (-900, False), (-901, True)):
+            with self.subTest(offset=offset):
+                with self.store.connect() as db, db:
+                    db.execute("UPDATE mail_sync_state SET checked_at=?",
+                               (self.now + offset,))
+                self.assertEqual(morning_brief(self.store)["mail_sync_stale"], stale)
+
+    def test_other_account_failure_does_not_hide_current_account_freshness(self):
+        HistoryState(self.store).failure("other@example.com", "provider_read_failed")
+        self.assertFalse(morning_brief(self.store)["mail_sync_stale"])
+
+    def test_stale_mail_warning_preserves_saved_action_highlights(self):
+        self.insert("aa", subject="Project review", category="action")
+        HistoryState(self.store).failure(self.cfg.account, "provider_read_failed")
+        result = morning_brief(self.store)
+        self.assertTrue(result["mail_sync_stale"])
+        self.assertEqual(result["new_action_emails"][0]["subject"], "Project review")
+        self.assertIn("مش هفترض", result["spoken_text"])
+
+    def test_missing_checkpoint_is_unverified_without_creating_mail_tables(self):
+        with self.store.connect() as db, db:
+            db.execute("DROP TABLE mail_sync_state")
+        self.assertTrue(morning_brief(self.store)["mail_sync_stale"])
+        with self.store.connect() as db:
+            self.assertIsNone(db.execute(
+                "SELECT name FROM sqlite_master WHERE name='mail_sync_state'"
+            ).fetchone())
+
     def test_dashboard_morning_is_read_only_and_can_be_read_with_local_auto_unlock(self):
         with TestClient(create_app(self.store, require_read_key=False),
                         base_url="http://127.0.0.1:8766",

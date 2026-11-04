@@ -136,6 +136,25 @@ class MorningEditorTests(unittest.TestCase):
         self.assertFalse((root(self.store) / "morning-editor.json").exists())
         self.assertTrue(model.close.called)
 
+    def test_sync_failure_invalidates_cached_narration_without_network_or_writes(self):
+        self.add("aa", "action", "Project", "مراجعة المشروع")
+        factory, _ = self.make_model()
+        self.assertTrue(refresh(self.store, model_factory=factory)["ai_editor_used"])
+        HistoryState(self.store).failure(self.cfg.account, "provider_read_failed")
+        cache = root(self.store) / "morning-editor.json"
+        before = cache.read_bytes()
+        with self.store.connect() as db:
+            database_before = list(db.iterdump())
+        with patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            result = view(self.store)
+        self.assertTrue(result["mail_sync_stale"])
+        self.assertFalse(result["ai_editor_used"])
+        self.assertEqual(result["ai_editor_state"], "outdated")
+        self.assertIn("مش هفترض", result["spoken_text"])
+        self.assertEqual(cache.read_bytes(), before)
+        with self.store.connect() as db:
+            self.assertEqual(list(db.iterdump()), database_before)
+
     def test_empty_inbox_does_not_call_ollama(self):
         factory = Mock(side_effect=AssertionError("do not infer empty inbox"))
         result = refresh(self.store, model_factory=factory)
