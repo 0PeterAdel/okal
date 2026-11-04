@@ -397,6 +397,7 @@ def create_app(
         """Read-only bounded structured triage; never triggers Gmail or Ollama."""
         from .mail.private import config
         from .mail.history import recent_evidence, recent_quarantines
+        from .mail.source_folders import classify_message
 
         try:
             cfg = config(store)
@@ -414,6 +415,7 @@ def create_app(
             from .mail.owner_voice import owner_voice
             items.append({
                 "id": m["id"], "subject": m["subject"], "sender": m["sender"],
+                **classify_message(m["sender"], m["subject"]),
                 "received_ms": m["received_ms"], "labels": m["labels"],
                 "category": i["category"],
                 "summary": owner_voice(i["summary"], cfg.owner_name),
@@ -437,6 +439,7 @@ def create_app(
                 "id": record["message_id"],
                 "subject": "مراجعة الرسالة الأصلية / Open original email",
                 "sender": "Gmail", "received_ms": record["detected_at"] * 1000,
+                "source_group": "other", "source_type": "other",
                 "labels": [], "category": "manual_review",
                 "summary": manual_labels.get(record["code"], "تعذر التحليل / Cannot analyze"),
                 "suggested_action": "افتح Gmail وتحقق يدويًا / Review in Gmail",
