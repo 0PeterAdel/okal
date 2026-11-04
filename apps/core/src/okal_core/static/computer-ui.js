@@ -16,6 +16,7 @@ function computerRootsFromText(value){
   });
 }
 function clearComputerUI(){
+  const panel=document.getElementById("computer-settings");if(panel)panel.open=false;
   for(const id of ["computer-roots","computer-origins","computer-apps","computer-commands","computer-accounts"]){
     const node=document.getElementById(id);if(node)node.value="";
   }

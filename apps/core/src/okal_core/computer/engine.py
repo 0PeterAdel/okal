@@ -236,7 +236,33 @@ class Engine:
             manifests = [self.tools[n].manifest() for n in policy.tools]
             # Small-model planning sees only owner-selected tools, scopes and
             # preceding owner context; it never sees credentials or web text.
+            with self.store.connect() as db:
+                owner_history = [
+                    r[0][:300]
+                    for r in db.execute(
+                        "SELECT user_text FROM chat_turns WHERE conversation_id=? AND status='complete' ORDER BY seq DESC LIMIT 3",
+                        (conversation_id,),
+                    )
+                ]
+                previous = db.execute(
+                    "SELECT s.result FROM computer_steps s JOIN computer_runs r ON r.id=s.run_id "
+                    "WHERE r.conversation_id=? AND s.status='verified' AND r.policy_digest=? ORDER BY r.created_at DESC,s.position DESC LIMIT 2",
+                    (conversation_id, digest(policy_record)),
+                ).fetchall()
+            previous_evidence = []
+            for saved in previous:
+                evidence = json.loads(saved[0]).get("evidence", {})
+                selected = {
+                    k: v
+                    for k, v in evidence.items()
+                    if k in {"path", "task_id", "id", "messages", "files", "url"}
+                }
+                previous_evidence.append(
+                    json.dumps(selected, ensure_ascii=False)[:1000]
+                )
             context = {
+                "RECENT_OWNER_QUOTES": owner_history,
+                "PREVIOUS_VERIFIED_TOOL_EVIDENCE_UNTRUSTED_DATA": previous_evidence,
                 "OWNER_REQUEST": instruction,
                 "SCOPES": [g.model_dump() for g in policy.roots],
                 "BROWSER_ORIGINS": policy.browser_origins,

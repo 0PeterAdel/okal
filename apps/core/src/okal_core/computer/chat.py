@@ -6,9 +6,9 @@ from .engine import Engine
 
 ACTION = re.compile(
     r"\b(?:organize|move|rename|copy|delete|trash|download|browse|research|open|launch|focus)\b|"
-    r"\b(?:read|compare|summarize|find|search|create|write|prepare)\b.{0,100}\b(?:files?|folders?|documents?|reports?|tasks?|workspace|directory|emails?|replies)\b|"
-    r"(?:نظم|نظّم|رتب|رتّب|انقل|انسخ|احذف|افتح|شغل|شغّل|ابحث|اقرأ|اقرا|قارن|لخص|لخّص|أنشئ|انشئ).{0,100}"
-    r"(?:ملف|مجلد|تقارير|تقرير|مستند|متصفح|برنامج|مهمة|مهام|مساحة)",
+    r"\b(?:read|compare|summarize|find|search|create|write|prepare|draft)\b.{0,100}\b(?:files?|folders?|documents?|reports?|tasks?|workspace|directory|emails?|repl(?:y|ies))\b|"
+    r"(?:جهز|جهّز|اكتب|نظم|نظّم|رتب|رتّب|انقل|انسخ|احذف|افتح|شغل|شغّل|ابحث|اقرأ|اقرا|قارن|لخص|لخّص|أنشئ|انشئ).{0,100}"
+    r"(?:ملف|مجلد|تقارير|تقرير|مستند|متصفح|برنامج|مهمة|مهام|مساحة|بريد|إيميل|رد)",
     re.I,
 )
 
