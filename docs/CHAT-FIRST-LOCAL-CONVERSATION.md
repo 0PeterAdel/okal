@@ -31,6 +31,42 @@ owner-review notice, and explicit data freshness caveats. **No invented
 task progress, lifetime memory, paid Pro plan, microphone capability or
 external web tool execution appears.**
 
+## Glass refinement and collapsible sidebar (PR #113)
+
+The existing approved logo image, its dimensions and placement remain
+unchanged. The faint full/partial fog disk behind the emblem is removed:
+the hero radial fill and glow shadows are disabled, while the small HUD
+ring outlines retain their current size and position and their existing
+bottom-open clipped arc shape.
+
+The chat room, context cards, composer, buttons and the existing dashboard
+widgets use a restrained Liquid Glass material: translucent midnight-blue
+surfaces, thin icy-blue luminous edges, inset white highlights and small
+gold active accents. No decorative panel claims imaginary task or model
+activity. Blur is reduced in accessibility modes, and forced colors retain
+visible borders. The visual reference is inspiration, not a literal
+screenshot replacement.
+
+The left sidebar now has a native button with `aria-controls`,
+`aria-expanded` and an accessible changing label. On desktop widths
+greater than 900px it toggles between its normal layout and a 76px
+icon-only rail. Navigation remains fully functional and each link has a
+stable accessible Arabic/English name and hover tooltip. Small-screen
+navigation remains the original horizontal layout; the toggle is hidden
+there. Sidebar state is **tab-local and ephemeral**, never stored in
+browser storage or on the server. Reloading starts expanded.
+
+Try the preview from the exact reviewed branch, without modifying the
+checkout used by Production:
+
+    bash scripts/preview-chat-pr113.sh
+
+From an owner-side independent checkout of the feature branch, open
+<http://127.0.0.1:8767/#chat-home>. Test collapsing and re-expanding on
+Chat, Gmail, Calendar and Overview, keyboard access to the button/links,
+and that no ring backdrop collides with the logo/Arabic headings.
+The accepted visual review is still required before squash merge.
+
 ## How conversation works
 
 - The browser explicitly POSTs the user's turn and up to 8 recent
