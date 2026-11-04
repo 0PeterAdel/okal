@@ -1294,6 +1294,10 @@ def create_app(
         return FileResponse(STATIC / "assets" / "okal-master.webp",
                             media_type="image/webp")
 
+    @app.get("/workspace-glass.css")
+    def workspace_glass_stylesheet():
+        return FileResponse(STATIC / "workspace-glass.css", media_type="text/css")
+
     @app.get("/chat-glass.css")
     def chat_glass_stylesheet():
         return FileResponse(STATIC / "chat-glass.css", media_type="text/css")
