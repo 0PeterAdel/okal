@@ -82,13 +82,15 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn("skip-link", self.html)
 
     def test_approved_logo_asset_and_branded_chat_surface(self):
-        logo = STATIC / "assets" / "okal-master.webp"
+        logo = STATIC / "assets" / "okal-master-hq.webp"
         self.assertTrue(logo.is_file(), "approved OKAL artwork not bundled")
         data = logo.read_bytes()
-        self.assertGreater(len(data), 1000)
+        self.assertGreater(len(data), 200_000)
         self.assertEqual(data[:4], b"RIFF")
         self.assertEqual(data[8:12], b"WEBP")
-        self.assertIn('src="/assets/okal-identity"', self.html)
+        self.assertEqual(
+            self.html.count('src="/assets/okal-master-hq.webp"'),
+            2)
         self.assertTrue((STATIC / "vendor" / "markdown-it.min.js").is_file())
         self.assertTrue((STATIC / "vendor" / "markdown-it.LICENSE").is_file())
         self.assertTrue((STATIC / "chat-markdown.js").is_file())

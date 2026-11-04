@@ -31,7 +31,7 @@ test("sidebar remains left on Chat, Inbox, Tasks, Calendar and Settings", () => 
   assert.ok(css.includes(".app-layout > .sidebar {\n    direction:rtl;"));
   assert.ok(css.includes(".app-layout > .workspace {\n    direction:rtl;"));
   assert.ok(css.includes('body[data-sidebar="collapsed"] .app-layout'));
-  assert.ok(css.includes("grid-template-columns:76px minmax(0,1fr)"));
+  assert.ok(css.includes("grid-template-columns:94px minmax(0,1fr)"));
   assert.ok(css.includes("@media(max-width:900px)"));
   const html = read("index.html");
   for (const href of [
@@ -63,4 +63,54 @@ test("shared glass theme covers core pages without restyling untrusted mail", ()
   assert.ok(!css.includes(".btn-danger-soft {"));
   assert.ok(css.includes("prefers-reduced-transparency"));
   assert.ok(css.includes("forced-colors:active"));
+});
+
+
+test("Chat viewport stays fixed while individual panes scroll", () => {
+  const css = read("workspace-glass.css");
+  const marker = "/* OKAL fullscreen shell and uncropped official identity — PR #115 */";
+  const start = css.indexOf(marker);
+  assert.ok(start >= 0, "Missing fullscreen rules");
+  const layer = css.slice(start);
+  const rule = selector => {
+    const token = selector + "{";
+    const opening = layer.indexOf(token);
+    assert.ok(opening >= 0, "Missing selector " + selector);
+    return layer.slice(opening + token.length, layer.indexOf("}", opening));
+  };
+  assert.ok(rule('body[data-view="chat"]').includes("height:100dvh;"));
+  assert.ok(rule('body[data-view="chat"]').includes("overflow:hidden;"));
+  assert.ok(rule('body[data-view="chat"] .app-layout').includes("height:100dvh;"));
+  assert.ok(rule('body[data-view="chat"] .app-layout').includes("overflow:hidden;"));
+  assert.ok(rule('body[data-view="chat"] .workspace > main').includes("flex:1 1 auto;"));
+  assert.ok(rule('body[data-view="chat"] .workspace > main').includes("min-height:0;"));
+  assert.ok(rule('body[data-view="chat"] .workspace > main').includes("overflow:hidden;"));
+  assert.ok(rule('body[data-view="chat"] #chat-home').includes("overflow:hidden;"));
+  assert.ok(rule('body[data-view="chat"] .chat-room > .chat-messages').includes("overflow-y:auto;"));
+  // The first occurrence is a shared sizing rule; the last adds scrolling.
+  assert.ok(layer.slice(layer.lastIndexOf('body[data-view="chat"] .chat-layout > .chat-context{'))
+    .split("}")[0].includes("overflow-y:auto;"));
+  assert.ok(layer.includes("@media (max-width:900px){"));
+  assert.ok(!layer.includes("html{overflow:hidden"), "No global scroll lock");
+});
+
+test("the full sidebar logo is visible when expanded or collapsed", () => {
+  const css = read("workspace-glass.css");
+  const html = read("index.html");
+  assert.equal(html.split('src="/assets/okal-master-hq.webp"').length - 1, 2);
+  const marker = "/* OKAL fullscreen shell and uncropped official identity — PR #115 */";
+  const layer = css.slice(css.indexOf(marker));
+  const rule = selector => {
+    const token = selector + "{";
+    const index = layer.indexOf(token);
+    assert.ok(index >= 0, "Missing selector " + selector);
+    return layer.slice(index + token.length, layer.indexOf("}", index));
+  };
+  assert.ok(rule('body[data-view="chat"] .app-layout').includes("background:"));
+  assert.ok(rule('body[data-view="chat"] .app-layout > .workspace').includes("background:transparent;"));
+  assert.ok(rule(".app-layout .sidebar .brand-emblem-crop").includes("overflow:visible!important;"));
+  assert.ok(rule(".app-layout .sidebar .brand-emblem-crop img").includes("position:static!important;"));
+  assert.ok(rule(".app-layout .sidebar .brand-emblem-crop img").includes("object-fit:contain;"));
+  assert.ok(rule('body[data-sidebar="collapsed"] .app-layout').includes("grid-template-columns:94px minmax(0,1fr);"));
+  assert.ok(rule('body[data-sidebar="collapsed"] .app-layout .sidebar .brand-emblem-crop').includes("height:82px!important;"));
 });
