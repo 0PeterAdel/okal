@@ -88,7 +88,7 @@ class DashboardContractTests(unittest.TestCase):
         self.assertGreater(len(data), 1000)
         self.assertEqual(data[:4], b"RIFF")
         self.assertEqual(data[8:12], b"WEBP")
-        self.assertIn('src="/assets/okal-identity?brand=1254-v1"', self.html)
+        self.assertIn('src="/assets/okal-master-hq.webp?brand=1254-v2"', self.html)
         self.assertTrue((STATIC / "vendor" / "markdown-it.min.js").is_file())
         self.assertTrue((STATIC / "vendor" / "markdown-it.LICENSE").is_file())
         self.assertTrue((STATIC / "chat-markdown.js").is_file())
