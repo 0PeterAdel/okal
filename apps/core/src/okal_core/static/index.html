@@ -99,6 +99,43 @@
               <button id="chat-new" type="button" class="chat-new">+ محادثة جديدة</button>
             </div>
           </div>
+          <details class="chat-library">
+            <summary>المحادثات المحفوظة والذاكرة / Conversations &amp; Memory</summary>
+            <div class="chat-library-grid">
+              <section aria-label="المحادثات المحفوظة">
+                <label for="chat-conversations">استكمال محادثة</label>
+                <select id="chat-conversations"><option value="">اختر محادثة</option></select>
+                <button type="button" id="chat-history-refresh">تحديث السجل</button>
+                <button type="button" id="chat-history-more" hidden>المزيد من المحادثات</button>
+                <button type="button" id="chat-delete">حذف المحادثة</button>
+                <button type="button" id="chat-older" hidden>رسائل أقدم</button>
+                <label for="chat-retention">الاحتفاظ بالمحادثات بالأيام (1–365)</label>
+                <input id="chat-retention" type="number" min="1" max="365" value="90"/>
+                <button type="button" id="chat-retention-save">تطبيق مدة الاحتفاظ</button>
+              </section>
+              <section aria-label="إدارة الذاكرة">
+                <p>الرسائل محفوظة محليًا. الذاكرة معلومة بتختار تحفظها، مش تخمين من الموديل.
+                  للحفظ من المحادثة: <bdi>remember language: English</bdi> أو <bdi>افتكر اللغة: عربي</bdi>.</p>
+                <div id="chat-memory-list"></div>
+                <form id="chat-memory-form">
+                  <label for="chat-memory-key">اسم المعلومة</label>
+                  <input id="chat-memory-key" maxlength="80" required/>
+                  <label for="chat-memory-value">المعلومة</label>
+                  <textarea id="chat-memory-value" maxlength="600" required></textarea>
+                  <label for="chat-memory-kind">النوع</label>
+                  <select id="chat-memory-kind"><option value="semantic">تفضيل / معلومة</option>
+                    <option value="episodic">قرار / تجربة</option><option value="task">مهمة للمتابعة</option></select>
+                  <label for="chat-memory-scope">النطاق</label>
+                  <select id="chat-memory-scope"><option value="owner">كل المحادثات</option>
+                    <option value="conversation">المحادثة الحالية</option></select>
+                  <label for="chat-memory-days">صلاحية المعلومة بالأيام</label>
+                  <input id="chat-memory-days" type="number" min="1" max="365" value="365"/>
+                  <button type="submit">حفظ المعلومة</button>
+                  <button type="button" id="chat-memory-reset">معلومة جديدة</button>
+                </form>
+              </section>
+            </div>
+          </details>
           <div class="chat-layout">
             <div class="chat-room">
               <div class="chat-greeting" id="chat-greeting">
@@ -122,17 +159,18 @@
                 <label for="chat-input" class="chat-input-label">ASK OKAL / سؤالك أو طلبك</label>
                 <textarea id="chat-input" rows="2" maxlength="900" required placeholder="اسأل OKAL عن أي حاجة في يومك..." aria-describedby="chat-privacy"></textarea>
                 <div class="chat-compose-actions">
-                  <span id="chat-privacy"><span class="chat-voice-future" aria-hidden="true">◉</span> الصوت قريبًا · المحادثة محلية · بدون APIs مدفوعة</span>
+                  <span id="chat-privacy"><span class="chat-voice-future" aria-hidden="true">◉</span> المحادثة محفوظة محليًا · لا تحفظ كلمات السر</span>
                   <button id="chat-send" type="submit"><span>إرسال</span><svg class="icon" aria-hidden="true"><use href="#ico-send"></use></svg></button>
                 </div>
                 <p id="chat-status" role="status" aria-live="polite"></p>
+                <button type="button" id="chat-retry" hidden>إعادة المحاولة بنفس الطلب</button>
               </form>
             </div>
             <aside class="chat-context" aria-labelledby="chat-context-title">
               <div class="chat-context-top"><p class="chat-eyebrow">INTELLIGENCE CONTEXT</p><h2 id="chat-context-title">سياق المحادثة</h2></div>
               <section class="chat-glass-card" aria-label="ذاكرة المحادثة">
                 <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">◈</span><strong>Memory / الذاكرة</strong></div>
-                <p>السياق مؤقت داخل علامة التبويب، مش ذاكرة دائمة.</p>
+                <p>الرسائل محفوظة في OKAL. الذاكرة تُحفظ بطلبك وتقدر تعدّلها أو تنساها.</p>
                 <div class="chat-card-item"><span>المحادثة الحالية</span><strong id="chat-memory-count">0 رسائل</strong></div>
               </section>
               <section class="chat-glass-card" aria-label="أدوات OKAL المتاحة">

@@ -1062,6 +1062,7 @@ async function load(reset) {
     const [result, caps] = await Promise.all([response.json(), capsResponse.json()]);
     if (active !== generation) return;
     keyProtected = caps.read_key_required === true;
+    if (typeof ensureChatLibrary === "function") ensureChatLibrary();
     trashPermissionConfigured =
       typeof caps.ui_trash_available === "boolean" ? caps.ui_trash_available : null;
     renderMailStatus(caps.mail);

@@ -12,6 +12,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from .store import InvalidCursor, Store
+from .intelligence_api import PATHS as CHAT_PATHS, register as register_intelligence
 
 def _owner_trash_is_configured(store):
     """Configuration hint only — not live OAuth confirmation."""
@@ -110,7 +111,7 @@ def create_app(
         # This route is write-sensitive even when the rest of the dashboard
         # auto-opens: enforce browser same-origin + JSON + fresh preview ticket.
         return (
-            request.url.path in {
+            request.url.path in CHAT_PATHS | {
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
                 "/api/v1/mail/viewed",
@@ -1096,6 +1097,8 @@ def create_app(
             status(store, account) for account in configured_accounts(store)
         ], "reuse_gmail_oauth_client_available": client_available(store),
             "external_reads": False, "external_writes": False}
+
+    register_intelligence(app, store, authorized_ui_trash)
 
     @app.post("/api/v1/chat")
     async def ask_local_chat(request: Request):

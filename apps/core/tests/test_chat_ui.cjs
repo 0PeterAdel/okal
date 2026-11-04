@@ -27,6 +27,8 @@ function harness(reply) {
   prompts[0].attributes["data-chat-prompt"]="إيه مواعيدي النهارده؟";
   const response = data => ({ok:true,status:200,json:async()=>data});
   let reloads=0;
+  let turns=[];
+  const cid="a".repeat(32);
   const context=vm.createContext({
     document:{
       getElementById:get,createElement:node,
@@ -37,7 +39,16 @@ function harness(reply) {
     load:async()=>{reloads++;},
     fetch:async(url,options)=>{
       calls.push({url,options});
-      if(url==="/api/v1/chat") return response(reply);
+      if(url==="/api/v1/chat/create") return response({id:cid});
+      if(url==="/api/v1/chat/turn") {
+        const payload=JSON.parse(options.body);
+        turns=[{request_id:payload.request_id,message:payload.message,status:"complete",response:reply}];
+        return response(reply);
+      }
+      if(url==="/api/v1/chat/get") return response({id:cid,turns,next_before:null});
+      if(url==="/api/v1/chat/conversations") return response({items:[{id:cid,title:"Saved"}],next_before:null});
+      if(url==="/api/v1/chat/memories") return response({items:[]});
+      if(url==="/api/v1/chat/settings") return response({retention_days:90});
       if(url==="/api/v1/calendar/local/save")return response({
         id:"aaaaaaaabbbbccccddddeeeeeeeeeeee",revision:1,replayed:false
       });
@@ -55,12 +66,13 @@ test("prompt produces real local chat POST and displays text safely",async()=>{
   const h=harness({answer:"<img src=x onerror=alert(1)>",mode:"saved_fallback",proposal:null});
   h.prompts[0].handlers.click();
   await flush();
-  assert.equal(h.calls.length,1);
-  assert.equal(h.calls[0].url,"/api/v1/chat");
-  assert.equal(h.calls[0].options.method,"POST");
-  const p=JSON.parse(h.calls[0].options.body);
+  const call=h.calls.find(c=>c.url==="/api/v1/chat/turn");
+  assert.ok(call);
+  assert.equal(call.options.method,"POST");
+  const p=JSON.parse(call.options.body);
   assert.equal(p.message,"إيه مواعيدي النهارده؟");
-  assert.deepEqual(p.history,[]);
+  assert.equal(p.history,undefined);
+  assert.match(p.request_id,/^[a-f0-9]{32}$/);
   const bubbles=h.get("chat-messages").children;
   assert.equal(bubbles.length,2);
   assert.equal(bubbles[1].children[1].textContent,"<img src=x onerror=alert(1)>");
@@ -81,7 +93,7 @@ test("appointment is only saved after review form submit, Cairo offset explicit"
   h.get("chat-input").value="أضف اجتماع بكرة من 5 إلى 6 مساء";
   h.get("chat-form").handlers.submit({preventDefault(){}});
   await flush();
-  assert.equal(h.calls.length,1); // No calendar write yet.
+  assert.equal(h.calls.filter(c=>c.url.includes("calendar/local/save")).length,0);
   const bubble=h.get("chat-messages").children[1];
   const form=bubble.children.find(x=>x.tag==="form");
   assert.ok(form);
@@ -91,9 +103,9 @@ test("appointment is only saved after review form submit, Cairo offset explicit"
   assert.equal(inputs[1].value,"2026-11-05T17:00");
   form.handlers.submit({preventDefault(){}});
   await flush();
-  assert.equal(h.calls.length,2);
-  assert.equal(h.calls[1].url,"/api/v1/calendar/local/save");
-  const request=JSON.parse(h.calls[1].options.body);
+  const call=h.calls.find(c=>c.url==="/api/v1/calendar/local/save");
+  assert.ok(call);
+  const request=JSON.parse(call.options.body);
   assert.equal(request.title,"اجتماع");
   assert.equal(request.kind,"event");
   assert.equal(request.start,"2026-11-05T15:00:00.000Z");
@@ -112,7 +124,7 @@ test("enter sends and shift-enter allows multiline; lock clears private turns",a
   input.handlers.keydown({key:"Enter",shiftKey:false,preventDefault(){prevented++;}});
   await flush();
   assert.equal(prevented,1);
-  assert.equal(h.calls.length,1);
+  assert.equal(h.calls.filter(c=>c.url==="/api/v1/chat/turn").length,1);
   h.context.clearChatUI();
   assert.equal(h.get("chat-messages").children.length,0);
   assert.equal(h.get("chat-input").value,"");
@@ -135,7 +147,7 @@ test("right-panel summary renders cached details as inert text and reports fresh
   assert.match(h.get("chat-daily-points").children[0].textContent,/مفيش/);
 });
 
-test("session memory count reflects only in-tab turns and resets",async()=>{
+test("displayed message count reflects persisted turns and clears on new conversation",async()=>{
   const h=harness({answer:"تم عرض النسخة المحفوظة",mode:"saved_fallback",proposal:null});
   assert.equal(h.get("chat-memory-count").textContent,"");
   h.prompts[0].handlers.click();
