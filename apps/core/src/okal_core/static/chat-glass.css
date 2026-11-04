@@ -429,6 +429,37 @@ body[data-sidebar="collapsed"] .sidebar-toggle .icon{transform:rotate(180deg)}
 @media(max-width:900px){
   .sidebar-toggle{display:none!important}
 }
+/* Rounded floating vertical rail after collapse — same navigation,
+   more workspace space, and a restrained reference-inspired outline. */
+@media(min-width:901px){
+  body[data-sidebar="collapsed"] .sidebar{
+    position:sticky;top:12px;
+    margin:12px 6px;
+    height:calc(100dvh - 24px);
+    min-height:0;
+    padding:18px 8px 13px;
+    border:1px solid rgba(166,213,239,.48);
+    border-radius:21px;
+    background:linear-gradient(155deg,rgba(36,63,83,.88),rgba(13,25,41,.96) 70%);
+    box-shadow:inset 0 1px rgba(239,250,255,.3),
+      0 11px 34px rgba(0,0,0,.36),
+      0 0 15px rgba(105,188,235,.10);
+    overflow-x:hidden;
+    overflow-y:auto;
+    scrollbar-width:none;
+  }
+  body[data-sidebar="collapsed"] .sidebar::-webkit-scrollbar{display:none}
+  body[data-sidebar="collapsed"] .sidebar .brand-emblem-crop{
+    flex-basis:48px!important;width:48px!important;height:48px!important;
+  }
+  body[data-sidebar="collapsed"] .sidebar .nav-item{
+    width:48px;min-height:47px;border-radius:13px;
+  }
+  body[data-sidebar="collapsed"] .sidebar-toggle{
+    width:48px;min-width:48px;
+  }
+}
+
 /* Accessibility: no GPU-heavy glass in forced-colors or reduced transparency. */
 @media(prefers-reduced-transparency:reduce){
   body[data-view="chat"] :is(.chat-room,.chat-context,.chat-glass-card,.chat-composer),
