@@ -31,7 +31,7 @@ test("sidebar remains left on Chat, Inbox, Tasks, Calendar and Settings", () => 
   assert.ok(css.includes(".app-layout > .sidebar {\n    direction:rtl;"));
   assert.ok(css.includes(".app-layout > .workspace {\n    direction:rtl;"));
   assert.ok(css.includes('body[data-sidebar="collapsed"] .app-layout'));
-  assert.ok(css.includes("grid-template-columns:76px minmax(0,1fr)"));
+  assert.ok(css.includes("grid-template-columns:94px minmax(0,1fr)"));
   assert.ok(css.includes("@media(max-width:900px)"));
   const html = read("index.html");
   for (const href of [
@@ -63,4 +63,28 @@ test("shared glass theme covers core pages without restyling untrusted mail", ()
   assert.ok(!css.includes(".btn-danger-soft {"));
   assert.ok(css.includes("prefers-reduced-transparency"));
   assert.ok(css.includes("forced-colors:active"));
+});
+
+test("Chat owns the full viewport without document scrolling", () => {
+  const css = read("workspace-glass.css");
+  assert.match(css, /body\\[data-view="chat"\\]\\s*\\{[^}]*height:100dvh;[^}]*overflow:hidden;/s);
+  assert.match(css, /body\\[data-view="chat"\\] \\.app-layout\\s*\\{[^}]*height:100dvh;[^}]*overflow:hidden;/s);
+  assert.match(css, /body\\[data-view="chat"\\] \\.workspace > main\\s*\\{[^}]*flex:1 1 auto;[^}]*min-height:0;[^}]*overflow:hidden;/s);
+  assert.match(css, /body\\[data-view="chat"\\] #chat-home\\s*\\{[^}]*min-height:0;[^}]*overflow:hidden;/s);
+  assert.match(css, /body\\[data-view="chat"\\] \\.chat-room > \\.chat-messages\\s*\\{[^}]*min-height:0;[^}]*overflow-y:auto;/s);
+  assert.match(css, /body\\[data-view="chat"\\] \\.chat-layout > \\.chat-context\\s*\\{[^}]*overflow-y:auto;/s);
+  assert.match(css, /@media \\(max-width:900px\\)\\s*\\{\\s*body\\[data-view="chat"\\] \\.app-layout/);
+  assert.ok(!css.includes("html{overflow:hidden"), "Lock is view-scoped, not global");
+});
+
+test("both Sidebar states show the entire master logo against one shared background", () => {
+  const css = read("workspace-glass.css");
+  const html = read("index.html");
+  assert.equal((html.match(/src="\\/assets\\/okal-master-hq\\.webp"/g) || []).length, 2);
+  assert.match(css, /body\\[data-view="chat"\\] \\.app-layout\\s*\\{[^}]*background:/s);
+  assert.match(css, /body\\[data-view="chat"\\] \\.app-layout > \\.workspace\\s*\\{[^}]*background:transparent;/s);
+  assert.match(css, /\\.app-layout \\.sidebar \\.brand-emblem-crop\\s*\\{[^}]*overflow:visible!important;/s);
+  assert.match(css, /\\.app-layout \\.sidebar \\.brand-emblem-crop img\\s*\\{[^}]*position:static!important;[^}]*object-fit:contain;/s);
+  assert.match(css, /body\\[data-sidebar="collapsed"\\] \\.app-layout \\.sidebar \\.brand-emblem-crop\\s*\\{[^}]*height:82px!important;/s);
+  assert.match(css, /body\\[data-sidebar="collapsed"\\] \\.app-layout\\s*\\{[^}]*grid-template-columns:94px minmax\\(0,1fr\\)/s);
 });
