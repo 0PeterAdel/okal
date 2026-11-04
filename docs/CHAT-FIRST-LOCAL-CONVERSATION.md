@@ -15,10 +15,12 @@ It is a faithful compressed export from the supplied original, not a
 redrawn mark or upscaled thumbnail. The original PNG is unchanged and
 not committed. The older `okal-master.webp` thumbnail is preserved only for
 legacy compatibility and is **not** the default identity anymore.
-The UI's `/assets/okal-identity?brand=1254-v1` route serves the bundled
-high-resolution export on fresh clones, including Production after deploy,
-unless a separate validated owner-only private PNG is installed.
-The browser revision query refreshes stale image caches.
+The UI references `/assets/okal-master-hq.webp?brand=1254-v2`
+**directly**. The browser serves this committed asset through a local
+FastAPI FileResponse route, on all machines and fresh clones. It never
+selects an override from a local home directory or owner state.
+`/assets/okal-identity` remains a compatibility alias that serves
+the exact same tracked WebP bytes. The revision query busts stale caches.
 
 The visual identity follows `OKAL_Brand_Guidelines` (2026), not the
 image-generation mockup's fabricated tool statistics or subscription labels:
@@ -198,21 +200,23 @@ agent changes the same HTML/API/JS files, inspect the combined diff.
 
 ## Approved brand master and restrained spatial glass
 
-The repo now bundles the approved **full-resolution WebP** so all
-clones and Production deployments show the detailed logo without manual
-file installation. The separate original full-resolution PNG remains private
-unless the owner explicitly installs it in OKAL state. The public repo
-contains only an optimized transparent export from that supplied original.
+The approved **1254 × 1254 transparent WebP** is committed directly to
+`apps/core/src/okal_core/static/assets/okal-master-hq.webp`.
+The browser requests this bundled file via
+`/assets/okal-master-hq.webp?brand=1254-v2` for the Chat hero and
+the Sidebar brand. Both references are independent of the device's
+home directory. A new `git clone` provides the same image without
+downloading, converting or installing anything separately.
 
-To register the approved original PNG for a local state directory:
+The original full-resolution PNG is not required on the runtime device.
+No per-user PNG takes precedence over the repo-tracked asset, even when
+older local state contains one. The older `okal-master.webp` thumbnail
+is retained temporarily for compatibility only and is not displayed by
+the primary UI.
 
-    bash scripts/install-okal-master.sh "/path/to/OKAL_APPROVED_ORIGINAL_UNEDITED.png" "$HOME/.local/state/okal-core"
-
-The script checks the PNG signature, dimensions and owner-only
-permissions, then installs it atomically. The app serves
-`/assets/okal-identity` using the private PNG when present, and falls back
-to the **bundled high-resolution WebP** otherwise. The original PNG stays
-outside the repository. Private override is optional, not required.
+Verify the cloned file and test the actual binary response using
+`bash scripts/preview-brand-logo.sh`. The preview archives the Git
+commit into an isolated temporary directory and runs on port 8767 only.
 
 The separate `chat-glass.css` layer and existing `chat.css` keep the
 chat layout, adding translucent panels, subtle icy reflections, HUD
