@@ -8,13 +8,16 @@ sidebar, preserving their existing routes and capabilities. The new chat uses
 a separate stylesheet and a self-hosted frontend module, without rebuilding
 the existing dashboard or taking over the other development agent's components.
 
-The official owner-supplied **approved OKAL master logo** is now bundled as
-a transparent, optimized WebP export at
-`apps/core/src/okal_core/static/assets/okal-master.webp` and served locally
-from `/assets/okal-master.webp`. This is a downscaled raster export from
-the original approved artwork, not a new logo or a vector redraw.
-It is used in the Chat hero and navigation. The separate approved original
-1254px raster remains outside the repository and is not altered.
+The official owner-supplied **approved OKAL master logo** is now bundled
+at its original 1254 × 1254 resolution as a transparent WebP file:
+`apps/core/src/okal_core/static/assets/okal-master-hq.webp`.
+Both Chat and the Sidebar use `/assets/okal-master-hq.webp` directly.
+This file is part of Git and is available on every fresh clone, entirely
+offline. The previous 9 KB thumbnail was deleted. Legacy endpoints
+`/assets/okal-master.webp` and `/assets/okal-identity` also return the
+same high-resolution Git asset for backward compatibility, with no local
+override. The image is an optimized copy of the approved original artwork,
+not an upscaled or redrawn logo.
 
 The visual identity follows `OKAL_Brand_Guidelines` (2026), not the
 image-generation mockup's fabricated tool statistics or subscription labels:
@@ -194,18 +197,13 @@ agent changes the same HTML/API/JS files, inspect the combined diff.
 
 ## Approved brand master and restrained spatial glass
 
-The repo keeps a small WebP fallback so the app can boot offline, but
-the owner-approved full-resolution original PNG is installed in private
-local OKAL state rather than replacing it with a pixelated thumbnail.
-
-To register the approved original PNG for a local state directory:
-
-    bash scripts/install-okal-master.sh "/path/to/OKAL_APPROVED_ORIGINAL_UNEDITED.png" "$HOME/.local/state/okal-core"
-
-The script checks the PNG signature, dimensions and owner-only
-permissions, then installs it atomically. The app serves
-`/assets/okal-identity` using the PNG when present and falls back to
-the bundled WebP otherwise. The master never leaves the owner's machine.
+The only official logo file shipped by the application is the Git-tracked
+`apps/core/src/okal_core/static/assets/okal-master-hq.webp` (1254 × 1254).
+No separate installation, private PNG, Downloads path, model-generated
+replacement, or thumbnail fallback is used by the website.
+Older logo URLs are preserved only as compatibility aliases to this same
+file. Tests verify the image's format, dimensions, and identical content
+across all endpoints, and fail if a low-resolution file reappears.
 
 The separate `chat-glass.css` layer and existing `chat.css` keep the
 chat layout, adding translucent panels, subtle icy reflections, HUD
@@ -233,16 +231,15 @@ limits substantially.
 
 ## Owner preview — always before merge
 
-From the exact PR feature branch:
+Use the current design branch's repository-based preview (not the
+obsolete PR #113 preview and not a PNG from Downloads):
 
-    bash scripts/preview-chat-pr113.sh "/home/okal/Downloads/OKAL_APPROVED_ORIGINAL_UNEDITED(1).png"
+    bash scripts/preview-design-logo.sh
 
-Without a logo argument the script searches Downloads for known master
-filenames, warning if none exists. It uses temporary SQLite and model
-metadata only, does not copy OAuth credentials, and binds only to
-127.0.0.1:8767. Production 8766 remains untouched.
+This command archives the committed Git tree, verifies that the 1254px
+WebP is present in that archive, runs UI and route tests, and serves on
+`127.0.0.1:8767` using an isolated SQLite state and Python environment.
+Production at `127.0.0.1:8766` remains untouched.
 
-Test an AI response containing a heading, ordered list, Markdown
-table and fenced Python block. Confirm Copy Code appears and model
-text is not treated as executable HTML. Open the local browser at
-`http://127.0.0.1:8767/#chat-home`.
+Test the Chat hero, Sidebar branding and responsive layout, and inspect
+`/assets/okal-master-hq.webp` directly in the preview browser.
