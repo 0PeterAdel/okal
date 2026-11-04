@@ -11,6 +11,7 @@ if [[ "$branch" != "$expected" ]]; then
   echo "STOP: Preview must run from the PR #113 feature branch, not $branch" >&2
   exit 1
 fi
+snapshot_sha="$(git rev-parse --short HEAD)"
 for name in node python3.14 ss git tar; do
   command -v "$name" >/dev/null || { echo "Missing: $name" >&2; exit 1; }
 done
@@ -121,8 +122,8 @@ fi
 
 echo
 echo "=== OKAL Chat preview is ready ==="
-echo "Branch: $(git symbolic-ref --short HEAD)"
-echo "Commit: $(git rev-parse --short HEAD)"
+echo "Branch: $branch"
+echo "Commit: $snapshot_sha"
 echo "Open: http://127.0.0.1:8767/#chat-home"
 echo "Production: 127.0.0.1:8766 — unchanged."
 echo "All test appointments are isolated in temporary SQLite."
