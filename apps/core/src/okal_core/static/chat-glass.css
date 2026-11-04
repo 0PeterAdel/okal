@@ -1,0 +1,86 @@
+/* OKAL restrained Liquid Glass / Spatial HUD enhancement.
+   Layered over chat.css; never overrides layout, scripts, or permissions.
+   Official tokens: obsidian #070A10, ice #B9DBF6, gold #D5A24C. */
+body[data-view="chat"] .chat-room{
+  isolation:isolate;
+  background:
+    radial-gradient(ellipse 52% 32% at 50% 9%,rgba(185,219,246,.085),transparent 85%),
+    radial-gradient(ellipse 44% 45% at 90% 80%,rgba(213,162,76,.045),transparent 85%),
+    linear-gradient(155deg,rgba(25,40,55,.94),rgba(9,17,27,.96));
+  box-shadow:inset 0 1px rgba(235,248,255,.18),0 16px 45px rgba(0,0,0,.42),0 0 0 1px rgba(185,219,246,.07);
+}
+body[data-view="chat"] .chat-room::before{
+  background:linear-gradient(90deg,transparent 5%,rgba(185,219,246,.7) 31%,rgba(213,162,76,.72) 67%,transparent 95%);
+  height:1px;
+}
+body[data-view="chat"] .chat-context{
+  background:linear-gradient(145deg,rgba(29,46,61,.83),rgba(12,20,33,.89));
+  box-shadow:inset 0 1px rgba(255,255,255,.14),0 14px 40px rgba(0,0,0,.28);
+}
+body[data-view="chat"] .chat-glass-card{
+  background:linear-gradient(142deg,rgba(185,219,246,.105),rgba(29,44,60,.43) 55%,rgba(12,20,33,.49));
+  border:1px solid rgba(171,205,231,.23);
+  box-shadow:inset 0 1px rgba(235,245,255,.17),0 9px 22px rgba(0,0,0,.18);
+  backdrop-filter:blur(18px) saturate(1.1);
+  -webkit-backdrop-filter:blur(18px) saturate(1.1);
+}
+body[data-view="chat"] .chat-glass-card:hover{
+  border-color:rgba(185,219,246,.37);
+}
+body[data-view="chat"] .chat-hero-stage{
+  isolation:isolate;
+  background:radial-gradient(circle at 50% 45%,rgba(185,219,246,.11),transparent 62%);
+}
+body[data-view="chat"] .chat-hero-stage::before{
+  content:"";position:absolute;inset:17px;border-radius:50%;pointer-events:none;
+  border:1px solid rgba(185,219,246,.075);
+  background:conic-gradient(from 105deg,transparent 0 15%,rgba(185,219,246,.04) 16% 19%,transparent 20% 61%,rgba(213,162,76,.04) 62% 65%,transparent 66% 100%);
+}
+body[data-view="chat"] .chat-hero-logo{
+  image-rendering:auto;
+  filter:drop-shadow(0 3px 17px rgba(213,162,76,.22)) drop-shadow(0 0 10px rgba(185,219,246,.08));
+}
+body[data-view="chat"] .chat-hud-ring-outer{
+  border:1px dashed rgba(185,219,246,.30);
+  box-shadow:0 0 0 13px rgba(185,219,246,.022),inset 0 0 28px rgba(127,186,208,.14);
+}
+body[data-view="chat"] .chat-hud-ring-inner{
+  border:1px solid rgba(213,162,76,.26);
+  box-shadow:0 0 18px rgba(213,162,76,.065);
+}
+body[data-view="chat"] .chat-composer{
+  background:linear-gradient(115deg,rgba(41,66,84,.88),rgba(19,33,47,.92));
+  border:1px solid rgba(185,219,246,.53);
+  box-shadow:inset 0 1px rgba(255,255,255,.19),0 0 26px rgba(101,176,205,.13),0 16px 34px rgba(0,0,0,.25);
+  backdrop-filter:blur(18px) saturate(1.12);
+  -webkit-backdrop-filter:blur(18px) saturate(1.12);
+}
+body[data-view="chat"] .chat-composer:focus-within{
+  border-color:#B9DBF6;
+  box-shadow:inset 0 1px rgba(255,255,255,.2),0 0 0 2px rgba(185,219,246,.11),0 0 28px rgba(101,176,205,.18);
+}
+body[data-view="chat"] .chat-suggestions button,
+body[data-view="chat"] .chat-tool-links a,
+body[data-view="chat"] .chat-new{
+  box-shadow:inset 0 1px rgba(235,245,255,.12),0 6px 18px rgba(0,0,0,.18);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+body[data-view="chat"] .chat-bubble{
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  box-shadow:inset 0 1px rgba(255,255,255,.12),0 9px 20px rgba(0,0,0,.17);
+}
+body[data-view="chat"] #chat-send:focus-visible,
+body[data-view="chat"] .chat-new:focus-visible,
+body[data-view="chat"] .chat-suggestions button:focus-visible{
+  outline:2px solid #B9DBF6;outline-offset:3px;
+}
+@media (prefers-reduced-transparency:reduce){
+  body[data-view="chat"] .chat-room,
+  body[data-view="chat"] .chat-context,
+  body[data-view="chat"] .chat-composer{backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+@media (max-width:620px){
+  body[data-view="chat"] .chat-room{box-shadow:inset 0 1px rgba(255,255,255,.12)}
+}

@@ -4,14 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <meta name="theme-color" content="#0B1019" />
+  <meta name="theme-color" content="#070A10" />
   <meta name="description" content="OKAL — private offline-first personal command center." />
-  <title>OKAL — Your personal command center</title>
+  <title>OKAL — Personal AI Assistant</title>
   <link rel="stylesheet" href="/vanilla-calendar.min.css" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/chat.css" />
+  <link rel="stylesheet" href="/chat-glass.css" />
   <script defer src="/vanilla-calendar.min.js"></script>
   <script defer src="/fullcalendar-standard.min.js"></script>
   <script defer src="/app.js"></script>
+  <script defer src="/vendor/markdown-it.min.js"></script>
+  <script defer src="/chat-markdown.js"></script>
+  <script defer src="/chat-ui.js"></script>
   <script defer src="/local-calendar-ui.js"></script>
   <script defer src="/day-plan.js"></script>
   <script defer src="/day-plan-ai.js"></script>
@@ -19,9 +24,11 @@
   <script defer src="/remote-settings-ui.js"></script>
   <script defer src="/fullcalendar-ui.js"></script>
 </head>
-<body>
+<body data-view="chat">
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="ico-send" viewBox="0 0 24 24"><path d="m22 2-8 20-4-8-8-4Z"/><path d="M22 2 10 14"/></symbol>
     <symbol id="ico-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="ico-chat" viewBox="0 0 24 24"><path d="M4 5h16v12H8l-4 3V5Z"/><path d="M8 10h8M8 13h5"/></symbol>
     <symbol id="ico-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
     <symbol id="ico-checks" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></symbol>
     <symbol id="ico-spark" viewBox="0 0 24 24"><path d="m12 2 1.7 7.3L21 11l-7.3 1.7L12 20l-1.7-7.3L3 11l7.3-1.7L12 2Z"/><path d="M20 17v4m-2-2h4"/></symbol>
@@ -33,13 +40,14 @@
   <a href="#main" class="skip-link">تخطّى إلى المحتوى</a>
   <div class="app-layout">
     <aside class="sidebar" aria-label="القائمة الرئيسية">
-      <a class="brand" href="#overview" aria-label="OKAL — الرئيسية">
-        <span class="brand-symbol" aria-hidden="true">O<span class="brand-dot"></span></span>
-        <span><strong>okal</strong><small>PERSONAL OS</small></span>
+      <a class="brand" href="#chat-home" aria-label="OKAL — المحادثة الرئيسية">
+        <span class="brand-symbol brand-emblem-crop" aria-hidden="true"><img src="/assets/okal-identity" alt="" width="70" height="70" /></span>
+        <span class="brand-name"><strong>OKAL</strong><small>PERSONAL AI ASSISTANT</small></span>
       </a>
       <div class="sidebar-section-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="أقسام OKAL">
-        <a class="nav-item active" href="#overview" aria-current="location"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg></span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
+        <a class="nav-item active" href="#chat-home" aria-current="location"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-chat"></use></svg></span><span>المحادثة</span><span class="nav-english">Chat</span></a>
+        <a class="nav-item" href="#overview"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg></span><span>نظرة عامة</span><span class="nav-english">Overview</span></a>
         <a class="nav-item" href="#inbox-panel"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg></span><span>البريد الذكي</span><span class="nav-english">Inbox</span></a>
         <a class="nav-item" href="#task-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-checks"></use></svg></span><span>المهام</span><span class="nav-english">Tasks</span></a>
         <a class="nav-item" href="#calendar-section"><span class="nav-icon"><svg class="icon" aria-hidden="true"><use href="#ico-clock"></use></svg></span><span>التقويم</span><span class="nav-english">Calendar</span></a>
@@ -53,13 +61,13 @@
         <span class="system-note"><span class="presence-dot" aria-hidden="true"></span> Local-first · يعمل على جهازك</span>
         <p>إرسال البريد أو تغيير حالته أو نقله إلى Trash يتطلب منك مراجعة وتأكيدًا صريحًا.</p>
       </div>
-      <div class="sidebar-footer"><span class="avatar" aria-hidden="true">P</span><span><strong>Personal workspace</strong><small>Single-user mode</small></span></div>
+      <div class="sidebar-footer"><span class="avatar" aria-hidden="true">P</span><span><strong>Personal workspace</strong><small>Private · Local-first</small></span></div>
     </aside>
 
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-context">
-          <span class="topbar-label">مساحة OKAL <span aria-hidden="true">/</span> <span id="topbar-section-name">نظرة عامة</span></span>
+          <span class="topbar-label">مساحة OKAL <span aria-hidden="true">/</span> <span id="topbar-section-name">المحادثة</span></span>
           <span id="current-date" class="today-date"></span>
         </div>
         <div class="topbar-right">
@@ -69,6 +77,77 @@
       </header>
 
       <main id="main">
+        <section id="chat-home" class="okal-chat-home" aria-labelledby="chat-title">
+          <div class="chat-heading">
+            <div><p class="chat-eyebrow">OKAL / PERSONAL INTELLIGENCE</p>
+              <h1 id="chat-title">اتكلم مع <span>OKAL</span></h1>
+              <p>مساعدك المحلي للمواعيد والمهام والبريد — سؤال واحد، وسياق واضح.</p>
+            </div>
+            <div class="chat-heading-actions">
+              <span class="chat-mode-pill"><span class="chat-status-dot" aria-hidden="true"></span> LOCAL · PRIVATE</span>
+              <button id="chat-new" type="button" class="chat-new">+ محادثة جديدة</button>
+            </div>
+          </div>
+          <div class="chat-layout">
+            <div class="chat-room">
+              <div class="chat-greeting" id="chat-greeting">
+                <div class="chat-hero-stage">
+                  <span class="chat-hud-ring chat-hud-ring-outer" aria-hidden="true"></span>
+                  <span class="chat-hud-ring chat-hud-ring-inner" aria-hidden="true"></span>
+                  <img class="chat-hero-logo" src="/assets/okal-identity" width="280" height="280" loading="eager" decoding="async" alt="شعار OKAL الرسمي — Personal AI Assistant"/>
+                </div>
+                <p class="chat-eyebrow">ANCIENT MATERIAL / FUTURE LOGIC</p>
+                <h2>كيف أقدر أساعدك النهارده؟</h2>
+                <p class="chat-greeting-copy">اسأل عن يومك، استعرض تفاصيل المواعيد المحفوظة، أو جهّز موعد جديد للمراجعة. من غير إجراءات تلقائية.</p>
+                <div class="chat-suggestions" aria-label="ابدأ المحادثة">
+                  <button type="button" data-chat-prompt="إيه المواعيد اللي عندي النهارده؟"><span aria-hidden="true">◷</span> مواعيدي النهارده</button>
+                  <button type="button" data-chat-prompt="إيه أهم المهام اللي عندي؟"><span aria-hidden="true">☑</span> مهامي المفتوحة</button>
+                  <button type="button" data-chat-prompt="إيه آخر وضع Gmail عندي؟"><span aria-hidden="true">✉</span> ملخص بريدي</button>
+                  <button type="button" data-chat-prompt="عايز أضيف موعد جديد، ساعدني أحدد التفاصيل"><span aria-hidden="true">✦</span> جهّز موعد</button>
+                </div>
+              </div>
+              <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="سجل المحادثة"></div>
+              <form id="chat-form" class="chat-composer">
+                <label for="chat-input" class="chat-input-label">ASK OKAL / سؤالك أو طلبك</label>
+                <textarea id="chat-input" rows="2" maxlength="900" required placeholder="اسأل OKAL عن أي حاجة في يومك..." aria-describedby="chat-privacy"></textarea>
+                <div class="chat-compose-actions">
+                  <span id="chat-privacy"><span class="chat-voice-future" aria-hidden="true">◉</span> الصوت قريبًا · المحادثة محلية · بدون APIs مدفوعة</span>
+                  <button id="chat-send" type="submit"><span>إرسال</span><svg class="icon" aria-hidden="true"><use href="#ico-send"></use></svg></button>
+                </div>
+                <p id="chat-status" role="status" aria-live="polite"></p>
+              </form>
+            </div>
+            <aside class="chat-context" aria-labelledby="chat-context-title">
+              <div class="chat-context-top"><p class="chat-eyebrow">INTELLIGENCE CONTEXT</p><h2 id="chat-context-title">سياق المحادثة</h2></div>
+              <section class="chat-glass-card" aria-label="ذاكرة المحادثة">
+                <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">◈</span><strong>Memory / الذاكرة</strong></div>
+                <p>السياق مؤقت داخل علامة التبويب، مش ذاكرة دائمة.</p>
+                <div class="chat-card-item"><span>المحادثة الحالية</span><strong id="chat-memory-count">0 رسائل</strong></div>
+              </section>
+              <section class="chat-glass-card" aria-label="أدوات OKAL المتاحة">
+                <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">◇</span><strong>Tools / الأدوات</strong></div>
+                <div class="chat-tool-links">
+                  <a href="#inbox-panel"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg>Gmail</a>
+                  <a href="#calendar-section"><svg class="icon" aria-hidden="true"><use href="#ico-clock"></use></svg>Calendar</a>
+                  <a href="#task-section"><svg class="icon" aria-hidden="true"><use href="#ico-checks"></use></svg>Tasks</a>
+                  <a href="#overview"><svg class="icon" aria-hidden="true"><use href="#ico-grid"></use></svg>Overview</a>
+                </div>
+              </section>
+              <section class="chat-glass-card" aria-label="حالة الإجراءات">
+                <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">✧</span><strong>Active task / الإجراء</strong></div>
+                <p>مفيش إجراء بيتنفذ تلقائيًا. أي موعد جديد لازم تراجعه وتؤكده بنفسك.</p>
+                <span class="chat-inline-status">REVIEW REQUIRED FOR WRITES</span>
+              </section>
+              <section class="chat-glass-card" aria-label="موجز البيانات المحفوظة">
+                <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">☷</span><strong>Summary / موجز يومك</strong></div>
+                <ul id="chat-daily-points" class="chat-daily-points"><li>بيانات اليوم المحفوظة بتتحمّل من OKAL...</li></ul>
+                <p id="chat-source-caveat" class="chat-context-hint">النسخ المحفوظة ممكن تكون غير محدثة أو غير مكتملة.</p>
+              </section>
+              <div class="chat-context-footer"><span class="chat-mode-pill"><span class="chat-status-dot" aria-hidden="true"></span> LOCAL-FIRST</span><span>VOICE · NOT ENABLED</span></div>
+            </aside>
+          </div>
+        </section>
+
         <section id="overview" class="welcome-header" aria-labelledby="overview-title">
           <div>
             <h1 id="overview-title">يومك مع <span>OKAL.</span></h1>

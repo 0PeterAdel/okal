@@ -59,8 +59,12 @@ class DashboardContractTests(unittest.TestCase):
             if href.startswith("#"):
                 self.assertIn(href[1:], ids)
         self.assertEqual(self.dom.scripts,
-            ["/vanilla-calendar.min.js", "/fullcalendar-standard.min.js", "/app.js", "/local-calendar-ui.js", "/day-plan.js", "/day-plan-ai.js", "/google-tasks-ui.js", "/remote-settings-ui.js", "/fullcalendar-ui.js"])
+            ["/vanilla-calendar.min.js", "/fullcalendar-standard.min.js", "/app.js", "/vendor/markdown-it.min.js", "/chat-markdown.js", "/chat-ui.js", "/local-calendar-ui.js", "/day-plan.js", "/day-plan-ai.js", "/google-tasks-ui.js", "/remote-settings-ui.js", "/fullcalendar-ui.js"])
         self.assertTrue((STATIC / "day-plan.js").exists())
+        self.assertTrue((STATIC / "chat-ui.js").is_file())
+        self.assertTrue((STATIC / "chat.css").is_file())
+        self.assertIn('href="/chat.css"', self.html)
+        self.assertIn('href="#chat-home"', self.html)
         self.assertTrue((STATIC / "remote-settings-ui.js").is_file())
         self.assertIn('href="/vanilla-calendar.min.css"', self.html)
         self.assertTrue((STATIC / "vendor" / "vanilla-calendar.LICENSE").is_file())
@@ -71,6 +75,29 @@ class DashboardContractTests(unittest.TestCase):
         self.assertIn('id="viewer-frame"', self.html)
         self.assertIn("script-src 'none'", self.js)
         self.assertIn("skip-link", self.html)
+
+    def test_approved_logo_asset_and_branded_chat_surface(self):
+        logo = STATIC / "assets" / "okal-master.webp"
+        self.assertTrue(logo.is_file(), "approved OKAL artwork not bundled")
+        data = logo.read_bytes()
+        self.assertGreater(len(data), 1000)
+        self.assertEqual(data[:4], b"RIFF")
+        self.assertEqual(data[8:12], b"WEBP")
+        self.assertIn('src="/assets/okal-identity"', self.html)
+        self.assertTrue((STATIC / "vendor" / "markdown-it.min.js").is_file())
+        self.assertTrue((STATIC / "vendor" / "markdown-it.LICENSE").is_file())
+        self.assertTrue((STATIC / "chat-markdown.js").is_file())
+        self.assertIn('id="chat-home"', self.html)
+        self.assertIn('id="chat-daily-points"', self.html)
+        self.assertIn('id="chat-memory-count"', self.html)
+        self.assertIn('id="chat-send"', self.html)
+        self.assertIn('id="chat-input"', self.html)
+        self.assertIn('data-view="chat"', self.html)
+        chat_css = (STATIC / "chat.css").read_text()
+        for color in ("#070A10", "#121A25", "#303A47", "#D5A24C", "#B9DBF6"):
+            self.assertIn(color, chat_css)
+        self.assertIn("prefers-reduced-motion", chat_css)
+        self.assertNotIn("fonts.googleapis.com", chat_css)
 
     def test_svg_icons_are_self_hosted_and_symbols_exist(self):
         symbols = set(self.dom.svg_symbols)
