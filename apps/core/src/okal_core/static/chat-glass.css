@@ -84,3 +84,129 @@ body[data-view="chat"] .chat-suggestions button:focus-visible{
 @media (max-width:620px){
   body[data-view="chat"] .chat-room{box-shadow:inset 0 1px rgba(255,255,255,.12)}
 }
+
+/* === OKAL RING OPEN + SPATIAL GLASS TUNE BEGIN === */
+
+/* Remove the large full halo around the logo entirely */
+body[data-view="chat"] .chat-hero-stage::before{
+  display:none !important;
+}
+
+/* Keep the existing rings in place and same scale, but open them from the bottom */
+body[data-view="chat"] .chat-hud-ring-outer,
+body[data-view="chat"] .chat-hud-ring-inner,
+body[data-view="chat"] .chat-hero-stage::after{
+  clip-path: inset(0 0 20% 0);
+  -webkit-clip-path: inset(0 0 20% 0);
+}
+
+/* Preserve the two main rings, but make them cleaner and slightly more premium */
+body[data-view="chat"] .chat-hud-ring-outer{
+  opacity:.98;
+  filter: drop-shadow(0 0 10px rgba(185,219,246,.16));
+}
+
+body[data-view="chat"] .chat-hud-ring-inner{
+  opacity:.96;
+  filter: drop-shadow(0 0 8px rgba(213,162,76,.16));
+}
+
+/* Refine the main hero zone with more liquid / spatial depth */
+body[data-view="chat"] .workspace{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(185,219,246,.08), transparent 18%),
+    radial-gradient(circle at 84% 8%, rgba(185,219,246,.07), transparent 18%),
+    radial-gradient(circle at 74% 74%, rgba(213,162,76,.05), transparent 22%),
+    linear-gradient(135deg, rgba(185,219,246,.055), transparent 22%, transparent 62%, rgba(213,162,76,.035) 82%, transparent 100%),
+    repeating-linear-gradient(0deg, transparent 0 42px, rgba(185,219,246,.03) 43px, transparent 44px),
+    repeating-linear-gradient(90deg, transparent 0 42px, rgba(185,219,246,.03) 43px, transparent 44px),
+    #070A10;
+}
+
+/* Main center glass card */
+body[data-view="chat"] .chat-room{
+  background:
+    radial-gradient(ellipse at 50% 10%, rgba(185,219,246,.08), transparent 42%),
+    radial-gradient(ellipse at 50% 100%, rgba(213,162,76,.07), transparent 36%),
+    linear-gradient(150deg, rgba(24,39,56,.93), rgba(8,15,24,.97));
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  border: 1px solid rgba(173,204,228,.20);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.12),
+    0 16px 45px rgba(0,0,0,.38),
+    0 0 0 1px rgba(185,219,246,.05);
+}
+
+/* Add soft HUD / sci-fi floor feel without overdoing it */
+body[data-view="chat"] .chat-room::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse at 50% 88%, rgba(213,162,76,.14), transparent 20%),
+    radial-gradient(ellipse at 50% 90%, rgba(185,219,246,.10), transparent 32%),
+    linear-gradient(120deg, transparent 0%, rgba(185,219,246,.05) 22%, transparent 44%, transparent 58%, rgba(213,162,76,.04) 76%, transparent 100%);
+  opacity:.95;
+}
+
+/* Make right context rail more glassy */
+body[data-view="chat"] .chat-context{
+  background:
+    linear-gradient(160deg, rgba(21,34,48,.82), rgba(10,18,29,.90)),
+    rgba(10,16,24,.28);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  border: 1px solid rgba(173,204,228,.18);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.12),
+    0 14px 36px rgba(0,0,0,.24);
+}
+
+body[data-view="chat"] .chat-glass-card{
+  background:
+    linear-gradient(150deg, rgba(185,219,246,.10), rgba(29,44,60,.40) 55%, rgba(12,20,33,.46)),
+    rgba(10,16,24,.20);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  border:1px solid rgba(180,211,235,.24);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.14),
+    0 10px 20px rgba(0,0,0,.18);
+}
+
+/* Composer with stronger liquid-glass look */
+body[data-view="chat"] .chat-composer{
+  background:
+    linear-gradient(115deg, rgba(41,66,84,.76), rgba(18,32,45,.86)),
+    rgba(14,20,30,.24);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  border:1px solid rgba(185,219,246,.34);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.18),
+    0 0 22px rgba(114,187,218,.10),
+    0 14px 34px rgba(0,0,0,.30);
+}
+
+/* Buttons / chips a bit more liquid */
+body[data-view="chat"] .chat-suggestions button,
+body[data-view="chat"] .chat-tool-links a,
+body[data-view="chat"] .chat-new,
+body[data-view="chat"] .chat-mode-pill{
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.10),
+    0 6px 18px rgba(0,0,0,.16);
+}
+
+/* Keep motion subtle and premium */
+body[data-view="chat"] .chat-hero-logo{
+  filter:
+    drop-shadow(0 3px 16px rgba(213,162,76,.18))
+    drop-shadow(0 0 10px rgba(185,219,246,.08));
+}
+
+/* === OKAL RING OPEN + SPATIAL GLASS TUNE END === */
