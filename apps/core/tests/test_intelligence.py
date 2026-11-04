@@ -96,6 +96,16 @@ class IntelligenceTests(unittest.TestCase):
         other=self.state.create()['id']
         self.assertNotIn(local['id'],[m['id'] for m in self.state.memories(other)['items']])
 
+    def test_memory_retention_only_edit_and_stale_revision(self):
+        saved=self.state.save_memory('language','English')
+        edited=self.state.save_memory('language','English',revision=1,days=1)
+        self.assertEqual(edited['revision'],2)
+        self.assertEqual(edited['expires_at'],self.now+86400)
+        with self.assertRaises(Conflict):
+            self.state.save_memory('language','English',revision=100)
+        replay=self.state.save_memory('language','English',revision=1,days=1)
+        self.assertEqual(replay['revision'],2)
+
     def test_natural_remember_requires_explicit_owner_syntax(self):
         result=self.ask('remember language: English')
         self.assertEqual(result['mode'],'owner_memory')

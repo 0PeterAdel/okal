@@ -289,7 +289,14 @@ class Intelligence:
                     raise ValueError('memory_must_quote_owner_source')
             old = db.execute('SELECT * FROM chat_memories WHERE scope=? AND key=?', (scope, key)).fetchone()
             if old and old['content'] == content and old['kind'] == kind:
-                return dict(old)
+                if revision in (0, old['revision'] - 1):
+                    return dict(old)  # exact create/update replay
+                if revision != old['revision']:
+                    raise Conflict('memory_revision_conflict')
+                # Retention-only edits do not forget otherwise unchanged facts.
+                db.execute('UPDATE chat_memories SET revision=revision+1,updated_at=?,expires_at=? WHERE id=?',
+                           (self.now, self.now + days * 86400, old['id']))
+                return dict(db.execute('SELECT * FROM chat_memories WHERE id=?', (old['id'],)).fetchone())
             if (old and revision != old['revision']) or (not old and revision != 0):
                 raise Conflict('memory_revision_conflict')
             if not old and db.execute('SELECT COUNT(*) FROM chat_memories').fetchone()[0] >= MAX_MEMORIES:

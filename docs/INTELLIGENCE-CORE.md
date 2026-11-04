@@ -153,7 +153,7 @@ resource admission for those existing callers remains an operational limit.
 
 2026-11-05, isolated task worktree and private synthetic database:
 
-- Python 3.14: 450 core tests passed, including 18 new durable-state/security
+- Python 3.14: 451 core tests passed, including 19 new durable-state/security
   tests. Existing dependency deprecation and unclosed-connection ResourceWarnings
   were observed in the inherited suite; they did not fail the run.
 - Node: 77 tests passed, including updated durable chat and existing navigation,
