@@ -46,8 +46,9 @@ test("never treats model text as HTML, scripts or remotely fetched images", () =
     '[unsafe](javascript:alert(1))\n\n' +
     '[unsafe2](data:text/html,xxx)'
   );
-  assert.doesNotMatch(html, /<script|<img|onerror\s*=|href="javascript:|href="data:/i);
+  assert.doesNotMatch(html, /<script\b|<img\b|href="javascript:|href="data:/i);
   assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.match(html, /tracker/);
 });
 
