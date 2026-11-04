@@ -1,5 +1,10 @@
 # Contributing to Okal
 
+Current Solo workflow: [owner-authorized agent merges](GOVERNANCE.md#owner-authorized-agent-merges)
+supersedes the human self-review prerequisite in the historical checklist below.
+The assistant must assign the owner and verify current-head checks, diff and
+findings before squash merging; it must not claim a human review took place.
+
 Okal follows the [ShiftCore Team Handbook](https://platform.shiftcore.workers.dev/docs/handbook).
 Every change, including documentation and CI changes, follows this lifecycle:
 

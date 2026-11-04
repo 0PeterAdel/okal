@@ -23,13 +23,13 @@ state without the archive and local-preflight gates in
 4. Keep changes focused and commits small.
 5. Use `type(scope): short message` for every commit.
 6. Push only the task branch and open a Pull Request into `main`.
-7. While the owner is the only eligible human maintainer, use the ongoing Solo
-   profile: the owner records a non-approval self-review for the current head
-   SHA; no second reviewer or calendar renewal is required. With multiple
-   eligible human maintainers, request an independent reviewer. Address findings
-   in either profile. AI agents may assist but must not impersonate human review.
-8. Merge only after the applicable approval or Solo self-review, resolved
-   conversations, and passing checks.
+7. Follow the [owner-authorized agent merge workflow](GOVERNANCE.md#owner-authorized-agent-merges).
+   Assign `0PeterAdel`; document AI verification without impersonating human
+   review. In the current Solo profile, the owner authorized merging completed
+   PRs without waiting for human self-review.
+8. Merge only after current-head checks pass, findings are resolved and there
+   are no conflicts. Use squash with the expected head SHA, verify the merge,
+   and close the completed linked issue. Never bypass enforced protections.
 
 Never commit or push directly to `main`. Never merge a Pull Request merely to
 finish an automated task.

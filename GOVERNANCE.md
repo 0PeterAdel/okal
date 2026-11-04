@@ -39,6 +39,29 @@ prerequisite in that profile. Once a second eligible human has write access,
 independent approval is required. Critical changes should receive two qualified
 reviews when the team permits.
 
+## Owner-authorized agent merges
+
+On 2026-11-04, owner `0PeterAdel` explicitly authorized the coding assistant to
+merge this and future completed task PRs without waiting for human self-review.
+This is an owner-adopted deviation from the handbook's human-review gate while
+this repository remains in Solo Maintainer mode, until revoked by the owner.
+It supersedes human self-review prerequisites below and in older contributing
+instructions for this workflow. It does not represent a human approval.
+
+For each PR, the assistant must:
+
+- assign `0PeterAdel`, link the task and document acceptance evidence;
+- inspect the current-head diff, scope, tests, security and rollback;
+- verify passing current-head CI, no unresolved findings or conflicts;
+- record verification as AI-assisted verification, never as owner self-review;
+- squash merge using the expected head SHA, verify the merge, and close the
+  completed linked issue.
+
+Never bypass enforced GitHub protections or merge failed/incomplete work. Keep
+all work on task branches and PRs. Provider actions and production deployment
+remain subject to their own authorization and runtime checks. This mode ends
+if a second eligible human maintainer gains write access or the owner revokes it.
+
 ## Solo Maintainer mode
 
 Okal is maintained by one eligible human. GitHub does not permit a Pull
