@@ -59,7 +59,8 @@ fi
 echo "=== Validate current PR source and offline Markdown ==="
 node --check apps/core/src/okal_core/static/chat-markdown.js
 node --check apps/core/src/okal_core/static/chat-ui.js
-node --test apps/core/tests/test_chat_markdown.cjs apps/core/tests/test_chat_ui.cjs apps/core/tests/test_inbox_status.cjs
+node --check apps/core/src/okal_core/static/sidebar-ui.js
+node --test apps/core/tests/test_chat_markdown.cjs apps/core/tests/test_chat_ui.cjs apps/core/tests/test_inbox_status.cjs apps/core/tests/test_sidebar_ui.cjs apps/core/tests/test_workspace_glass.cjs
 PYTHONPATH=apps/core/src "$python" -m unittest discover \
   -s apps/core/tests -p 'test_chat.py' -v
 PYTHONPATH=apps/core/src "$python" -m unittest discover \
