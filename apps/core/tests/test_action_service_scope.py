@@ -3,11 +3,12 @@
 import importlib.util
 from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import patch
 import tempfile
 import unittest
 
 from okal_core.computer.contracts import Denied, Grant
-from okal_core.computer.files import CODE_ROOT, Files
+from okal_core.computer.files import Files
 from okal_core.computer.registry import command_scope
 
 spec = importlib.util.spec_from_file_location("scope_renderer", Path(__file__).parents[1] / "tools/render_action_service_scope.py")
@@ -17,10 +18,15 @@ spec.loader.exec_module(renderer)
 
 class ScopeTests(unittest.TestCase):
     def test_code_write_denied_even_with_ancestor_grant(self):
-        files = Files([Grant(root=str(CODE_ROOT.parent), write=True)], "/unused-state")
-        files.parts(str(CODE_ROOT / "AGENTS.md"))
-        with self.assertRaisesRegex(Denied, "application_code_is_read_only"):
-            files.parts(str(CODE_ROOT / "AGENTS.md"), write=True)
+        # Staged archives can live under .local; use a visible synthetic code
+        # root to exercise this guard independently of hidden-path protection.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "code"
+            files = Files([Grant(root=tmp, write=True)], "/unused-state")
+            with patch("okal_core.computer.files.CODE_ROOT", root):
+                files.parts(str(root / "AGENTS.md"))
+                with self.assertRaisesRegex(Denied, "application_code_is_read_only"):
+                    files.parts(str(root / "AGENTS.md"), write=True)
 
     def test_render_preserves_hardening_and_protects_hidden_entries(self):
         with tempfile.TemporaryDirectory() as tmp:
