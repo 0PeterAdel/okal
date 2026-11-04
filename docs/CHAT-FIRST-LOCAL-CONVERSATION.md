@@ -67,6 +67,45 @@ Chat, Gmail, Calendar and Overview, keyboard access to the button/links,
 and that no ring backdrop collides with the logo/Arabic headings.
 The accepted visual review is still required before squash merge.
 
+## Unified workspace glass and stable left navigation
+
+The shared offline asset `workspace-glass.css` is loaded after
+`style.css`, `chat.css` and `chat-glass.css`. It keeps the existing
+HTML structure, interactions, provider behavior and source data unchanged,
+while matching the Chat home identity on Overview, Gmail, Tasks, Calendar,
+Assistant, Activity, Integrations and Settings.
+
+Desktop shell direction is **always LTR for grid placement**, so the
+sidebar occupies the left column on every route. Within that shell, the
+sidebar and content workspace are **RTL**, preserving Arabic readability.
+This fixes the previous route-dependent right/left jump. The existing
+76px collapsed icon rail remains on the left after navigating across tabs,
+without changing or persisting the user's presentation preference.
+Below the existing 900px breakpoint the original horizontal/mobile
+navigation is retained.
+
+The color/material vocabulary uses Obsidian/Midnight foundations,
+translucent navy/icy-glass panels, thin illuminated edges and gold primary
+actions. Gmail source filters and triage cards, task forms, agenda and
+read-only calendar cards, activity summaries, provider connection cards
+and secure-access settings now use the same glass system.
+
+Important preserved boundaries: status/warning/error meaning, trash
+confirmation, manual-review prompts, disabled states, calendar source
+freshness text and the sandboxed original Gmail message reader are not
+re-themed into misleading claims. No external fonts, CDNs, JS feature
+libraries, data writes, or provider permissions are introduced.
+
+Visual review acceptance: open each non-Chat page and verify the sidebar
+stays left in expanded/collapsed states; the cards have matching material,
+buttons remain legible and tab-operable, calendar day/week/month readable,
+Gmail source chips clearly show selected state, and forms remain accessible.
+
+Run local static/interaction tests before owner review:
+
+    node --check apps/core/src/okal_core/static/sidebar-ui.js
+    node --test apps/core/tests/test_sidebar_ui.cjs apps/core/tests/test_workspace_glass.cjs
+
 ## How conversation works
 
 - The browser explicitly POSTs the user's turn and up to 8 recent
