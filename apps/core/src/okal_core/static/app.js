@@ -984,6 +984,7 @@ function lock() {
   el("connection").textContent = "العرض مخفي";
   el("connection").classList.remove("connected");
   resetMailStatus();
+  if (typeof clearChatUI === "function") clearChatUI();
   if (el("mail-viewer").open) el("mail-viewer").close();
   if (el("trash-dialog").open) el("trash-dialog").close();
   if (el("mail-action-dialog").open) el("mail-action-dialog").close();
@@ -1068,7 +1069,9 @@ async function load(reset) {
       const morningResponse = await fetch("/api/v1/morning", options);
       if (active !== generation) return;
       if (!morningResponse.ok) throw new Error("morning unavailable");
-      renderMorning(await morningResponse.json());
+      const brief = await morningResponse.json();
+      renderMorning(brief);
+      if (typeof renderChatDailySummary === "function") renderChatDailySummary(brief);
     } catch (error) {
       if (active !== generation || error.name === "AbortError") return;
       el("morning-text").textContent = "تعذر قراءة الموجز الصباحي من البيانات المحلية.";
@@ -1193,6 +1196,7 @@ document.addEventListener("keydown", (event) => {
 // Mirror the currently selected section in the navigation and breadcrumb.
 // Local presentation only: no provider calls or persisted browser state.
 const navigationSections = new Map([
+  ["#chat-home", "المحادثة"],
   ["#overview", "نظرة عامة"],
   ["#inbox-panel", "البريد الذكي"],
   ["#task-section", "المهام"],
@@ -1200,10 +1204,12 @@ const navigationSections = new Map([
   ["#assistant-section", "اقتراحات OKAL"],
   ["#activity-section", "السجل"],
   ["#integrations", "الاتصالات"],
+  ["#settings-section", "الإعدادات"],
 ]);
 function updateNavigationState() {
-  const requested = window.location?.hash || "#overview";
-  const section = navigationSections.has(requested) ? requested : "#overview";
+  const requested = window.location?.hash || "#chat-home";
+  const section = navigationSections.has(requested) ? requested : "#chat-home";
+  document.body?.setAttribute?.("data-view", section === "#chat-home" ? "chat" : "dashboard");
   const links = document.querySelectorAll?.(".side-nav .nav-item, .sidebar-system .nav-item") || [];
   for (const link of links) {
     const active = link.getAttribute("href") === section;

@@ -1,0 +1,474 @@
+/* OKAL restrained Liquid Glass / Spatial HUD enhancement.
+   Layered over chat.css; never overrides layout, scripts, or permissions.
+   Official tokens: obsidian #070A10, ice #B9DBF6, gold #D5A24C. */
+body[data-view="chat"] .chat-room{
+  isolation:isolate;
+  background:
+    radial-gradient(ellipse 52% 32% at 50% 9%,rgba(185,219,246,.085),transparent 85%),
+    radial-gradient(ellipse 44% 45% at 90% 80%,rgba(213,162,76,.045),transparent 85%),
+    linear-gradient(155deg,rgba(25,40,55,.94),rgba(9,17,27,.96));
+  box-shadow:inset 0 1px rgba(235,248,255,.18),0 16px 45px rgba(0,0,0,.42),0 0 0 1px rgba(185,219,246,.07);
+}
+body[data-view="chat"] .chat-room::before{
+  background:linear-gradient(90deg,transparent 5%,rgba(185,219,246,.7) 31%,rgba(213,162,76,.72) 67%,transparent 95%);
+  height:1px;
+}
+body[data-view="chat"] .chat-context{
+  background:linear-gradient(145deg,rgba(29,46,61,.83),rgba(12,20,33,.89));
+  box-shadow:inset 0 1px rgba(255,255,255,.14),0 14px 40px rgba(0,0,0,.28);
+}
+body[data-view="chat"] .chat-glass-card{
+  background:linear-gradient(142deg,rgba(185,219,246,.105),rgba(29,44,60,.43) 55%,rgba(12,20,33,.49));
+  border:1px solid rgba(171,205,231,.23);
+  box-shadow:inset 0 1px rgba(235,245,255,.17),0 9px 22px rgba(0,0,0,.18);
+  backdrop-filter:blur(18px) saturate(1.1);
+  -webkit-backdrop-filter:blur(18px) saturate(1.1);
+}
+body[data-view="chat"] .chat-glass-card:hover{
+  border-color:rgba(185,219,246,.37);
+}
+body[data-view="chat"] .chat-hero-stage{
+  isolation:isolate;
+  background:radial-gradient(circle at 50% 45%,rgba(185,219,246,.11),transparent 62%);
+}
+body[data-view="chat"] .chat-hero-stage::before{
+  content:"";position:absolute;inset:17px;border-radius:50%;pointer-events:none;
+  border:1px solid rgba(185,219,246,.075);
+  background:conic-gradient(from 105deg,transparent 0 15%,rgba(185,219,246,.04) 16% 19%,transparent 20% 61%,rgba(213,162,76,.04) 62% 65%,transparent 66% 100%);
+}
+body[data-view="chat"] .chat-hero-logo{
+  image-rendering:auto;
+  filter:drop-shadow(0 3px 17px rgba(213,162,76,.22)) drop-shadow(0 0 10px rgba(185,219,246,.08));
+}
+body[data-view="chat"] .chat-hud-ring-outer{
+  border:1px dashed rgba(185,219,246,.30);
+  box-shadow:0 0 0 13px rgba(185,219,246,.022),inset 0 0 28px rgba(127,186,208,.14);
+}
+body[data-view="chat"] .chat-hud-ring-inner{
+  border:1px solid rgba(213,162,76,.26);
+  box-shadow:0 0 18px rgba(213,162,76,.065);
+}
+body[data-view="chat"] .chat-composer{
+  background:linear-gradient(115deg,rgba(41,66,84,.88),rgba(19,33,47,.92));
+  border:1px solid rgba(185,219,246,.53);
+  box-shadow:inset 0 1px rgba(255,255,255,.19),0 0 26px rgba(101,176,205,.13),0 16px 34px rgba(0,0,0,.25);
+  backdrop-filter:blur(18px) saturate(1.12);
+  -webkit-backdrop-filter:blur(18px) saturate(1.12);
+}
+body[data-view="chat"] .chat-composer:focus-within{
+  border-color:#B9DBF6;
+  box-shadow:inset 0 1px rgba(255,255,255,.2),0 0 0 2px rgba(185,219,246,.11),0 0 28px rgba(101,176,205,.18);
+}
+body[data-view="chat"] .chat-suggestions button,
+body[data-view="chat"] .chat-tool-links a,
+body[data-view="chat"] .chat-new{
+  box-shadow:inset 0 1px rgba(235,245,255,.12),0 6px 18px rgba(0,0,0,.18);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+body[data-view="chat"] .chat-bubble{
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  box-shadow:inset 0 1px rgba(255,255,255,.12),0 9px 20px rgba(0,0,0,.17);
+}
+body[data-view="chat"] #chat-send:focus-visible,
+body[data-view="chat"] .chat-new:focus-visible,
+body[data-view="chat"] .chat-suggestions button:focus-visible{
+  outline:2px solid #B9DBF6;outline-offset:3px;
+}
+@media (prefers-reduced-transparency:reduce){
+  body[data-view="chat"] .chat-room,
+  body[data-view="chat"] .chat-context,
+  body[data-view="chat"] .chat-composer{backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+@media (max-width:620px){
+  body[data-view="chat"] .chat-room{box-shadow:inset 0 1px rgba(255,255,255,.12)}
+}
+
+/* === OKAL RING OPEN + SPATIAL GLASS TUNE BEGIN === */
+
+/* Remove the large full halo around the logo entirely */
+body[data-view="chat"] .chat-hero-stage::before{
+  display:none !important;
+}
+
+/* Keep the existing rings in place and same scale, but open them from the bottom */
+body[data-view="chat"] .chat-hud-ring-outer,
+body[data-view="chat"] .chat-hud-ring-inner,
+body[data-view="chat"] .chat-hero-stage::after{
+  clip-path: inset(0 0 20% 0);
+  -webkit-clip-path: inset(0 0 20% 0);
+}
+
+/* Preserve the two main rings, but make them cleaner and slightly more premium */
+body[data-view="chat"] .chat-hud-ring-outer{
+  opacity:.98;
+  filter: drop-shadow(0 0 10px rgba(185,219,246,.16));
+}
+
+body[data-view="chat"] .chat-hud-ring-inner{
+  opacity:.96;
+  filter: drop-shadow(0 0 8px rgba(213,162,76,.16));
+}
+
+/* Refine the main hero zone with more liquid / spatial depth */
+body[data-view="chat"] .workspace{
+  background:
+    radial-gradient(circle at 14% 12%, rgba(185,219,246,.08), transparent 18%),
+    radial-gradient(circle at 84% 8%, rgba(185,219,246,.07), transparent 18%),
+    radial-gradient(circle at 74% 74%, rgba(213,162,76,.05), transparent 22%),
+    linear-gradient(135deg, rgba(185,219,246,.055), transparent 22%, transparent 62%, rgba(213,162,76,.035) 82%, transparent 100%),
+    repeating-linear-gradient(0deg, transparent 0 42px, rgba(185,219,246,.03) 43px, transparent 44px),
+    repeating-linear-gradient(90deg, transparent 0 42px, rgba(185,219,246,.03) 43px, transparent 44px),
+    #070A10;
+}
+
+/* Main center glass card */
+body[data-view="chat"] .chat-room{
+  background:
+    radial-gradient(ellipse at 50% 10%, rgba(185,219,246,.08), transparent 42%),
+    radial-gradient(ellipse at 50% 100%, rgba(213,162,76,.07), transparent 36%),
+    linear-gradient(150deg, rgba(24,39,56,.93), rgba(8,15,24,.97));
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  border: 1px solid rgba(173,204,228,.20);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.12),
+    0 16px 45px rgba(0,0,0,.38),
+    0 0 0 1px rgba(185,219,246,.05);
+}
+
+/* Add soft HUD / sci-fi floor feel without overdoing it */
+body[data-view="chat"] .chat-room::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse at 50% 88%, rgba(213,162,76,.14), transparent 20%),
+    radial-gradient(ellipse at 50% 90%, rgba(185,219,246,.10), transparent 32%),
+    linear-gradient(120deg, transparent 0%, rgba(185,219,246,.05) 22%, transparent 44%, transparent 58%, rgba(213,162,76,.04) 76%, transparent 100%);
+  opacity:.95;
+}
+
+/* Make right context rail more glassy */
+body[data-view="chat"] .chat-context{
+  background:
+    linear-gradient(160deg, rgba(21,34,48,.82), rgba(10,18,29,.90)),
+    rgba(10,16,24,.28);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  border: 1px solid rgba(173,204,228,.18);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.12),
+    0 14px 36px rgba(0,0,0,.24);
+}
+
+body[data-view="chat"] .chat-glass-card{
+  background:
+    linear-gradient(150deg, rgba(185,219,246,.10), rgba(29,44,60,.40) 55%, rgba(12,20,33,.46)),
+    rgba(10,16,24,.20);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  border:1px solid rgba(180,211,235,.24);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.14),
+    0 10px 20px rgba(0,0,0,.18);
+}
+
+/* Composer with stronger liquid-glass look */
+body[data-view="chat"] .chat-composer{
+  background:
+    linear-gradient(115deg, rgba(41,66,84,.76), rgba(18,32,45,.86)),
+    rgba(14,20,30,.24);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  border:1px solid rgba(185,219,246,.34);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.18),
+    0 0 22px rgba(114,187,218,.10),
+    0 14px 34px rgba(0,0,0,.30);
+}
+
+/* Buttons / chips a bit more liquid */
+body[data-view="chat"] .chat-suggestions button,
+body[data-view="chat"] .chat-tool-links a,
+body[data-view="chat"] .chat-new,
+body[data-view="chat"] .chat-mode-pill{
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.10),
+    0 6px 18px rgba(0,0,0,.16);
+}
+
+/* Keep motion subtle and premium */
+body[data-view="chat"] .chat-hero-logo{
+  filter:
+    drop-shadow(0 3px 16px rgba(213,162,76,.18))
+    drop-shadow(0 0 10px rgba(185,219,246,.08));
+}
+
+/* === OKAL RING OPEN + SPATIAL GLASS TUNE END === */
+
+
+/* === OKAL GLASS SYSTEM V2 · SHARP EMBLEM / TRUE ICON RAIL ===
+   Specific override of the old foggy disc: the existing small HUD outlines
+   retain their exact geometry and 20% bottom opening. No new logo layers. */
+body[data-view="chat"] .chat-hero-stage {
+  background:transparent!important;
+}
+body[data-view="chat"] .chat-hero-stage::before,
+body[data-view="chat"] .chat-hero-stage::after {
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+body[data-view="chat"] .chat-hud-ring-outer,
+body[data-view="chat"] .chat-hud-ring-inner {
+  background:transparent!important;
+  box-shadow:none!important;
+  filter:none!important;
+  /* Existing coordinates, width, height and bottom-open clip stay untouched. */
+}
+body[data-view="chat"] .chat-room {
+  background:linear-gradient(148deg,rgba(28,47,67,.90),rgba(11,20,34,.96) 68%,rgba(10,17,29,.97));
+  border:1px solid rgba(180,222,249,.48);
+  box-shadow:inset 0 1px rgba(238,249,255,.40),
+    0 0 0 1px rgba(103,171,209,.13),
+    0 16px 46px rgba(0,0,0,.38),
+    0 0 24px rgba(98,185,231,.08);
+  backdrop-filter:blur(16px) saturate(1.10);
+  -webkit-backdrop-filter:blur(16px) saturate(1.10);
+}
+body[data-view="chat"] .chat-room::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border:0;
+  background:
+    linear-gradient(0deg,rgba(35,84,115,.18),transparent 26%),
+    repeating-linear-gradient(90deg,transparent 0 67px,rgba(144,204,240,.035) 68px,transparent 69px);
+  -webkit-mask-image:linear-gradient(to top,#000 0%,transparent 32%);
+  mask-image:linear-gradient(to top,#000 0%,transparent 32%);
+  opacity:.8;
+}
+/* Actual hero content renders above decorative HUD/floor layers. */
+body[data-view="chat"] .chat-room > .chat-greeting,
+body[data-view="chat"] .chat-room > .chat-messages,
+body[data-view="chat"] .chat-room > .chat-composer{
+  position:relative;
+  z-index:1;
+}
+
+/* Luminous, layered glass surfaces — design only, no behavior changes. */
+body[data-view="chat"] .chat-context{
+  border:1px solid rgba(169,213,239,.46);
+  background:linear-gradient(145deg,rgba(32,58,79,.76),rgba(13,24,41,.87) 70%,rgba(13,24,38,.94));
+  box-shadow:inset 0 1px rgba(238,247,255,.30),
+    0 0 0 1px rgba(87,165,213,.08),
+    0 18px 37px rgba(0,0,0,.28),
+    0 0 23px rgba(81,169,224,.07);
+}
+body[data-view="chat"] .chat-glass-card{
+  border:1px solid rgba(173,220,245,.45);
+  border-radius:17px;
+  background:
+    linear-gradient(160deg,rgba(197,231,253,.13),rgba(34,57,78,.48) 42%,rgba(13,26,44,.75)),
+    rgba(20,37,54,.54);
+  box-shadow:inset 0 1px rgba(242,250,255,.34),
+    inset 1px 0 rgba(161,214,244,.12),
+    0 8px 22px rgba(0,0,0,.21),
+    0 0 18px rgba(112,191,235,.075);
+  backdrop-filter:blur(20px) saturate(1.08);
+  -webkit-backdrop-filter:blur(20px) saturate(1.08);
+  transition:border-color .18s ease,box-shadow .18s ease;
+}
+body[data-view="chat"] .chat-glass-card:hover{
+  border-color:rgba(185,219,246,.7);
+  box-shadow:inset 0 1px rgba(248,253,255,.40),
+    0 8px 24px rgba(0,0,0,.20),
+    0 0 20px rgba(112,191,235,.14);
+}
+body[data-view="chat"] .chat-composer{
+  border:1px solid rgba(182,227,250,.72);
+  background:linear-gradient(120deg,rgba(62,100,126,.60),rgba(22,45,66,.84) 65%,rgba(12,27,44,.88));
+  box-shadow:inset 0 1px rgba(246,252,255,.47),
+    inset 1px 0 rgba(185,219,246,.17),
+    0 0 0 1px rgba(113,192,237,.08),
+    0 12px 34px rgba(0,0,0,.24),
+    0 0 24px rgba(112,191,235,.14);
+  backdrop-filter:blur(22px) saturate(1.15);
+  -webkit-backdrop-filter:blur(22px) saturate(1.15);
+}
+body[data-view="chat"] .chat-bubble,
+body[data-view="chat"] .chat-proposal{
+  border-color:rgba(164,207,233,.5);
+  background:linear-gradient(132deg,rgba(76,116,145,.39),rgba(25,46,65,.67));
+  box-shadow:inset 0 1px rgba(235,247,255,.24),0 12px 26px rgba(0,0,0,.2);
+}
+body[data-view="chat"] .chat-suggestions button,
+body[data-view="chat"] .chat-tool-links a,
+body[data-view="chat"] .chat-mode-pill{
+  border-color:rgba(174,216,242,.46);
+  background:linear-gradient(138deg,rgba(159,212,247,.17),rgba(32,58,78,.50));
+  box-shadow:inset 0 1px rgba(244,251,255,.25),0 6px 17px rgba(0,0,0,.19);
+}
+body[data-view="chat"] .sidebar{
+  border-right:1px solid rgba(158,210,242,.35);
+  background:linear-gradient(168deg,rgba(23,45,64,.96),rgba(9,19,33,.98) 65%,rgba(13,27,43,.96));
+  box-shadow:inset -1px 0 rgba(198,235,255,.12),10px 0 33px rgba(0,0,0,.3);
+}
+body[data-view="chat"] .nav-item.active{
+  border-color:rgba(235,186,95,.78);
+  background:linear-gradient(132deg,rgba(227,173,79,.30),rgba(54,52,55,.60));
+  box-shadow:inset 0 1px rgba(255,234,186,.38),inset -3px 0 #D5A24C,
+    0 0 21px rgba(231,176,77,.18);
+}
+
+/* Apply the same material vocabulary to the dashboard's existing widgets.
+   Scope to known cards instead of giving EVERY div a border/pseudo element. */
+.workspace :is(
+  .metric,.morning-brief,.mail-panel,.calendar-panel,.activity-panel,
+  .day-plan-panel,.secondary-panel,.task-create-panel
+){
+  border-color:rgba(161,204,231,.40);
+  background:linear-gradient(140deg,rgba(72,105,128,.25),rgba(20,36,54,.78) 55%,rgba(11,24,39,.89));
+  box-shadow:inset 0 1px rgba(238,249,255,.22),
+    0 8px 28px rgba(0,0,0,.19),
+    0 0 16px rgba(105,182,226,.075);
+}
+.workspace :is(
+  .metric,.mail-panel,.calendar-panel,.activity-panel,.day-plan-panel,
+  .secondary-panel,.task-create-panel
+):hover{
+  border-color:rgba(174,219,246,.55);
+}
+/* Keep explicit status, safety colors and text contrast in their own styles. */
+
+/* Sidebar can shrink to an icon-only 76px rail, as in the provided reference.
+   It does not hide nav links from the accessibility tree. */
+.sidebar-toggle{
+  min-height:42px;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  width:100%;margin:-8px 0 11px;padding:9px 12px;
+  border:1px solid rgba(161,204,231,.42);
+  border-radius:12px;
+  color:#D9ECF7;
+  background:linear-gradient(142deg,rgba(105,151,179,.23),rgba(20,35,50,.59));
+  box-shadow:inset 0 1px rgba(255,255,255,.2),0 6px 18px rgba(0,0,0,.17);
+  cursor:pointer;font-size:12px;font-weight:700;
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.sidebar-toggle:hover{border-color:rgba(185,219,246,.8);color:#F0C778}
+.sidebar-toggle .icon{width:21px;height:21px;stroke:currentColor;stroke-width:1.7;fill:none;flex-shrink:0}
+body[data-sidebar="collapsed"] .sidebar-toggle .icon{transform:rotate(180deg)}
+@media(min-width:901px){
+  body[data-sidebar="collapsed"] .app-layout{
+    grid-template-columns:76px minmax(0,1fr);
+  }
+  body[data-sidebar="collapsed"] .sidebar{
+    padding:22px 10px 16px;
+    align-items:stretch;
+    overflow-x:hidden;
+  }
+  body[data-sidebar="collapsed"] .sidebar .brand{
+    padding:0 0 22px;
+    justify-content:center;
+    gap:0;
+  }
+  body[data-sidebar="collapsed"] .sidebar .brand-name,
+  body[data-sidebar="collapsed"] .sidebar .sidebar-section-label,
+  body[data-sidebar="collapsed"] .sidebar .sidebar-toggle-text,
+  body[data-sidebar="collapsed"] .sidebar .nav-item > span:not(.nav-icon),
+  body[data-sidebar="collapsed"] .sidebar .system-note,
+  body[data-sidebar="collapsed"] .sidebar .sidebar-system p,
+  body[data-sidebar="collapsed"] .sidebar .sidebar-footer > span:not(.avatar){
+    display:none!important;
+  }
+  body[data-sidebar="collapsed"] .sidebar .brand-emblem-crop{
+    flex:0 0 52px!important;
+    width:52px!important;
+    height:52px!important;
+    margin:0 auto;
+  }
+  body[data-sidebar="collapsed"] .sidebar .brand-emblem-crop img{
+    width:72px;height:72px;left:-10px;top:-8px;
+  }
+  body[data-sidebar="collapsed"] .sidebar .side-nav,
+  body[data-sidebar="collapsed"] .sidebar .sidebar-system{
+    display:grid;gap:7px;
+  }
+  body[data-sidebar="collapsed"] .sidebar .nav-item{
+    min-width:0;width:52px;min-height:52px;
+    padding:0;gap:0;justify-content:center;
+    border-radius:14px;margin:0 auto;
+  }
+  body[data-sidebar="collapsed"] .sidebar .nav-icon{
+    width:29px;height:29px;opacity:1;
+    display:grid;place-items:center;
+    border:0;
+  }
+  body[data-sidebar="collapsed"] .sidebar .nav-icon .icon{
+    width:21px;height:21px;
+  }
+  body[data-sidebar="collapsed"] .sidebar .sidebar-footer{
+    padding:15px 0 6px;justify-content:center;
+  }
+  body[data-sidebar="collapsed"] .sidebar .sidebar-footer .avatar{
+    margin:0 auto;
+  }
+  body[data-sidebar="collapsed"] .sidebar-toggle{
+    width:52px;min-width:52px;margin:0 auto 11px;padding:9px;
+    border-radius:13px;
+  }
+}
+@media(max-width:900px){
+  .sidebar-toggle{display:none!important}
+}
+/* Rounded floating vertical rail after collapse — same navigation,
+   more workspace space, and a restrained reference-inspired outline. */
+@media(min-width:901px){
+  body[data-sidebar="collapsed"] .sidebar{
+    position:sticky;top:12px;
+    margin:12px 6px;
+    height:calc(100dvh - 24px);
+    min-height:0;
+    padding:18px 8px 13px;
+    border:1px solid rgba(166,213,239,.48);
+    border-radius:21px;
+    background:linear-gradient(155deg,rgba(36,63,83,.88),rgba(13,25,41,.96) 70%);
+    box-shadow:inset 0 1px rgba(239,250,255,.3),
+      0 11px 34px rgba(0,0,0,.36),
+      0 0 15px rgba(105,188,235,.10);
+    overflow-x:hidden;
+    overflow-y:auto;
+    scrollbar-width:none;
+  }
+  body[data-sidebar="collapsed"] .sidebar::-webkit-scrollbar{display:none}
+  body[data-sidebar="collapsed"] .sidebar .brand-emblem-crop{
+    flex-basis:48px!important;width:48px!important;height:48px!important;
+  }
+  body[data-sidebar="collapsed"] .sidebar .nav-item{
+    width:48px;min-height:47px;border-radius:13px;
+  }
+  body[data-sidebar="collapsed"] .sidebar-toggle{
+    width:48px;min-width:48px;
+  }
+}
+
+/* Accessibility: no GPU-heavy glass in forced-colors or reduced transparency. */
+@media(prefers-reduced-transparency:reduce){
+  body[data-view="chat"] :is(.chat-room,.chat-context,.chat-glass-card,.chat-composer),
+  .sidebar-toggle{backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+@media(forced-colors:active){
+  body[data-view="chat"] :is(.chat-room,.chat-context,.chat-glass-card,.chat-composer),
+  .sidebar-toggle{border:1px solid CanvasText;box-shadow:none}
+}
+@media(prefers-reduced-motion:reduce){
+  body[data-view="chat"] .chat-glass-card{transition:none}
+}

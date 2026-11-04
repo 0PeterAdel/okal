@@ -1,0 +1,431 @@
+/*
+ * OKAL Unified Workspace Glass v1
+ * Scope: Overview / Gmail / Tasks / Calendar / Assistant / Activity /
+ * Integrations / Settings. Existing Chat hero rules stay in chat-glass.css.
+ *
+ * Authoritative shell orientation: sidebar LEFT on all desktop routes,
+ * Arabic content RTL inside the right workspace. Never flip based on hash.
+ * Colors follow approved OKAL palette (Obsidian / Midnight / Ice / Gold).
+ * No changes to authorization states, HTML message rendering, data or actions.
+ */
+
+/* Shared directional shell: previous style flipped to RTL on non-chat pages. */
+@media (min-width:901px) {
+  .app-layout {
+    direction:ltr;
+    grid-template-columns:246px minmax(0,1fr);
+  }
+  .app-layout > .sidebar {
+    direction:rtl;
+    border-left:0;
+    border-right:1px solid rgba(158,210,242,.35);
+  }
+  .app-layout > .workspace {
+    direction:rtl;
+  }
+  body[data-sidebar="collapsed"] .app-layout {
+    direction:ltr;
+    grid-template-columns:76px minmax(0,1fr);
+  }
+}
+
+/* Keep the same approved metallic / glass chrome on EVERY route. */
+body {
+  color:#F3EFE8;
+  background:#070A10;
+}
+.workspace {
+  background:
+    radial-gradient(ellipse at 48% -4%,rgba(61,105,140,.16),transparent 48%),
+    radial-gradient(ellipse at 95% 90%,rgba(213,162,76,.052),transparent 34%),
+    repeating-linear-gradient(0deg,transparent 0 47px,rgba(185,219,246,.025) 48px,transparent 49px),
+    repeating-linear-gradient(90deg,transparent 0 47px,rgba(185,219,246,.025) 48px,transparent 49px),
+    #070A10;
+}
+body[data-view="dashboard"] .sidebar {
+  background:linear-gradient(168deg,rgba(23,45,64,.96),rgba(9,19,33,.98) 65%,rgba(13,27,43,.96));
+  border-color:rgba(158,210,242,.35);
+  box-shadow:inset -1px 0 rgba(198,235,255,.12),10px 0 33px rgba(0,0,0,.3);
+}
+body[data-view="dashboard"] .brand {
+  justify-content:center;
+  gap:10px;
+  direction:ltr;
+  text-align:left;
+  padding:7px 0 30px;
+}
+body[data-view="dashboard"] .brand-name strong{
+  color:#F3EFE8;
+  font-weight:800;
+  letter-spacing:3px;
+  font-size:25px;
+  text-shadow:0 0 16px rgba(185,219,246,.21);
+}
+body[data-view="dashboard"] .brand-name small{
+  font-size:7px;
+  letter-spacing:1.3px;
+  color:#c9a773;
+}
+body[data-view="dashboard"] .sidebar-section-label {
+  color:#b49b6d;
+}
+body[data-view="dashboard"] .nav-item {
+  border:1px solid transparent;
+  border-radius:13px;
+  transition:background-color .18s,border-color .18s,box-shadow .18s;
+}
+body[data-view="dashboard"] .nav-item:hover {
+  border-color:rgba(158,205,232,.39);
+  background:linear-gradient(135deg,rgba(155,209,243,.09),rgba(25,44,64,.38));
+  color:#F3EFE8;
+}
+body[data-view="dashboard"] .nav-item.active {
+  border-color:rgba(235,186,95,.78);
+  border-radius:13px;
+  color:#F0C778;
+  background:linear-gradient(132deg,rgba(227,173,79,.30),rgba(54,52,55,.60));
+  box-shadow:inset 0 1px rgba(255,234,186,.38),inset -3px 0 #D5A24C,
+    0 0 21px rgba(231,176,77,.18);
+}
+body[data-view="dashboard"] .nav-item.active .nav-english {
+  color:#F0C778;
+}
+body[data-view="dashboard"] .topbar {
+  background:rgba(12,21,34,.83);
+  border-color:rgba(131,182,216,.28);
+  box-shadow:inset 0 -1px rgba(213,162,76,.07);
+  backdrop-filter:blur(15px) saturate(1.12);
+  -webkit-backdrop-filter:blur(15px) saturate(1.12);
+}
+body[data-view="dashboard"] .topbar-label {color:#cfbd9e}
+body[data-view="dashboard"] .connection-status {
+  border-color:rgba(103,166,165,.52);
+  color:#c9eadf;
+}
+
+/* Consistent page header spacing, not a redesign of contents or labels. */
+body[data-view="dashboard"] main {
+  max-width:1800px;
+  padding:clamp(16px,2vw,32px);
+}
+body[data-view="dashboard"] :is(.welcome-header,.section-heading) {
+  padding:6px 0;
+}
+body[data-view="dashboard"] :is(.welcome-header h1,.section-heading h2) {
+  color:#F3EFE8;
+  text-shadow:0 1px 13px rgba(125,191,228,.10);
+}
+body[data-view="dashboard"] :is(.overline,.section-overline) {
+  color:#D5A24C;
+  letter-spacing:1.75px;
+}
+body[data-view="dashboard"] :is(.section-lead,.section-sub,.muted) {
+  color:#AABACA;
+}
+body[data-view="dashboard"] .section-overline .eyebrow-mark {
+  background:#D5A24C;
+}
+
+/* Glass system: cards and containers are semantic class targets, NOT all divs.
+   Keep tiny event/status indicators and modal MIME iframe untouched. */
+.workspace :is(
+  .metric,.morning-brief,.mail-panel,.secondary-panel,.calendar-panel,
+  .activity-panel,.sync-strip,.day-plan-panel,.fullcalendar-shell,
+  .calendar-day-focus-body,.calendar-navigator-shell,.calendar-week-details,
+  .remote-settings,.auth-panel
+) {
+  border:1px solid rgba(164,209,236,.42);
+  border-radius:19px;
+  background:
+    linear-gradient(145deg,rgba(115,177,211,.105),rgba(30,51,74,.50) 42%,rgba(12,24,41,.82)),
+    rgba(12,23,39,.60);
+  box-shadow:inset 0 1px rgba(233,248,255,.25),
+    0 10px 29px rgba(0,0,0,.22),
+    0 0 18px rgba(101,181,228,.055);
+  backdrop-filter:blur(17px) saturate(1.1);
+  -webkit-backdrop-filter:blur(17px) saturate(1.1);
+}
+.workspace :is(
+  .metric,.mail-panel,.secondary-panel,.calendar-panel,.activity-panel,
+  .day-plan-panel,.calendar-day-focus-body,.calendar-navigator-shell,
+  .remote-settings
+):hover {
+  border-color:rgba(184,219,246,.57);
+}
+.workspace :is(
+  .task-card,.summary,.mail-cluster,.calendar-entry,.calendar-conflict,
+  .calendar-slot,.calendar-focus-entry,.day-plan-task-row,
+  .day-plan-proposed-block,.day-plan-saved-item,.task-create-panel,
+  .google-tasks-focus,.calendar-coverage,.planner-overview,
+  .integrations > div
+) {
+  border-color:rgba(142,191,222,.35);
+  border-radius:14px;
+  background:
+    linear-gradient(146deg,rgba(170,216,245,.085),rgba(29,52,73,.41) 70%,rgba(15,30,48,.70)),
+    rgba(16,29,46,.45);
+  box-shadow:inset 0 1px rgba(230,247,255,.15),0 7px 18px rgba(0,0,0,.14);
+}
+.workspace :is(.task-card,.calendar-entry,.summary,.calendar-focus-entry) {
+  overflow-wrap:anywhere;
+}
+.workspace .metric {
+  min-height:136px;
+  overflow:hidden;
+}
+.workspace .metric::before {
+  content:"";
+  position:absolute;
+  inset:0 0 auto;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(185,219,246,.42),transparent);
+  pointer-events:none;
+}
+.workspace .metric-icon {color:#F0C778}
+.workspace .morning-brief {
+  background:
+    radial-gradient(ellipse at 95% 0%,rgba(213,162,76,.105),transparent 42%),
+    radial-gradient(ellipse at 0% 100%,rgba(185,219,246,.095),transparent 44%),
+    linear-gradient(145deg,rgba(34,55,73,.85),rgba(14,31,45,.94));
+  border-color:rgba(214,176,105,.43);
+}
+.workspace .morning-orb {
+  border:1px solid rgba(225,188,115,.46);
+  color:#F0C778;
+  background:linear-gradient(140deg,rgba(173,128,62,.27),rgba(40,62,75,.45));
+  box-shadow:inset 0 1px rgba(255,245,216,.16),0 0 16px rgba(213,162,76,.10);
+}
+.workspace :is(.mail-panel-header,.panel-head) {
+  border-bottom:1px solid rgba(128,179,210,.11);
+}
+.workspace :is(.mail-panel-header h3,.panel-head h3) {
+  color:#F3EFE8;
+}
+.workspace :is(.counter-pill,.today-pill,.feature-tag) {
+  background:linear-gradient(120deg,rgba(185,219,246,.09),rgba(20,41,61,.52));
+  border-color:rgba(170,214,241,.36);
+}
+.workspace .feature-tag {color:#D5A24C}
+
+/* Gmail: branded source filters and structured triage cards. Do not change
+   source classification logic, unread/selected warnings or destructive buttons. */
+.workspace .mail-source-browser {
+  background:linear-gradient(130deg,rgba(43,69,91,.54),rgba(17,32,51,.71));
+  border-color:rgba(151,198,228,.29);
+}
+.workspace .mail-source-chip {
+  background:linear-gradient(130deg,rgba(113,163,194,.14),rgba(24,42,61,.64));
+  border-color:rgba(164,210,239,.32);
+  box-shadow:inset 0 1px rgba(232,248,255,.1);
+}
+.workspace .mail-source-chip:hover {
+  background:rgba(71,107,131,.29);
+  border-color:rgba(185,219,246,.54);
+}
+.workspace .mail-source-chip[aria-pressed="true"] {
+  border-color:#D5A24C;
+  background:linear-gradient(135deg,rgba(213,162,76,.24),rgba(63,48,30,.43));
+  color:#F0C778;
+}
+.workspace .selection-toolbar {
+  background:linear-gradient(140deg,rgba(31,53,74,.97),rgba(14,28,44,.97));
+  border-color:rgba(149,195,225,.32);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.workspace .operation-note {
+  background:rgba(26,42,60,.75);
+  border-color:rgba(149,195,225,.22);
+}
+.workspace .triage-groups {
+  gap:8px;
+  background:transparent;
+  padding:8px 11px 15px;
+}
+.workspace .triage-column {
+  background:linear-gradient(146deg,rgba(58,88,114,.29),rgba(19,36,56,.73));
+  border:1px solid rgba(145,195,228,.32);
+  border-radius:15px;
+}
+.workspace .triage-message:not(.is-selected) {
+  border-color:rgba(139,188,217,.23);
+}
+.workspace .triage-message:not(.is-selected):hover {
+  background:rgba(94,140,168,.12);
+  border-color:rgba(168,214,241,.34);
+}
+.workspace .mail-cluster > summary {
+  color:#E5F0F8;
+}
+.workspace .mail-cluster[open] {
+  border-color:rgba(179,216,241,.50);
+}
+.workspace .mail-cluster > .triage-message {
+  background:rgba(18,35,51,.45);
+}
+
+/* Tasks / assistant: keep task and triage action state distinct. */
+.workspace .task-create-panel {
+  border:1px solid rgba(161,210,239,.33);
+  background:linear-gradient(142deg,rgba(58,91,115,.23),rgba(14,30,49,.68));
+}
+.workspace .task-create-panel summary {
+  color:#E4F2FA;
+}
+.workspace .planner-overview {
+  background:linear-gradient(140deg,rgba(54,83,108,.32),rgba(16,31,49,.56));
+}
+.workspace .assistant-groups .triage-column {
+  border-color:rgba(142,195,230,.36);
+  background:linear-gradient(138deg,rgba(59,91,114,.29),rgba(18,34,51,.69));
+}
+.workspace .task-card {
+  border-color:rgba(145,195,228,.35);
+}
+
+/* Calendar: keep provider/event color identity and read-only semantics. */
+.workspace .calendar-coverage {
+  color:#F0C778;
+  border-color:rgba(215,172,92,.45);
+  background:linear-gradient(130deg,rgba(100,75,40,.16),rgba(20,35,53,.58));
+}
+.workspace .calendar-focus-entry,
+.workspace .calendar-entry {
+  border-inline-start-color:#B9DBF6;
+}
+.workspace .calendar-entry.local-task {
+  border-inline-start-color:#D5A24C;
+}
+.workspace .calendar-next-action {
+  background:rgba(213,162,76,.13);
+  border-color:rgba(213,162,76,.37);
+}
+.workspace .calendar-week-details > summary,
+.workspace .task-create-panel > summary {
+  color:#EAF4FA;
+}
+.workspace .calendar-date-navigator .vanilla-calendar {
+  background:transparent;
+}
+.workspace .calendar-date-navigator :is(
+  .vanilla-calendar-months,.vanilla-calendar-years,.vanilla-calendar-day
+) {
+  background:transparent;
+}
+.workspace #fullcalendar-view .fc {
+  --fc-page-bg-color:#101c2c;
+  --fc-neutral-bg-color:rgba(23,42,62,.88);
+  --fc-border-color:rgba(136,184,215,.35);
+  --fc-button-bg-color:#243D54;
+  --fc-button-border-color:rgba(163,209,237,.47);
+  --fc-button-hover-bg-color:#335773;
+  --fc-today-bg-color:rgba(213,162,76,.12);
+}
+.workspace #fullcalendar-view .fc .fc-button {
+  border-radius:9px;
+  box-shadow:inset 0 1px rgba(238,251,255,.10);
+}
+.workspace #fullcalendar-view .fc .fc-button:focus-visible{
+  outline:2px solid #B9DBF6;outline-offset:2px;
+}
+
+/* Activity, service connections and external-access settings */
+.workspace .integrations > div {
+  border:1px solid rgba(161,204,231,.41);
+  background:linear-gradient(145deg,rgba(63,105,131,.24),rgba(16,31,48,.79));
+  box-shadow:inset 0 1px rgba(239,250,255,.22),0 7px 20px rgba(0,0,0,.20);
+}
+.workspace .integrations .service-icon {
+  border-color:rgba(213,162,76,.43);
+  background:rgba(213,162,76,.11);
+  color:#F0C778;
+}
+.workspace .remote-settings {
+  border-color:rgba(165,210,239,.48);
+  background:linear-gradient(155deg,rgba(41,70,92,.63),rgba(13,26,44,.92));
+}
+.workspace #remote-status {
+  overflow-wrap:anywhere;
+}
+.workspace :is(.remote-settings input[type="password"],.task-form input,
+  .task-form textarea,.task-form select,.day-plan-hours input,
+  .day-plan-task-row select,.input-row input) {
+  border-color:rgba(145,194,224,.49);
+  border-radius:11px;
+  background:rgba(9,21,36,.84);
+  color:#F3EFE8;
+}
+.workspace :is(.remote-settings input[type="password"],.task-form input,
+  .task-form textarea,.task-form select,.day-plan-hours input,
+  .day-plan-task-row select,.input-row input):focus-visible {
+  outline:2px solid #B9DBF6;outline-offset:2px;
+  border-color:#B9DBF6;
+}
+
+/* Buttons: translucent secondary only; preserve danger, disabled and
+   pressed decisions. Primary owner-confirm buttons remain gold. */
+.workspace :is(.btn-secondary,.btn-quiet,.btn-ghost) {
+  border-color:rgba(156,208,238,.39);
+  border-radius:11px;
+  background:linear-gradient(137deg,rgba(173,219,250,.11),rgba(25,46,67,.46));
+  box-shadow:inset 0 1px rgba(240,251,255,.14),0 5px 13px rgba(0,0,0,.10);
+}
+.workspace :is(.btn-secondary,.btn-quiet,.btn-ghost):not(:disabled):hover {
+  border-color:rgba(192,226,248,.69);
+  background:linear-gradient(135deg,rgba(151,207,243,.19),rgba(33,58,79,.60));
+}
+.workspace .btn-primary:not(:disabled) {
+  background:linear-gradient(125deg,#F0C778,#D5A24C);
+  border-color:rgba(255,229,163,.40);
+  color:#211609;
+  box-shadow:inset 0 1px rgba(255,248,216,.45),0 0 15px rgba(213,162,76,.13);
+}
+.workspace :is(.btn-primary,.btn-secondary,.btn-quiet,.btn-ghost):focus-visible,
+.workspace :is(.mail-source-chip,.nav-item):focus-visible{
+  outline:2px solid #B9DBF6;
+  outline-offset:2px;
+}
+
+/* Compact safety/performance fallbacks */
+@media(max-width:1230px) and (min-width:901px){
+  /* Same width on Chat and non-Chat; avoid a layout jump at each route. */
+  body[data-view] .app-layout{grid-template-columns:208px minmax(0,1fr)}
+  body[data-sidebar="collapsed"] .app-layout{grid-template-columns:76px minmax(0,1fr)}
+}
+@media(max-width:900px){
+  .app-layout{direction:rtl;grid-template-columns:1fr}
+  .sidebar{direction:rtl}
+  .workspace{direction:rtl}
+  body[data-view="dashboard"] .sidebar {
+    border-right:0;border-bottom:1px solid rgba(158,210,242,.35);
+  }
+  .workspace .triage-groups{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  body[data-view="dashboard"] main{padding:16px 12px}
+  .workspace .triage-groups{padding:5px}
+  .workspace .triage-column{padding:12px}
+  .workspace .integrations{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(prefers-reduced-transparency:reduce){
+  .workspace :is(
+    .metric,.morning-brief,.mail-panel,.secondary-panel,.calendar-panel,
+    .activity-panel,.sync-strip,.day-plan-panel,.fullcalendar-shell,
+    .calendar-day-focus-body,.calendar-navigator-shell,.calendar-week-details,
+    .remote-settings,.auth-panel
+  ){
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    background:#142337;
+  }
+}
+@media(forced-colors:active){
+  .workspace :is(.metric,.morning-brief,.mail-panel,.secondary-panel,
+    .calendar-panel,.activity-panel,.remote-settings,.task-card){
+    border:1px solid CanvasText;
+    box-shadow:none;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  body[data-view="dashboard"] .nav-item{transition:none}
+}

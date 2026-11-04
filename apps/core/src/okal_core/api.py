@@ -114,6 +114,7 @@ def create_app(
                 "/api/v1/mail/trash", "/api/v1/mail/trash/preview",
                 "/api/v1/mail/actions/preview", "/api/v1/mail/actions/commit",
                 "/api/v1/mail/viewed",
+                "/api/v1/chat",
                 "/api/v1/mail/image-preference",
                 "/api/v1/mail/tasks/from-message",
                 "/api/v1/tasks/create", "/api/v1/tasks/edit",
@@ -1096,6 +1097,18 @@ def create_app(
         ], "reuse_gmail_oauth_client_available": client_available(store),
             "external_reads": False, "external_writes": False}
 
+    @app.post("/api/v1/chat")
+    async def ask_local_chat(request: Request):
+        """Explicit owner chat request. Saved data + pinned local Ollama only."""
+        if not authorized_ui_trash(request):
+            raise HTTPException(403, "owner_browser_session_required")
+        payload = await action_payload(request, {"message", "history"}, max_bytes=9500)
+        from .chat import ask
+        try:
+            return await asyncio.to_thread(ask, store, payload["message"], payload["history"])
+        except (ValueError, TypeError):
+            raise HTTPException(422, "invalid_chat_request") from None
+
     @app.get("/api/v1/calendar/availability")
     def local_calendar_availability():
         """Known local busy blocks, not a free-slot guarantee."""
@@ -1256,6 +1269,60 @@ def create_app(
     @app.get("/app.js")
     def script():
         return FileResponse(STATIC / "app.js", media_type="text/javascript")
+
+    @app.get("/assets/okal-identity")
+    def owner_approved_okal_identity():
+        """Use installed private high-resolution master; existing WebP fallback."""
+        import stat
+        private = store.directory / "brand" / "okal-approved-master.png"
+        try:
+            metadata = private.lstat()
+            if (stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.getuid()
+                    and metadata.st_mode & 0o077 == 0
+                    and 10_000 <= metadata.st_size <= 8_000_000):
+                with private.open("rb") as image:
+                    if image.read(8) == b"\x89PNG\r\n\x1a\n":
+                        return FileResponse(private, media_type="image/png")
+        except (FileNotFoundError, OSError):
+            pass
+        return FileResponse(STATIC / "assets" / "okal-master.webp",
+                            media_type="image/webp")
+
+    @app.get("/assets/okal-master.webp")
+    def approved_okal_brand_asset():
+        """Bundled optimized export of owner's approved original artwork."""
+        return FileResponse(STATIC / "assets" / "okal-master.webp",
+                            media_type="image/webp")
+
+    @app.get("/workspace-glass.css")
+    def workspace_glass_stylesheet():
+        return FileResponse(STATIC / "workspace-glass.css", media_type="text/css")
+
+    @app.get("/chat-glass.css")
+    def chat_glass_stylesheet():
+        return FileResponse(STATIC / "chat-glass.css", media_type="text/css")
+
+    @app.get("/chat.css")
+    def chat_stylesheet():
+        return FileResponse(STATIC / "chat.css", media_type="text/css")
+
+    @app.get("/vendor/markdown-it.min.js")
+    def chat_markdown_vendor():
+        return FileResponse(STATIC / "vendor" / "markdown-it.min.js",
+                            media_type="text/javascript")
+
+    @app.get("/chat-markdown.js")
+    def chat_markdown_renderer():
+        return FileResponse(STATIC / "chat-markdown.js",
+                            media_type="text/javascript")
+
+    @app.get("/sidebar-ui.js")
+    def sidebar_ui_script():
+        return FileResponse(STATIC / "sidebar-ui.js", media_type="text/javascript")
+
+    @app.get("/chat-ui.js")
+    def chat_ui_script():
+        return FileResponse(STATIC / "chat-ui.js", media_type="text/javascript")
 
     @app.get("/day-plan-ai.js")
     def day_plan_ai_script():

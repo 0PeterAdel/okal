@@ -28,7 +28,7 @@ function harness(fetcher) {
     return nodes.get(id);
   };
   const navLinks = [
-    "#overview", "#inbox-panel", "#task-section", "#calendar-section",
+    "#chat-home", "#overview", "#inbox-panel", "#task-section", "#calendar-section",
     "#assistant-section", "#activity-section", "#integrations",
   ].map((href) => {
     const activeClasses = new Set();
@@ -846,13 +846,17 @@ test("navigation follows section hashes and exposes one aria-current location", 
   context.window.location.hash = "#task-section";
   context.updateNavigationState();
   assert.equal(get("topbar-section-name").textContent, "المهام");
-  assert.equal(navLinks[2].attributes["aria-current"], "location");
+  assert.equal(navLinks[3].attributes["aria-current"], "location");
   assert.equal(navLinks[0].attributes["aria-current"], undefined);
-  assert.equal(navLinks[2].activeClasses.has("active"), true);
+  assert.equal(navLinks[3].activeClasses.has("active"), true);
   assert.equal(navLinks[0].activeClasses.has("active"), false);
+  context.window.location.hash = "#chat-home";
+  context.updateNavigationState();
+  assert.equal(get("topbar-section-name").textContent, "المحادثة");
+  assert.equal(navLinks[0].attributes["aria-current"], "location");
   context.window.location.hash = "#missing-section";
   context.updateNavigationState();
-  assert.equal(get("topbar-section-name").textContent, "نظرة عامة");
+  assert.equal(get("topbar-section-name").textContent, "المحادثة");
   assert.equal(navLinks[0].attributes["aria-current"], "location");
 });
 
