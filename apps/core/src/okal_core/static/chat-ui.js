@@ -41,6 +41,7 @@ function updateChatSessionCount() {
 
 
 function clearChatUI() {
+  if (typeof clearComputerUI === "function") clearComputerUI();
   chatSequence += 1;
   if (chatAbort) chatAbort.abort();
   chatAbort = null;
@@ -294,6 +295,8 @@ function clearChatUI() {
       if (turn.response) {
         const box=bubble("assistant",turn.response.answer);
         chatTurns.push({role:"assistant",content:turn.response.answer});
+        if (turn.response.action_run && typeof renderComputerRun === "function")
+          renderComputerRun(box,turn.response.action_run);
         // Old appointment proposals are historical, never new save buttons.
         if (turn.response.context_sources?.length) {
           const note=document.createElement("small");
@@ -363,7 +366,8 @@ function clearChatUI() {
         const box=log.children[log.children.length-1];
         if (box) proposalForm(data.proposal,box);
       }
-      status.textContent=data.mode === "pinned_local_ollama"
+      status.textContent=data.mode === "action_plan" ? "خطة أدوات محلية؛ راجع الحالة والإيصالات في الرسالة"
+        : data.mode === "pinned_local_ollama"
         ? "Ollama المحلي · المحادثة محفوظة" + (data.history_limited ? " · السياق مختصر" : "")
         : data.mode === "owner_memory" ? "تمت معالجة طلب الذاكرة محليًا"
         : "Ollama غير متاح أو مشغول · رد محدود من البيانات المحفوظة؛ تقدر تعيد المحاولة";

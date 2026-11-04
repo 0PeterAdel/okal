@@ -18,6 +18,7 @@
   <script defer src="/sidebar-ui.js"></script>
   <script defer src="/vendor/markdown-it.min.js"></script>
   <script defer src="/chat-markdown.js"></script>
+  <script defer src="/computer-ui.js"></script>
   <script defer src="/chat-ui.js"></script>
   <script defer src="/local-calendar-ui.js"></script>
   <script defer src="/day-plan.js"></script>
@@ -136,6 +137,33 @@
               </section>
             </div>
           </details>
+          <details class="chat-library" id="computer-settings">
+            <summary>صلاحيات الكمبيوتر / Actions</summary>
+            <p>امنح أدوات ومجلدات محددة. الموديل يقترح؛ الصلاحيات دي وحدها تحدد التنفيذ.</p>
+            <button type="button" id="computer-load">عرض الصلاحيات والجاهزية</button>
+            <form id="computer-policy-form" hidden>
+              <label for="computer-mode">وضع التشغيل</label>
+              <select id="computer-mode"><option value="read_only">قراءة فقط</option>
+                <option value="assisted">مساعدة — مراجعة كل تغيير</option>
+                <option value="autonomous">تلقائي داخل الصلاحيات — مراجعة التغييرات المؤثرة</option></select>
+              <div id="computer-readiness"></div>
+              <fieldset><legend>الأدوات المسموح بها</legend><div id="computer-tools"></div></fieldset>
+              <label for="computer-roots">مجلدات مسموحة: read /مسار أو write /مسار في كل سطر</label>
+              <textarea id="computer-roots" rows="3" placeholder="read /absolute/path/to/approved/folder"></textarea>
+              <label for="computer-origins">مصادر المتصفح المسموحة (origin كامل في كل سطر)</label>
+              <textarea id="computer-origins" placeholder="https://docs.python.org"></textarea>
+              <label for="computer-accounts">حسابات Gmail المسموحة (الحساب المتصل فقط، في كل سطر)</label>
+              <textarea id="computer-accounts"></textarea>
+              <label for="computer-apps">تطبيقات مسموحة (desktop ID في كل سطر)</label>
+              <textarea id="computer-apps" placeholder="org.gnome.TextEditor"></textarea>
+              <details><summary>ملفات أوامر ثابتة — داخل sandbox فقط</summary>
+                <p>كل أمر له اسم، argv ثابت وdescription. لا تضف كلمات سر أو sudo.</p>
+                <textarea id="computer-commands" rows="4" aria-label="Command profiles JSON">{}</textarea>
+              </details>
+              <button type="submit">حفظ الصلاحيات / Save permissions</button>
+            </form>
+            <p id="computer-status" role="status" aria-live="polite"></p>
+          </details>
           <div class="chat-layout">
             <div class="chat-room">
               <div class="chat-greeting" id="chat-greeting">
@@ -184,7 +212,7 @@
               </section>
               <section class="chat-glass-card" aria-label="حالة الإجراءات">
                 <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">✧</span><strong>Active task / الإجراء</strong></div>
-                <p>مفيش إجراء بيتنفذ تلقائيًا. أي موعد جديد لازم تراجعه وتؤكده بنفسك.</p>
+                <p>حالة التنفيذ وإيصالاته بتظهر داخل كل رسالة. التغييرات المؤثرة تحتاج موافقة على الخطة.</p>
                 <span class="chat-inline-status">REVIEW REQUIRED FOR WRITES</span>
               </section>
               <section class="chat-glass-card" aria-label="موجز البيانات المحفوظة">
