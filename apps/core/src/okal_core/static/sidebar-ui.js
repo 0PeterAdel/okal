@@ -1,5 +1,5 @@
 "use strict";
-/* Owner-side presentation only; deliberately no localStorage, provider calls,
+/* Owner-side presentation only; deliberately no persistent browser state or provider calls,
  * or dependencies on the chat transport. The full nav remains in the DOM
  * and each item has a title/accessible name when collapsed. */
 (function initOKALSidebar() {
