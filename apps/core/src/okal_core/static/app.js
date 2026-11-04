@@ -132,7 +132,7 @@ function renderMorning(data) {
   el("morning-title").textContent = data.greeting;
   el("morning-text").textContent = data.spoken_text;
   el("morning-status").textContent = data.mail_sync_stale
-    ? "آخر مزامنة بريد قديمة؛ الموجز ممكن يكون ناقص. مفيش أي مواعيد من Google Calendar."
+    ? "تحديث البريد غير مؤكد أو غير مكتمل؛ الموجز ممكن يكون ناقص. مواعيد هذا الموجز من المهام المحلية فقط."
     : "ملخص من البريد المحفوظ والمهام المؤكدة محليًا، جاهز للصوت فيما بعد.";
 }
 

@@ -112,7 +112,7 @@ def render(base, facts, plan):
             )
     elif base["mail_sync_stale"]:
         sentences.append(
-            "آخر تحديث للبريد قديم، فمش هفترض إن مفيش جديد."
+            "تحديث البريد مش مؤكد أو لسه مش مكتمل، فمش هفترض إن مفيش جديد."
         )
     else:
         sentences.append(
@@ -130,7 +130,7 @@ def render(base, facts, plan):
         )
     if base["mail_sync_stale"] and actions:
         sentences.append(
-            "خلي بالك إن مزامنة البريد قديمة، فممكن يكون فيه جديد مش ظاهر."
+            "خلي بالك إن تحديث البريد مش مؤكد أو مش مكتمل، فممكن يكون فيه جديد مش ظاهر."
         )
     closings = {
         "warm": "يوم جميل عليك، ونبدأ بالأهم واحدة واحدة.",

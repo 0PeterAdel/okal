@@ -18,6 +18,7 @@ from .mail.private import config
 from .mail.workflows import source_link
 from .mail.owner_voice import owner_voice
 from .mail.inbox_visibility import excluded_sql
+from .mail.history import local_status
 
 CAIRO = ZoneInfo("Africa/Cairo")
 
@@ -70,20 +71,21 @@ def morning_brief(store):
         owner_name = ""
 
     if account:
+        sync = local_status(store, account)
+        checked_at = sync["last_checked"]
+        info["mail_last_sync_at"] = checked_at
+        # A recent checkpoint does not prove that a later attempt succeeded
+        # or that all history batches have been processed.
+        info["mail_sync_stale"] = not (
+            sync["state"] == "checkpoint_saved"
+            and sync["last_result"] != "history_chunk_pending"
+            and checked_at is not None
+            and 0 <= int(store.clock()) - checked_at <= 900
+        )
         with store.connect() as db:
             tables = {r[0] for r in db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
-            if "mail_sync_state" in tables:
-                row = db.execute(
-                    "SELECT checked_at FROM mail_sync_state WHERE account=?",
-                    (account,),
-                ).fetchone()
-                if row:
-                    info["mail_last_sync_at"] = row[0]
-                    info["mail_sync_stale"] = (
-                        int(store.clock()) - row[0] > 900
-                    )
             if "mail_sync_quarantine" in tables:
                 exclusions = ""
                 if "mail_sync_visibility" in tables:
@@ -170,6 +172,10 @@ def morning_brief(store):
                         continue
 
     sentences = [greeting]
+    if info["mail_sync_stale"]:
+        sentences.append(
+            "تحديث البريد مش مؤكد أو لسه مش مكتمل، فمش هفترض إن مفيش رسائل جديدة."
+        )
     if info["today_tasks"]:
         upcoming = info["today_tasks"][:2]
         sentences.append(
@@ -190,9 +196,7 @@ def morning_brief(store):
             " رسالة محتاجة مراجعة. أبرزها " + _short(first["subject"], 70) +
             ": " + _short(first["summary"], 115).rstrip(".") + "."
         )
-    elif info["mail_sync_stale"]:
-        sentences.append("آخر تحديث للبريد قديم، فمش هفترض إن مفيش رسائل جديدة.")
-    else:
+    elif not info["mail_sync_stale"]:
         sentences.append("مافيش طلبات جديدة محتاجة متابعة ضمن البريد المحفوظ خلال آخر يوم.")
     if info["manual_review_count"]:
         sentences.append("وفيه " + str(info["manual_review_count"]) +
