@@ -11,7 +11,7 @@ if [[ "$branch" != "$expected" ]]; then
   echo "STOP: Preview must run from the PR #113 feature branch, not $branch" >&2
   exit 1
 fi
-for name in node python3.14 ss; do
+for name in node python3.14 ss git tar; do
   command -v "$name" >/dev/null || { echo "Missing: $name" >&2; exit 1; }
 done
 if [[ -n "$(ss -H -lnt '( sport = :8767 )')" ]]; then
@@ -19,11 +19,41 @@ if [[ -n "$(ss -H -lnt '( sport = :8767 )')" ]]; then
   exit 1
 fi
 
-python=".venv-okal-core/bin/python"
-if [[ ! -x "$python" ]]; then
-  python3.14 -m venv .venv-okal-core
+# Never install into the checkout's .venv: this checkout may back a
+# running Production service, even if the preview listens on another port.
+# Export the exact committed HEAD into a disposable source snapshot.
+scratch="$(mktemp -d "$HOME/.local/state/okal-chat-pr113-XXXXXXXX")"
+state="$scratch/state"
+mkdir -m 700 "$state"
+cleanup() {
+  # Only our newly-created preview tree is eligible for removal.
+  if [[ -n "${scratch:-}" && "$scratch" == "$HOME"/.local/state/okal-chat-pr113-* && -d "$scratch" ]]; then
+    rm -rf -- "$scratch"
+  fi
+  echo "Isolated preview has stopped; Production is unchanged."
+}
+trap cleanup EXIT
+
+source_tree="$scratch/source"
+mkdir -m 700 "$source_tree"
+git archive HEAD | tar -xf - -C "$source_tree"
+cd "$source_tree"
+
+echo "=== Creating fresh isolated preview environment ==="
+python="$scratch/venv/bin/python"
+python3.14 -m venv "$scratch/venv"
+if "$python" -m pip --version >/dev/null 2>&1; then
+  "$python" -m pip install --require-hashes -r apps/core/requirements-mail.lock
+elif command -v uv >/dev/null 2>&1; then
+  echo "pip is unavailable in this venv; using uv without modifying system Python."
+  uv pip install --python "$python" --require-hashes -r apps/core/requirements-mail.lock
+elif "$python" -m ensurepip --upgrade >/dev/null 2>&1; then
+  "$python" -m pip install --require-hashes -r apps/core/requirements-mail.lock
+else
+  echo "STOP: neither pip, uv nor ensurepip is available for this preview Python." >&2
+  echo "Install uv using your normal Omarchy/mise package manager, then rerun." >&2
+  exit 1
 fi
-"$python" -m pip install --require-hashes -r apps/core/requirements-mail.lock
 
 echo "=== Validate current PR source and offline Markdown ==="
 node --check apps/core/src/okal_core/static/chat-markdown.js
@@ -35,16 +65,6 @@ PYTHONPATH=apps/core/src "$python" -m unittest discover \
   -s apps/core/tests -p 'test_brand_asset.py' -v
 PYTHONPATH=apps/core/src "$python" -m unittest discover \
   -s apps/core/tests -p 'test_dashboard_ui_contract.py' -v
-
-state="$(mktemp -d "$HOME/.local/state/okal-chat-pr113-XXXXXXXX")"
-cleanup() {
-  # The only directory removed is the fresh private preview directory above.
-  if [[ -n "$state" && "$state" == "$HOME"/.local/state/okal-chat-pr113-* && -d "$state" ]]; then
-    rm -rf -- "$state"
-  fi
-  echo "Isolated preview has stopped; Production is unchanged."
-}
-trap cleanup EXIT
 
 echo "=== Snapshot locally saved SQLite (no OAuth secrets) ==="
 "$python" - "$state" <<'PY'
@@ -108,4 +128,4 @@ echo "Production: 127.0.0.1:8766 — unchanged."
 echo "All test appointments are isolated in temporary SQLite."
 echo "Press Ctrl+C to stop and remove temporary state."
 echo
-bash scripts/run-okal-core.sh --state-dir "$state" serve --port 8767
+OKAL_CORE_PYTHON="$python" bash scripts/run-okal-core.sh --state-dir "$state" serve --port 8767
