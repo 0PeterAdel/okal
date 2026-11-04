@@ -21,8 +21,13 @@ via `STATIC / "assets" / "okal-master-hq.webp"`. The old
 ## Owner setup
 
 Use the sibling Git worktree to avoid switching the running Production
-checkout away from `main`. Start in the Production repository and fetch
-`origin/feat/okal-design-system`, then create
+checkout away from `main`. A single-branch fetch may update only `FETCH_HEAD`;
+explicitly create the tracking ref first with:
+
+    git -C ~/Projects/Okal fetch origin \
+      '+refs/heads/feat/okal-design-system:refs/remotes/origin/feat/okal-design-system'
+
+Then create
 `~/Projects/.okal-design-work` as a separate worktree of that same repo.
 Copy `~/Downloads/okal-master-hq.webp` into the path above, verify that
 it is WebP VP8X and 1254 by 1254, `git add`, commit using conventional
