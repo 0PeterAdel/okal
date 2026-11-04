@@ -175,6 +175,19 @@ class CalendarCore:
         for row in rows:
             row["all_day"] = bool(row["all_day"])
             row["busy"] = bool(row["busy"])
+        from .local_calendar import LocalCalendar
+        for item in LocalCalendar(self.store).list(window=(start_ts, end_ts))["items"]:
+            if item["kind"] != "event" or item["start_ts"] >= end_ts or item["end_ts"] <= start_ts:
+                continue
+            rows.append({
+                "provider": "local", "account_id": "owner", "calendar_id": "okal",
+                "event_id": item["id"], "instance_id": "", "title": item["title"],
+                "start_ts": item["start_ts"], "end_ts": item["end_ts"],
+                "start_utc": datetime.fromtimestamp(item["start_ts"], timezone.utc).isoformat(),
+                "end_utc": datetime.fromtimestamp(item["end_ts"], timezone.utc).isoformat(),
+                "timezone": "Africa/Cairo", "all_day": False, "busy": True,
+            })
+        rows = sorted(rows, key=lambda r: (r["start_ts"], r["provider"], r["event_id"]))[:limit]
         with self.store.connect() as db:
             has_sync = db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' "

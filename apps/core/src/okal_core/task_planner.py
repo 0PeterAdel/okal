@@ -274,6 +274,14 @@ class ReminderWorker:
             except Exception:
                 ok=False
             planner.finish_notification(event["task_id"],ok)
+        from .local_calendar import LocalCalendar
+        local = LocalCalendar(self.store)
+        for event in local.claim_due():
+            try:
+                ok = bool(self.notify(event["title"], event["reminder_minutes"]))
+            except Exception:
+                ok = False
+            local.finish_notification(event["id"], event["revision"], ok)
 
     def loop(self):
         while not self.stop_event.is_set():

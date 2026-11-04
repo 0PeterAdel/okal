@@ -231,7 +231,7 @@ def notify_login_once(store):
             return {"status": "already_delivered_today", "delivered": False}
         # Use previously generated, validated AI plan if one exists.
         # Notification transport never triggers inference itself.
-        from .morning_ai import view
+        from .daily_brief import view
         briefing = view(store)
         message = escape(briefing["spoken_text"][:700], quote=False)
         try:

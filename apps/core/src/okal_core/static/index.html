@@ -12,6 +12,7 @@
   <script defer src="/vanilla-calendar.min.js"></script>
   <script defer src="/fullcalendar-standard.min.js"></script>
   <script defer src="/app.js"></script>
+  <script defer src="/local-calendar-ui.js"></script>
   <script defer src="/day-plan.js"></script>
   <script defer src="/day-plan-ai.js"></script>
   <script defer src="/google-tasks-ui.js"></script>
@@ -91,7 +92,8 @@
                 <p class="morning-kicker">رسالتك اليومية من OKAL</p>
               </div>
             </div>
-            <p id="morning-text">الموجز بيجهز من المهام والإيميلات الموجودة عندك.</p>
+            <div id="morning-text">الموجز بيجهز من بياناتك المحفوظة.</div>
+            <details><summary>اعرف التفاصيل</summary><div id="morning-details"></div></details>
             <p id="morning-status" class="muted">قراءة محلية، والمواعيد لا تُستنتج من الإيميلات.</p>
           </div>
         </section>
@@ -206,13 +208,32 @@
               <div>
                 <p class="overline">UNIFIED LOCAL AGENDA</p>
                 <h3 id="unified-calendar-title">تقويمك ومهامك في مكان واحد</h3>
-                <p class="muted">أحداث Google المحفوظة مع المهام المؤكدة. عرض للقراءة فقط بدون تعديل للمواعيد.</p>
+                <p class="muted">تقويم OKAL الخاص على جهازك، مع مصادر Google الاختيارية. ترتيب اليوم عند طلبك فقط.</p>
               </div>
               <div class="calendar-view-switch" role="group" aria-label="نطاق التقويم">
                 <button type="button" class="btn-secondary" id="calendar-day" aria-pressed="false">اليوم</button>
                 <button type="button" class="btn-secondary" id="calendar-week" aria-pressed="true">7 أيام</button>
               </div>
             </div>
+            <details class="task-create-panel" id="local-calendar-panel">
+              <summary>تقويم OKAL · إضافة موعد أو هدف</summary>
+              <form id="local-calendar-form" class="task-form">
+                <label for="local-kind">النوع</label><select id="local-kind"><option value="event">موعد بوقت محدد</option><option value="goal">هدف بدون وقت محجوز</option></select>
+                <label for="local-title">العنوان</label><input id="local-title" required maxlength="180" />
+                <label for="local-notes">التفاصيل</label><textarea id="local-notes" rows="2" maxlength="2000"></textarea>
+                <div id="local-event-fields">
+                  <label for="local-start">بداية الموعد</label><input id="local-start" type="datetime-local" required />
+                  <label for="local-end">نهاية الموعد</label><input id="local-end" type="datetime-local" required />
+                  <label for="local-reminder">ذكّرني قبل الموعد</label><select id="local-reminder"><option value="">بدون تذكير</option><option value="0">عند الموعد</option><option value="5">5 دقائق</option><option value="15">15 دقيقة</option><option value="60">ساعة</option><option value="1440">يوم</option></select>
+                  <p class="muted">أدخل الوقت حسب المنطقة الزمنية لجهازك. الإشعار يحتاج الجهاز والجلسة شغالين.</p>
+                </div>
+                <div id="local-goal-fields" hidden><label for="local-target">التاريخ المستهدف (اختياري، بدون ساعة)</label><input id="local-target" type="date" /></div>
+                <button id="local-save" class="btn-primary" type="submit">حفظ في OKAL</button>
+                <button id="local-new" class="btn-secondary" type="button">إلغاء التعديل / عنصر جديد</button>
+                <p id="local-feedback" role="status" aria-live="polite"></p>
+              </form>
+            </details>
+            <div id="local-calendar-items" class="task-list" aria-label="مواعيد وأهداف OKAL المحلية"></div>
             <p id="calendar-coverage" class="calendar-coverage" role="status" aria-live="polite">جارٍ قراءة بيانات التقويم المحفوظة...</p>
             <div class="calendar-layout">
               <div class="calendar-primary">

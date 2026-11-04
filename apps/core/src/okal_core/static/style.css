@@ -707,3 +707,7 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
   overflow-wrap: anywhere;
 }
 .remote-settings [disabled] { opacity: .56; cursor: not-allowed; }
+
+#local-event-fields:not([hidden]), #local-goal-fields:not([hidden]) {display:grid;gap:9px;}
+#local-calendar-items .btn-secondary {margin:6px 0 0 8px;}
+#morning-details details {margin-block:10px;overflow-wrap:anywhere;}
