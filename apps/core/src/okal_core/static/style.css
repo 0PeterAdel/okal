@@ -146,6 +146,24 @@ main{padding:clamp(23px,3vw,42px);max-width:1600px;margin:auto;min-width:0}
 .mail-panel-header .muted{margin:7px 0 0}
 .counter-pill{border:1px solid var(--line-strong);border-radius:999px;
   color:var(--ink);font-size:11px;padding:7px 12px;display:inline-block;max-width:100%}
+/* Source folders and GitHub topics are local filters, not Gmail label changes. */
+.mail-source-browser{padding:16px 22px;border-top:1px solid var(--line);
+  background:var(--surface-raised);display:grid;gap:11px}
+.mail-source-browser-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.mail-source-browser-head strong{font-size:13px}
+.mail-source-browser-head .muted{margin:0}
+.mail-source-groups,.mail-source-kinds{display:flex;align-items:center;
+  flex-wrap:wrap;gap:7px;min-width:0}
+.mail-source-kinds{padding-inline-start:10px;border-inline-start:2px solid var(--accent)}
+.mail-source-chip{background:var(--surface);border:1px solid var(--line-strong);
+  border-radius:999px;padding:7px 12px;min-height:36px;color:var(--muted);
+  font-size:12px;font-weight:650;white-space:normal;line-height:1.35}
+.mail-source-chip:hover{background:var(--surface-hover);color:var(--ink)}
+.mail-source-chip[aria-pressed="true"]{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+.mail-topic-chip{font-size:11px;min-height:32px;padding:6px 10px}
+@media(max-width:620px){.mail-source-browser{padding:14px}
+  .mail-source-kinds{padding-inline-start:7px}}
 .selection-toolbar{display:flex;align-items:center;justify-content:space-between;
   gap:13px;flex-wrap:wrap;padding:15px 22px;background:#172431;
   border-top:1px solid var(--line);border-bottom:1px solid var(--line);
