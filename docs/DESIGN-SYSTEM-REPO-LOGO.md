@@ -14,11 +14,18 @@ state override, or post-installation image copy is necessary.
 
 Both the Sidebar and Chat hero reference:
 
-    /assets/okal-master-hq.webp?v=1254-design-v1
+    /assets/okal-master-hq.webp
 
 FastAPI serves the file from `STATIC / "assets" / "okal-master-hq.webp"`.
 The legacy `/assets/okal-identity` and `/assets/okal-master.webp`
 URLs return the **same high-resolution bytes**, not an old thumbnail.
+**Do not append a cache-busting query string** to image URLs: the
+FastAPI global request policy rejects unsupported query parameters with
+HTTP 400. All local responses already set `Cache-Control: no-store`,
+so `?v=...` is unnecessary. A regression test follows the exact
+`<img src>` URLs from the rendered home page through the same-origin
+HTTP middleware, and requires a 200 WebP response with bytes identical
+to the Git-tracked logo.
 
 The obsolete 9 KB `okal-master.webp` file was removed from Git.
 The old private-logo installer and PR #113 logo preview are obsolete and
