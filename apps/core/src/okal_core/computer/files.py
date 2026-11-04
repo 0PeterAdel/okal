@@ -10,6 +10,8 @@ import stat
 from .contracts import Denied
 
 MAX_FILE = 8 * 1024 * 1024
+# The source checkout is executable authority, never an action write target.
+CODE_ROOT = Path(__file__).resolve().parents[5]
 
 
 class Files:
@@ -35,6 +37,10 @@ class Files:
             self.state_directory + "/"
         ):
             raise Denied("runtime_state_is_not_a_document_scope")
+        if write and (
+            Path(normalized) == CODE_ROOT or CODE_ROOT in Path(normalized).parents
+        ):
+            raise Denied("application_code_is_read_only")
         candidates = [
             g
             for g in self.roots
