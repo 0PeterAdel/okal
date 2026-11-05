@@ -1,0 +1,4 @@
+# Dedicated adapter process: never combine this lock with the Core runtime lock.
+mem0ai==2.2.1
+qdrant-client==1.20.0
+ollama==0.6.3

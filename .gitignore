@@ -73,3 +73,7 @@ owner-profile.json
 job.private.json
 .venv-okal-agents/
 .venv-okal-core/
+
+# Isolated Cognitive Memory V2 development environments
+.venv-memory/
+.venv-core/
