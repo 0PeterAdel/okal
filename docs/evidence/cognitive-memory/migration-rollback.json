@@ -1,0 +1,15 @@
+{
+  "synthetic_only": true,
+  "turns_preserved": 100,
+  "backup_integrity": "ok",
+  "migrated_integrity": "ok",
+  "foreign_key_violations": 0,
+  "source_schema": 1,
+  "target_schema": 2,
+  "retention_default_migrated_to_forever": true,
+  "explicit_finite_memory_expiry_preserved": true,
+  "idempotent_backfill": true,
+  "old_code_refuses_new_schema": true,
+  "backup_restored_and_old_code_verified": true,
+  "backup_unchanged": true
+}

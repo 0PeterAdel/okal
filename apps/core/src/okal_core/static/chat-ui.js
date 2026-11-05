@@ -249,6 +249,7 @@ function clearChatUI() {
     get("chat-memory-value").value = "";
     get("chat-memory-scope").disabled = false;
     get("chat-memory-days").value = "0";
+    get("chat-memory-sensitive").checked=false;
     get("chat-vault-import").hidden = true;
     for(const id of ["chat-memory-source-list","chat-memory-lifecycle-list","chat-archive-results","chat-vault-preview-text"])
       get(id).replaceChildren();
@@ -518,11 +519,13 @@ function clearChatUI() {
         throw new Error("ابدأ محادثة الأول.");
       const scope=get("chat-memory-scope").value;
       if(scope==="project" && !(editingProject || selectedProject()))throw new Error("اختار مشروع الأول.");
+      const sensitive=get("chat-memory-sensitive").checked===true;
+      if(sensitive&&!confirm("حفظ المعلومة الحساسة محليًا وإتاحتها للسياق والفهرس والخزنة؟"))return;
       await post("memory-save",{key:get("chat-memory-key").value,content:get("chat-memory-value").value,
         kind:get("chat-memory-kind").value,revision:memoryRevision,
         conversation_id:scope==="conversation" ? chatConversation : null,
         project_id:scope==="project" ? (editingProject || selectedProject()) : null,
-        days:Number(get("chat-memory-days").value)});
+        days:Number(get("chat-memory-days").value),sensitive_confirmed:sensitive});
       resetMemoryEditor(); await refreshMemories();
       if(chatConversation) await resume(chatConversation);
       await library();

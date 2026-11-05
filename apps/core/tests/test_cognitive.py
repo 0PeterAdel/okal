@@ -46,6 +46,12 @@ class CognitiveLedgerTests(unittest.TestCase):
         self.assertEqual(len(recovered.get(self.conversation)['turns']), 1)
         self.assertEqual(len(recovered.memories()['items']), 1)
 
+    def test_sensitive_editor_requires_consent_and_cannot_save_credentials(self):
+        with self.assertRaises(ValueError):self.chat.save_memory('health','My medical appointment is monthly.')
+        saved=self.chat.save_memory('health','My medical appointment is monthly.',sensitive_confirmed=True)
+        self.assertEqual(saved['content'],'My medical appointment is monthly.')
+        with self.assertRaises(ValueError):self.chat.save_memory('credential','password=synthetic-secret',sensitive_confirmed=True)
+
     def test_correction_preserves_source_history_and_versions(self):
         first = self.say('I prefer detailed answers. My project is a garden.')
         memory = self.chat.save_memory('communication.style', 'I prefer detailed answers.',

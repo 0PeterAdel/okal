@@ -57,6 +57,7 @@ class SaveMemory(Memories):
     source_turn: str | None = None
     revision: int = Field(default=0, ge=0)
     days: int = Field(default=0, ge=0, le=365)
+    sensitive_confirmed: bool = False
 
 
 class Forget(Payload):

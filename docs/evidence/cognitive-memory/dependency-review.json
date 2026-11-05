@@ -1,0 +1,284 @@
+{
+  "kind": "installed distribution inventory and OSV package-version query",
+  "personal_content_transmitted": false,
+  "packages": [
+    {
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "license_declared": "MIT",
+      "classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "anyio",
+      "version": "4.16.0",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "backoff",
+      "version": "2.2.1",
+      "license_declared": "MIT",
+      "classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "certifi",
+      "version": "2026.10.23",
+      "license_declared": "MPL-2.0",
+      "classifiers": [
+        "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.2",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0",
+      "license_declared": "Apache License, Version 2.0",
+      "classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "grpcio",
+      "version": "1.85.1",
+      "license_declared": "Apache-2.0",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "license_declared": "MIT",
+      "classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "h2",
+      "version": "4.4.1",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "hpack",
+      "version": "4.2.0",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "license_declared": "BSD-3-Clause",
+      "classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "httpcore2",
+      "version": "2.16.0",
+      "license_declared": "BSD-3-Clause",
+      "classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "license_declared": "BSD-3-Clause",
+      "classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "httpx2",
+      "version": "2.16.0",
+      "license_declared": "BSD-3-Clause",
+      "classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "hyperframe",
+      "version": "6.1.0",
+      "license_declared": "The MIT License (MIT)",
+      "classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "license_declared": "BSD-3-Clause",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "jiter",
+      "version": "0.18.0",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "mem0ai",
+      "version": "2.2.1",
+      "license_declared": "Apache-2.0",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4",
+      "license_declared": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "ollama",
+      "version": "0.6.3",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "openai",
+      "version": "3.46.0",
+      "license_declared": "Apache-2.0",
+      "classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "portalocker",
+      "version": "4.4.2",
+      "license_declared": "BSD-3-Clause",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "posthog",
+      "version": "7.83.2",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "protobuf",
+      "version": "6.33.6",
+      "license_declared": "3-Clause BSD License",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "pydantic",
+      "version": "2.14.2",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.50.2",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "pytz",
+      "version": "2026.6",
+      "license_declared": "MIT",
+      "classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "qdrant-client",
+      "version": "1.20.0",
+      "license_declared": "Apache-2.0",
+      "classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "license_declared": "Apache-2.0",
+      "classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "license_declared": "MIT OR Apache-2.0",
+      "classifiers": [
+        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "osv_advisories": []
+    },
+    {
+      "name": "SQLAlchemy",
+      "version": "2.1.8",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "truststore",
+      "version": "0.10.5",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.5",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "license_declared": "PSF-2.0",
+      "classifiers": [],
+      "osv_advisories": []
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "license_declared": "MIT",
+      "classifiers": [],
+      "osv_advisories": []
+    }
+  ],
+  "requirements_sha256": "aee3980491fbcbdd3838164ffb0ce8811b7a010cafed8763a0dc17de06bedb46",
+  "limitations": "Declared package licenses and known OSV matches, not a legal opinion or proof of absence of vulnerabilities."
+}

@@ -201,6 +201,9 @@ class Ledger:
              assertion='remembered', extractor='owner-editor', _db=None, _source_seq=None):
         from ..intelligence import text, identifier, Missing
         key, content = text(key, 80).casefold(), text(content, 600)
+        if SENSITIVE.search(content) and extractor not in {
+                'owner-confirmed-sensitive-editor','owner-confirmed-vault-edit'}:
+            raise ValueError('sensitive_memory_requires_explicit_editor_confirmation')
         if (kind not in KINDS or assertion not in {'remembered', 'inferred', 'unverified'}
                 or type(revision) is not int or revision < 0
                 or type(days) is not int or not 0 <= days <= 365):

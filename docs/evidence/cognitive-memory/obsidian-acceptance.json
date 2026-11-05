@@ -1,0 +1,24 @@
+{
+  "synthetic_only": true,
+  "obsidian_version": "1.14.5-1",
+  "electron_version": "43.8.6-1",
+  "os": "Omarchy/Arch Wayland",
+  "isolation": "bubblewrap unshare-all; no network, home, DB or D-Bus mounts; synthetic vault and private profile only",
+  "updates_disabled_log_verified": true,
+  "community_plugins_enabled": [],
+  "core_plugins_observed": [
+    "canvas",
+    "properties",
+    "bookmarks",
+    "bases"
+  ],
+  "sync_enabled": false,
+  "file_recovery_enabled": false,
+  "note_opened_in_actual_app": true,
+  "arabic_edit_via_editor_and_keyboard": true,
+  "pre_confirmation_ledger_revision": 1,
+  "browser_preview_showed_edit": true,
+  "post_confirmation_ledger_revision": 2,
+  "new_literal_fence_format_visually_verified": true,
+  "screenshots": "Private synthetic acceptance directory; screenshots inspected locally, not fabricated."
+}

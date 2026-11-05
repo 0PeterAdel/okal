@@ -181,3 +181,54 @@ correct paraphrases also exposed scorer vocabulary gaps; the original report is
 preserved. Explicit first-person name sentences now supplement model proposals
 through the same exact-source gate. The scorer recognizes equivalent concurrent
 writing and direct-response phrases; numerical acceptance thresholds are unchanged.
+
+The next 50-turn pilot at `19f67a0` met numerical recall thresholds: preference
+90%, project 100% (two queries), per-chat 100%; extraction precision/recall 100%.
+Both remaining wrong name answers mistransliterated a correctly retrieved name.
+The prompt now requires exact source spelling for names and identifiers.
+All seven real forgetting/cache/vault/rebuild checks passed. This pilot remains
+smaller than the required release corpus. Its relevance-at-8 definition counts
+unrelated always-present personalization against precision (31.51%), while
+recall-at-8 was 100%; it is not equivalent to answer accuracy.
+
+## Private Obsidian desktop
+
+The optional [offline launcher](../apps/core/tools/open_memory_vault.py) requires
+Arch Obsidian/Electron 43, Wayland and unprivileged bubblewrap. It mounts only
+system runtime/fonts, the curated vault, a separate private profile and the
+owner's Wayland socket. Networking, home data, the Core database, credentials
+and D-Bus are absent. Chromium's inner sandbox is disabled inside the enclosing
+OS namespace; normal Wayland compositor interaction remains possible. This is
+not a VM for hostile GUI applications. No remote-debugging listener is enabled.
+
+The dedicated profile disables updates. The curated vault permits only reviewed
+built-in navigation/editor plugins, with no community plugins, Sync or File
+Recovery. Existing unsupported plugin settings cause an explicit refusal rather
+than silently enabling them. Opening the vault with another unmanaged Obsidian
+profile has that profile's independent privacy and backup behavior.
+
+Actual on-device Obsidian 1.14.5 / Electron 43.8.6 acceptance opened the synthetic
+vault, edited Arabic with the app editor/keyboard, and confirmed that OKAL's
+browser import preview showed the change while SQLite remained at revision 1.
+Only browser confirmation produced revision 2. Both legacy notes and the new
+literal-fence format rendered in the real app. Community plugins, Sync and File
+Recovery were disabled; a few standard built-in panels remained enabled.
+
+The [migration rehearsal](../apps/core/tools/verify_cognitive_migration.py)
+preserved 100 synthetic bilingual archived turns, checked DB integrity and
+foreign keys, preserved explicit legacy expiry, changed the old default retention
+to keep-until-deleted, and verified idempotent backfill. Old Core rejected schema
+2 and successfully reopened the restored unchanged schema-1 backup. No Production
+state was copied or migrated.
+
+Automatic extraction excludes common sensitive health/financial categories.
+This conservative pattern gate is not a universal sensitive-data classifier.
+The Memory editor requires a separate explicit checkbox and confirmation for
+such facts; secrets/credentials remain rejected even with that confirmation.
+Controlled Obsidian revision import also requires owner preview and confirmation.
+
+Installed adapter dependency metadata was inventoried (35 distributions), with
+no AGPL dependency in the runtime. The [review](evidence/cognitive-memory/dependency-review.json)
+records declared licenses and a live OSV package-version query with no advisory
+matches. Only public package names/versions were sent. This is not a proof of
+absence of vulnerabilities or a substitute for license notices on distribution.

@@ -264,9 +264,12 @@ class Intelligence:
             return {'items': [dict(r, status='remembered' if r['assertion']=='remembered' else r['assertion']) for r in rows]}
 
     def save_memory(self, key, content, kind='semantic', conversation_id=None,
-                    source_turn=None, revision=0, days=0, project_id=None):
+                    source_turn=None, revision=0, days=0, project_id=None, sensitive_confirmed=False):
+        if type(sensitive_confirmed) is not bool:
+            raise ValueError('invalid_sensitive_confirmation')
         return self.cognitive.save(key, content, kind, conversation_id,
-                                   source_turn, revision, days, project_id=project_id)
+                                   source_turn, revision, days, project_id=project_id,
+                                   extractor='owner-confirmed-sensitive-editor' if sensitive_confirmed else 'owner-editor')
 
     def forget(self, memory_id):
         identifier(memory_id)
@@ -410,6 +413,10 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
                         'project_choices': context['project_ambiguity']}
         elif memory:
             key, value = memory
+            from .cognitive.ledger import SENSITIVE
+            if SENSITIVE.search(value):
+                return state.finish(turn_id,lease,{'answer':'Sensitive facts require explicit confirmation in Memory. / المعلومات الحساسة محتاجة موافقة صريحة في نموذج الذاكرة؛ كلمات السر ممنوعة.',
+                    'proposal':None,'mode':'owner_memory','saved':False,'source':'owner_memory_policy','voice_enabled':False})
             existing = next((m for m in state.memories()['items'] if m['key'] == key.casefold()), None)
             if existing and existing['content'] != value:
                 response = {'answer': 'A saved value already exists. Edit it in Memory / الذاكرة to confirm the correction.',
