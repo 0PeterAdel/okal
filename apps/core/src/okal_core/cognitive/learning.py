@@ -11,8 +11,9 @@ from .ledger import KINDS, SENSITIVE
 
 EXTERNAL = re.compile(
     r'```|^\s*>|\b(?:webpage|page|website|document|email|model|assistant|article|tool)\s+'
-    r'(?:says?|instructs?|claims?|output)|\b(?:quoted|forwarded)\b|'
-    r'الموقع بيقول|المستند بيقول|الإيميل بيقول|الرسالة بتقول|النموذج بيقول', re.I | re.M)
+    r'(?:says?|instructs?|claims?|output|tells?|told|contents?|reads?)|\b(?:quoted|forwarded)\b|'
+    r'(?:الموقع|المستند|الإيميل|البريد|الرسالة|النموذج|صفحة الويب)\s+(?:بيقول|بتقول|يقول|تقول|قال|قالت)|'
+    r'(?:يقول|تقول|قال|قالت)\s+(?:الموقع|المستند|البريد|الرسالة|النموذج)|نص مقتبس', re.I | re.M)
 OWNER = re.compile(
     r"\b(?:i |i'd |i'll |my |we |our |please |always |never |use |avoid |give |keep |answer |respond |don't |from now |for this )|"
     r'أنا|انا|عايز|عاوز|بحب|بفضل|خلي|خلّي|كلمني|كلّمني|جاوب|ردودك|رد علي|'
@@ -26,6 +27,10 @@ COMMUNICATION = re.compile(r'\b(?:answer|reply|respond|speak|talk|write|use)\b|�
 ONE_REPLY = re.compile(r'this (?:reply|response|answer|time)|السؤال ده|الرد ده|المرة دي|المرادي',re.I)
 DURABLE_BEHAVIOR = re.compile(r'\b(?:prefer|always|never|from now|future|when explaining|technical documentation)\b|'
     r'بحب|بفضل|أفضل|أفضّل|دايما|دائم|كل المحادثات|من دلوقتي|ردودك|طريقة رد|التوثيق',re.I)
+STYLE_PREFERENCE = re.compile(
+    r'\b(?:brief|concise|short|detailed|direct|tone|introductions?|background explanations?|friendly|formal|casual)\b|'
+    r'مختصر|موجز|طويل|بالتفصيل|الموضوع على طول|مقدمات|مقدمة|رسمي|ودية',re.I)
+STRUCTURE_PREFERENCE = re.compile(r'\b(?:bullets?|numbered|cause.*solution|solution.*first)\b|نقاط|السبب.*الحل|الحل.*الأول',re.I)
 
 
 def ordinary_question(quote):
@@ -54,6 +59,9 @@ def normalize_candidate(key,kind,scope,quote,project_id):
         key='conversation.pending_work' if scope=='conversation' else 'project.pending_work'
     elif re.search(r'\bmy (?:full )?name is\b|\bcall me\b|اسمي',quote,re.I):
         kind,key,scope='semantic','profile.name','owner'
+    elif key=='communication.structure' and STRUCTURE_PREFERENCE.search(quote):
+        kind='instruction'
+        scope='conversation' if local else ('project' if re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) and project_id else 'owner')
     elif (key=='communication.style' and STYLE.search(quote)) or (
             not LANGUAGE.search(quote) and STYLE.search(quote) and COMMUNICATION.search(quote)):
         kind,key='instruction','communication.style'
@@ -62,6 +70,31 @@ def normalize_candidate(key,kind,scope,quote,project_id):
         kind,key='instruction','communication.language'
         scope='conversation' if local else ('project' if re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) and project_id else 'owner')
     return key,kind,scope
+
+
+def explicit_candidates(quotes, project_id=None):
+    """Lossless rules for explicit identity and durable response instructions.
+
+    These supplement semantic proposals; they do not infer facts or construct
+    canonical prose. A model omitting a sentence cannot silently lose an exact
+    owner instruction. The same evidence/security gates govern both paths.
+    """
+    proposed=[]
+    for quote in quotes:
+        if re.fullmatch(r'(?:My (?:full )?name is|اسمي|أنا اسمي|انا اسمي)\s+[^.!?؟؛\n]{1,80}[.!]?',quote,re.I):
+            proposed.append({'key':'profile.name','kind':'semantic','scope':'owner','quote':quote})
+        if not DURABLE_BEHAVIOR.search(quote) or ONE_REPLY.search(quote):continue
+        categories=[]
+        if LANGUAGE.search(quote) and (COMMUNICATION.search(quote) or re.search(r'prefer|بفضل|أفضل|أفضّل',quote,re.I)):
+            categories.append('language')
+        if STYLE_PREFERENCE.search(quote):categories.append('style')
+        if STRUCTURE_PREFERENCE.search(quote):categories.append('structure')
+        for category in categories:
+            scope='conversation' if THIS_CHAT.search(quote) else ('project' if project_id and
+                re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) else 'owner')
+            proposed.append({'key':'communication.'+category,'kind':'instruction','scope':scope,'quote':quote})
+    # Validate separately so the public max-four model contract remains strict.
+    return [v for item in proposed for v in validate_candidates(item['quote'],[item],project_id)]
 
 CANDIDATE_SCHEMA = {
     'type': 'object', 'additionalProperties': False, 'required': ['candidates'],
@@ -147,7 +180,8 @@ def validate_candidates(message: str, candidates: list, project_id=None) -> list
             if kind != 'instruction' or key not in {
                     'communication.language', 'communication.style', 'communication.structure'}:
                 continue
-            if not (LANGUAGE.search(quote) if key.endswith('.language') else STYLE.search(quote)):
+            required=LANGUAGE if key.endswith('.language') else STRUCTURE_PREFERENCE if key.endswith('.structure') else STYLE
+            if not required.search(quote):
                 continue
         slot = (scope, key)
         if slot in slots:
@@ -169,6 +203,7 @@ def extract(memory, message: str, project_id=None, existing=(), *, diagnostics=N
                           'EXISTING_SUBJECTS': list(existing)[:16]}, ensure_ascii=False)
     quotes = [s.strip() for s in re.split(r'(?<=[.!?؟؛])\s+|\n+', message)
               if s.strip() and len(s.strip()) <= 600]
+    explicit_quotes=tuple(quotes)
     if len(message) <= 600 and message not in quotes:
         quotes.append(message)
     if not quotes:
@@ -183,14 +218,9 @@ def extract(memory, message: str, project_id=None, existing=(), *, diagnostics=N
         raise ValueError('invalid_extraction_envelope')
     if diagnostics is not None:
         diagnostics(parsed)
-    candidates=parsed['candidates']
-    # Explicit identity statements are high-value and the small model can omit
-    # one when a message also contains goals and preferences. Supplement only
-    # a complete first-person name sentence, retaining the exact owner quote.
-    # All normal evidence, sensitive-data, question and scope gates still apply.
-    identities=[q for q in quotes if re.fullmatch(
-        r'(?:My (?:full )?name is|اسمي|أنا اسمي|انا اسمي)\s+[^.!?؟؛\n]{1,80}[.!]?',q,re.I)]
-    for quote in identities:
-        if not any(v.get('quote')==quote for v in candidates) and len(candidates)<4:
-            candidates.append({'key':'profile.name','kind':'semantic','scope':'owner','quote':quote})
-    return validate_candidates(message, candidates, project_id)
+    model=validate_candidates(message,parsed['candidates'],project_id)
+    combined=explicit_candidates(explicit_quotes,project_id)+model
+    unique={}
+    for item in combined:
+        unique.setdefault((item['scope'],item['key']),item)
+    return validate_candidates(message,list(unique.values())[:4],project_id)

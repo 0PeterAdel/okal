@@ -219,6 +219,8 @@ def main():
         'source_clean':not subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,check=True).stdout.strip(),
         'conversations':conversations,'projects':projects,'source_turns':source_turns,
         'archive_assistant_mode':'fixture_archive; scripted dialogue is never scored as model output',
+        'models':{'llm':config['llm'],'embedding':config['embedding'],'dimensions':config['dimensions'],
+                  'embedding_gpu':config['embedding_gpu']},
         'started_wall_time':time.time(),'limit_conversations':args.conversations,'limit_answers':args.answers}
     (args.state/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
     worker=MemoryWorker(store)
@@ -290,6 +292,14 @@ def main():
             answers.append(row)
             with (args.state/'answers.jsonl').open('a') as stream:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
             print(json.dumps({'phase':'answer','id':query['id'],'passed':passed,'mode':actual['mode']}),flush=True)
+        unknown_chat=chat.create('Synthetic unknown-fact probe')['id']
+        unknown=respond(store,unknown_chat,uuid.uuid4().hex,
+            'What is my favorite editor? Only tell me if I actually shared it. Please reply in English.')
+        unknown_text=unknown['answer'].casefold()
+        unknown_passed=unknown['mode']=='pinned_local_ollama' and 'emacs' not in unknown_text and bool(re.search(
+            r"don.t (?:know|have)|not (?:know|shared|provided|stored|recorded|remember)|no (?:record|saved|information)|haven.t|hasn.t|didn.t|wasn.t|not.*(?:memory|context)",unknown_text))
+        (args.state/'unknown-answer.json').write_text(json.dumps({'actual_answer':unknown['answer'],
+            'mode':unknown['mode'],'passed':unknown_passed},ensure_ascii=False,indent=2)+'\n')
         # Exercise ingestion of the held-out questions too: temporary response
         # overrides must not silently change permanent profile preferences.
         for drain in range(1000):
@@ -304,7 +314,7 @@ def main():
         lifecycle=lifecycle_probe(chat,observed)
         # Rebuild a real persistent index from SQLite after the forgetting
         # probe. This also proves that deletion tombstones survive reindexing.
-        ledger.request_rebuild()
+        rebuild_started=time.monotonic();ledger.request_rebuild()
         for rebuild_tick in range(1000):
             if time.monotonic()>=deadline:raise RuntimeError('bounded_evaluation_deadline')
             worker.tick();health=ledger.health()
@@ -313,6 +323,7 @@ def main():
         else:raise RuntimeError('bounded_rebuild_limit')
         chosen,context=Retrieval(ledger).select(cid,'amber canoe 672')
         lifecycle['forgotten_absent_after_rebuild']='amber canoe 672' not in json.dumps({'records':chosen,'context':context})
+        rebuild_seconds=time.monotonic()-rebuild_started
         with store.connect() as db:
             integrity=db.execute('PRAGMA integrity_check').fetchone()[0]
             foreign_keys=[tuple(r) for r in db.execute('PRAGMA foreign_key_check')]
@@ -325,12 +336,15 @@ def main():
             'passed':sum(r['family']==name and r['passed'] for r in answers)} for name in ('preference','project','conversation')}
         for result in by_family.values():result['recall']=result['passed']/result['answered'] if result['answered'] else None
         report={'complete_corpus':len(selected)==200,'source_conversations':len(selected),
+            'source_head':manifest['source_head'],'source_clean':manifest['source_clean'],'models':manifest['models'],
             'source_turns':len(source_turns),'archive_turns_including_queries':archive_count,
             'archive_assistant_mode':manifest['archive_assistant_mode'],'actual_scored_answers':len(answers),
             'families':by_family,'extraction_precision':matched/proposed if proposed else 0,
             'extraction_recall':matched/expected if expected else 1,
             'false_candidates_on_negative_sources':sum(len(r['actual']) for r in observed.records if not r['expected']),
             'ingestion_seconds':ingestion_seconds,'ingestion_turns_per_second':len(source_turns)/ingestion_seconds,
+            'index_rebuild_seconds':rebuild_seconds,
+            'index_rebuild_records_per_second':ledger.health()['active']/rebuild_seconds,
             'retrieval_seconds_p50':statistics.median(retrieval_latencies) if retrieval_latencies else None,
             'retrieval_seconds_p95':quantile(retrieval_latencies,.95),
             'retrieval_precision_at_8_mean':statistics.mean(r['retrieval_precision_at_8'] for r in answers) if answers else None,
@@ -342,6 +356,9 @@ def main():
             'forbidden_python_network_attempts':len(network_denied),'health':ledger.health(),
             'profile_unchanged_by_recall_questions':profile_before==profile_after,
             'lifecycle_probe':lifecycle,
+            'unknown_fact_answer_passed':unknown_passed,
+            'explicit_correction_answers_consistent':all(r['passed'] for r in answers
+                if r['subject']=='style' or r['family']=='project'),
             'actual_prompt_tokens_max':max((r['inference_usage'].get('prompt_eval_count',0) for r in answers),default=0),
             'interruption_injected':observed.interrupted,'elapsed_monotonic_seconds':time.monotonic()-started,
             'disk_bytes':sum(p.stat().st_size for p in args.state.rglob('*') if p.is_file())}
@@ -361,6 +378,8 @@ def main():
             'no_false_negative_source_candidates':report['false_candidates_on_negative_sources']==0,
             'no_duplicates':duplicates==0,'integrity':integrity=='ok' and not foreign_keys,
             'no_external_attempts':not network_denied,'lifecycle':all(lifecycle.values())}
+        report['consistency_gates'].update(unknown_fact=unknown_passed,
+            explicit_corrections=report['explicit_correction_answers_consistent'])
         (args.state/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
     return 2 if failure or not all(report.get('quality_gates',{}).values()) or not all(report.get('consistency_gates',{}).values()) else 0
 

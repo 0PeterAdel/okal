@@ -156,7 +156,12 @@ class Ledger:
                 # cannot be distinguished from an explicitly selected 90 in v1.
                 # Preserve other finite policies; document this migration.
                 db.execute('UPDATE chat_settings SET retention_days=0 WHERE retention_days=90')
-                # Existing finite memory expiry remains explicit legacy metadata.
+                # Stage 1 also used a default 365-day memory lifetime, without
+                # recording whether it was explicitly selected. Preserve other
+                # finite policies, but do not silently expire enduring facts at
+                # the obsolete default after the owner requested indefinite
+                # retention. The owner can explicitly select 365 again.
+                db.execute('UPDATE chat_memories SET expires_at=0 WHERE expires_at=updated_at+365*86400')
                 for row in db.execute('SELECT * FROM chat_memories').fetchall():
                     record = dict(row)
                     db.execute('INSERT INTO memory_meta(memory_id,project_id,assertion,category,extractor) VALUES(?,NULL,?,?,?)',

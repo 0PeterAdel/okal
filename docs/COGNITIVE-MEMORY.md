@@ -93,9 +93,11 @@ The requested default is now `retention_days=0` and memory `expires_at=0`, meani
 keep until explicitly deleted. Optional 1–365 day policies remain supported.
 On first migration, the former 90-day chat policy becomes keep-until-deleted.
 Stage 1 stored no setting provenance, so an explicit owner choice of exactly 90
-days cannot be distinguished from its old default. Other existing finite chat
-policies and existing finite memory expiry are preserved. The owner can select
-90 days again after migration.
+days cannot be distinguished from its old default. The former default 365-day memory lifetime also becomes indefinite, using
+its exact stored duration from the last update; Stage 1 likewise did not record
+whether 365 days was explicitly selected. Other finite chat/memory policies
+remain intact. The owner can select 90-day chat or 365-day memory expiry again
+after migration. Already-purged data cannot be recovered by this change.
 
 Corrections preserve source conversations and superseded snapshots, advance the
 revision, fence dependent in-flight answers and queue replacement projections.
@@ -232,3 +234,24 @@ no AGPL dependency in the runtime. The [review](evidence/cognitive-memory/depend
 records declared licenses and a live OSV package-version query with no advisory
 matches. Only public package names/versions were sent. This is not a proof of
 absence of vulnerabilities or a substitute for license notices on distribution.
+
+The first complete 200-conversation / 1,000-turn run at `c26075f` generated and
+scored 240 real local-model answers. It **failed** the personal-preference gate
+(75% against 90%), while project and per-chat recall were 100%. The extractor
+omitted the explicit durable language sentence in a multi-fact message. The
+failed report and all five failed answers are preserved in the evidence folder.
+No completion or merge is authorized by those results.
+
+Explicit identity and durable communication sentences now supplement Mem0's
+semantic proposals through lossless source rules. They retain owner wording,
+conditions and scope and pass the same sensitive-data, external-content,
+question and permission gates. One-off reply overrides remain transient. This
+is a hybrid extraction pipeline; reported precision/recall describes approved
+pipeline outputs, not raw unfiltered model proposals.
+
+The real governed file acceptance required the exact runtime approval digest
+before writing a disposable synthetic file. A stored assertion that approvals
+could be skipped did not authorize execution. After approval, the existing
+computer engine verified the file postcondition, and a different conversation
+in the same explicit project received the verified execution receipt. No live
+policy, files or accounts were changed.

@@ -39,7 +39,8 @@ cid=chat.create('Synthetic pre-migration bilingual archive')['id']
 for i in range(100):
  claim=chat.begin(cid,uuid.uuid4().hex,'Synthetic owner turn '+str(i)+' / محادثة اختبار فقط')
  chat.finish(claim['turn_id'],claim['lease'],{'answer':'Synthetic archived answer.','mode':'pinned_local_ollama'})
-memory=chat.save_memory('language','Egyptian Arabic',kind='semantic',days=365)
+memory=chat.save_memory('language','Egyptian Arabic',kind='semantic',days=30)
+chat.save_memory('communication.style','I prefer brief answers.',kind='semantic')
 with store.connect() as db:
  assert db.execute('SELECT version FROM chat_schema').fetchone()[0]==1
  assert db.execute('SELECT COUNT(*) FROM chat_turns').fetchone()[0]==100
@@ -61,7 +62,9 @@ print(json.dumps({'conversation_id':cid,'memory_id':memory['id'],'expires_at':me
         assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
         assert not db.execute('PRAGMA foreign_key_check').fetchall()
     assert chat.settings()['retention_days']==0
-    assert chat.memories()['items'][0]['expires_at']==before['expires_at']
+    records={r['key']:r for r in chat.memories()['items']}
+    assert records['language']['expires_at']==before['expires_at']
+    assert records['communication.style']['expires_at']==0
     assert chat.cognitive.backfill()['enqueued']==0
     rejection=subprocess.run([sys.executable,'-c',
         'from pathlib import Path;import sys;from okal_core.store import Store;from okal_core.intelligence import Intelligence;Intelligence(Store(Path(sys.argv[1])))',
@@ -88,6 +91,7 @@ print('restored old Core verified')
     report={'synthetic_only':True,'turns_preserved':100,'backup_integrity':'ok',
         'migrated_integrity':'ok','foreign_key_violations':0,'source_schema':1,'target_schema':2,
         'retention_default_migrated_to_forever':True,'explicit_finite_memory_expiry_preserved':True,
+        'legacy_default_memory_expiry_migrated_to_forever':True,
         'idempotent_backfill':True,'old_code_refuses_new_schema':True,
         'backup_restored_and_old_code_verified':True,'backup_unchanged':True}
     (args.state/'report.json').write_text(json.dumps(report,indent=2)+'\n')

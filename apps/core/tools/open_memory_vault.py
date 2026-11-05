@@ -31,6 +31,10 @@ def build_command(state: Path) -> list[str]:
         if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_size>16_000):
             raise ValueError('invalid_private_obsidian_settings')
         value=json.loads(path.read_text())
+        if name=='core-plugins.json' and isinstance(value,dict):
+            if any(type(k) is not str or type(v) is not bool for k,v in value.items()):
+                raise ValueError('invalid_obsidian_plugin_map')
+            value=[k for k,v in value.items() if v]
         if not isinstance(value,list) or any(type(v) is not str for v in value):
             raise ValueError('invalid_obsidian_plugin_list')
         if (name=='core-plugins.json' and not set(value)<=CORE_PLUGINS

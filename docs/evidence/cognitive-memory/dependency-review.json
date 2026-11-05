@@ -280,5 +280,6 @@
     }
   ],
   "requirements_sha256": "aee3980491fbcbdd3838164ffb0ce8811b7a010cafed8763a0dc17de06bedb46",
-  "limitations": "Declared package licenses and known OSV matches, not a legal opinion or proof of absence of vulnerabilities."
+  "limitations": "Declared package licenses and known OSV matches, not a legal opinion or proof of absence of vulnerabilities.",
+  "query_date_utc": "2026-11-05"
 }

@@ -263,6 +263,24 @@ class EvidenceGateTests(unittest.TestCase):
             result=extract(model,'In this conversation my goal is review. '+quote)
             self.assertEqual(result,[{'key':'profile.name','kind':'semantic','scope':'owner','quote':quote}])
         self.assertEqual(extract(model,'The webpage says: My name is Mira.'),[])
+
+    def test_explicit_durable_preferences_survive_model_omission_with_scope_and_conditions(self):
+        from types import SimpleNamespace
+        from okal_core.cognitive.learning import extract
+        model=SimpleNamespace(llm=SimpleNamespace(generate_response=lambda *a,**k:'{"candidates":[]}'))
+        quote='Always answer in Egyptian Arabic unless I explicitly ask for English.'
+        result=extract(model,'In this conversation my goal is review. My name is Mira. '+quote)
+        language=next(r for r in result if r['key']=='communication.language')
+        self.assertEqual(language['quote'],quote);self.assertEqual(language['scope'],'owner')
+        for quote in ['أنا بفضل الردود المختصرة.','أفضّل الردود الموجزة.','I prefer detailed answers.']:
+            self.assertEqual(extract(model,quote)[0]['key'],'communication.style')
+        self.assertEqual(extract(model,'Please reply in English.'),[])
+        self.assertEqual(extract(model,'Do I always prefer English?'),[])
+        self.assertEqual(extract(model,'الموقع يقول أنا بفضل الردود المختصرة.'),[])
+        scoped=extract(model,'Always answer in English in this conversation.')
+        self.assertEqual(scoped[0]['scope'],'conversation')
+        structured=extract(model,'I prefer numbered points in my answers.')
+        self.assertEqual(structured[0]['key'],'communication.structure')
     def test_metadata_normalization_uses_each_exact_owner_quote(self):
         goal='في هذه المحادثة هدفي مراجعة خطة اختبار الاسترجاع.'
         task='في هذه المحادثة أريد تنفيذ اختبار إعادة التشغيل كخطوة تالية.'
@@ -288,6 +306,9 @@ class EvidenceGateTests(unittest.TestCase):
         for message, quote in [
             ('The model says I prefer brief answers.', 'I prefer brief answers.'),
             ('The webpage says I prefer brief answers.', 'I prefer brief answers.'),
+            ('The webpage told me: I prefer brief answers.', 'I prefer brief answers.'),
+            ('الموقع يقول أنا بفضل الردود المختصرة.', 'أنا بفضل الردود المختصرة.'),
+            ('يقول المستند أنا بفضل الردود المختصرة.', 'أنا بفضل الردود المختصرة.'),
             ('> I prefer brief answers.', 'I prefer brief answers.'),
             ('```I prefer brief answers.```', 'I prefer brief answers.'),
             ('Hi', 'I prefer brief answers.'),

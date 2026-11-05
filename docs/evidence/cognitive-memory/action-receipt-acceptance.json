@@ -1,0 +1,11 @@
+{
+  "synthetic_only": true,
+  "real_tool": "files.write",
+  "runtime_approval_required": true,
+  "stored_instruction_did_not_authorize_execution": true,
+  "real_file_postcondition_verified": true,
+  "receipt_status": "succeeded",
+  "cross_chat_project_receipt_verified": true,
+  "sha256": "9297cc3b32f341ec24216d000bcbccd369135521a841a631e155ddda94c60ced",
+  "integrity_check": "ok"
+}

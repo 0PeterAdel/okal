@@ -8,6 +8,7 @@
   "target_schema": 2,
   "retention_default_migrated_to_forever": true,
   "explicit_finite_memory_expiry_preserved": true,
+  "legacy_default_memory_expiry_migrated_to_forever": true,
   "idempotent_backfill": true,
   "old_code_refuses_new_schema": true,
   "backup_restored_and_old_code_verified": true,
