@@ -46,13 +46,13 @@ def reply_style(message,memories):
     def detect(value):
         if re.search(r'(?:avoid|do not|don.t|no|مش عايز).{0,25}(?:long|detailed|introduction|مقدم|طويل)',value,re.I):return 'brief'
         if re.search(r'(?:avoid|do not|don.t|not|مش عايز).{0,20}(?:brief|concise|short|مختصر)',value,re.I):return 'detailed'
-        if re.search(r'\b(?:brief|concise|short|direct)\w*\b|مختصر|الموضوع على طول',value,re.I):return 'brief'
-        if re.search(r'\b(?:detailed|in detail|background explanation)\b|بالتفصيل|ردود طويلة',value,re.I):return 'detailed'
+        if re.search(r'\b(?:brief|concise|short|direct)\w*\b|مختصر|موجز|باختصار|اختصر|مباشر|قصير|الموضوع على طول',value,re.I):return 'brief'
+        if re.search(r'\b(?:detailed|in detail|background explanation)\b|بالتفصيل|ردود طويلة|مفصل|مفصّل|مطول|مطوّل',value,re.I):return 'detailed'
     if not re.search(r'[?؟]',message) and re.search(r'please|answer|reply|explain|عايز|جاوب|رد',message,re.I):
         current=detect(message)
         if current:return current
     for memory in memories:
-        if memory.get('key')=='communication.style':
+        if memory.get('key') in {'communication.style','communication.language','communication.structure'}:
             style=detect(memory['content'])
             if style:return style
     return 'default'

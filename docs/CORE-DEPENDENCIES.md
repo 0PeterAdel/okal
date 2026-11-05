@@ -1,5 +1,10 @@
 # Core dependency intake (R1a)
 
+Subsequent optional memory dependencies are isolated in a separate process and
+hash-locked environment. See [Cognitive Memory V2](COGNITIVE-MEMORY.md) and its
+[dependency review](evidence/cognitive-memory/dependency-review.json). They do
+not replace the Core runtime lock described below.
+
 Snapshot: 2026-10-30. Candidate adoption for #38, not a production-security
 certification. Exact direct/transitive versions and distribution SHA-256 hashes
 are in `apps/core/requirements.lock`; test additions have a separate lock.

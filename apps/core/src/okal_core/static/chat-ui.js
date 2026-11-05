@@ -286,6 +286,7 @@ function clearChatUI() {
       forget.addEventListener("click", () => guarded(async () => {
         if (!confirm("نسيان المعلومة وحذف نصها وإبطال الردود المعتمدة عليها؟ باقي كلامك هيفضل محفوظ.")) return;
         await post("memory-delete", {memory_id:item.id}); resetMemoryEditor();
+        get("chat-archive-query").value="";
         chatSequence+=1;if(chatAbort)chatAbort.abort();chatAbort=null;chatPending=false;send.disabled=false;chatRetry=null;
         await refreshMemories(); if (chatConversation) await resume(chatConversation); await library();
       }));

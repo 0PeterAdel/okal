@@ -11,7 +11,6 @@ import uuid
 from .store import Conflict
 
 LEASE_SECONDS = 180
-MAX_MEMORIES = 500
 SECRET = re.compile(
     r"-----BEGIN .*PRIVATE KEY|\b(?:Bearer\s+\S+|sk-[A-Za-z0-9_-]{12,}|"
     r"gh[pousr]_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{20,}|ya29\.[\w.-]+)|"

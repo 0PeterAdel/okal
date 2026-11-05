@@ -164,8 +164,20 @@ class Ledger:
                 db.execute('UPDATE chat_memories SET expires_at=0 WHERE expires_at=updated_at+365*86400')
                 for row in db.execute('SELECT * FROM chat_memories').fetchall():
                     record = dict(row)
-                    db.execute('INSERT INTO memory_meta(memory_id,project_id,assertion,category,extractor) VALUES(?,NULL,?,?,?)',
-                               (row['id'], 'remembered', row['kind'], 'stage1-migration'))
+                    if record['key'] in {'language','preferred language'} and not db.execute(
+                            'SELECT 1 FROM chat_memories WHERE scope=? AND key=?',
+                            (record['scope'],'communication.language')).fetchone():
+                        record['key']='communication.language'
+                        db.execute('UPDATE chat_memories SET key=? WHERE id=?',(record['key'],record['id']))
+                    origin=db.execute('SELECT seq FROM chat_turns WHERE id=?',(record['source_turn'],)).fetchone()
+                    cutoff=origin[0] if origin else db.execute(
+                        'SELECT COALESCE(MAX(seq),0) FROM chat_turns WHERE created_at<=?',(record['updated_at'],)).fetchone()[0]
+                    # Historical jobs and migrated evidence share chronological
+                    # ordering. A later archived correction must beat an older
+                    # source; new V2 owner-editor revisions still outrank backfill.
+                    db.execute('''INSERT INTO memory_meta(memory_id,project_id,assertion,category,extractor,effective_seq)
+                        VALUES(?,NULL,?,?,?,?)''',
+                               (record['id'], 'remembered', record['kind'], 'stage1-migration',cutoff-(1<<62)))
                     self._snapshot(db, record)
                     self._outbox(db, row['id'], row['revision'], 'upsert')
                     self._fts(db, record)

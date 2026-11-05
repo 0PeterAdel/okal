@@ -5,6 +5,11 @@ Task: [#112](https://github.com/0PeterAdel/okal/issues/112). Owner directive,
 computer actions only after this stage's independent verification and merge.
 This supersedes the older reset's deferral of bounded conversation memory.
 
+This file records the delivered Stage 1 contract. The subsequent
+[Cognitive Memory V2](COGNITIVE-MEMORY.md) task documents automatic learning,
+project memory, hybrid recall, revised retention and the optional private vault.
+Its evidence and rollout status are separate from Stage 1 deployment.
+
 ## Discovery and implementation plan
 
 Baseline `4aba4f3`: chat uses eight client-supplied turns, one nonblocking process

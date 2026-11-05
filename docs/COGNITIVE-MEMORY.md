@@ -255,3 +255,29 @@ could be skipped did not authorize execution. After approval, the existing
 computer engine verified the file postcondition, and a different conversation
 in the same explicit project received the verified execution receipt. No live
 policy, files or accounts were changed.
+
+The follow-up migration rehearsal also verified that a later archived language
+correction supersedes an older Stage 1 source under the same memory ID. Migrated
+source ordering uses source turn sequence (or the manual edit's historical
+checkpoint), not a fictitious new preference timestamp. New V2 editor revisions
+remain newer than historical backfill. Common legacy language keys normalize to
+the canonical key when that does not collide with an existing saved key.
+
+Conditional English-for-technical-documentation preferences occupy a distinct
+subject from the general reply language. Matching conditional preferences take
+precedence within their scope; a higher-priority conversation instruction still
+wins. Owner-edited combined language/brevity statements also affect reply style.
+
+Actual Chromium acceptance used a separate local session after detecting
+unreliable viewport emulation in the integrated browser. Verified 390×844 and
+768×1024 viewports fit with no horizontal overflow and a visible composer.
+The desktop and narrow-view screenshots were inspected. Saved real-model
+cross-chat recall, memory correction/source versions, archive search/source
+resume, forgetting, deleted-state browsing and indefinite-retention controls
+passed, with zero page exceptions or external requests. The optional FullCalendar
+404 is the existing Stage 3 fallback condition, not a memory regression.
+
+See the [rollout and recovery runbook](COGNITIVE-MEMORY-ROLLOUT.md) for exact
+provider configuration, isolated environments, owner-history ingestion, optional
+Obsidian launch, index replacement and backup rollback. No Production rollout
+has been performed.

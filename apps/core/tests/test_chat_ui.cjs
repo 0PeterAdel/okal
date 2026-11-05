@@ -82,12 +82,14 @@ test("forget clears displayed sources and fences an older source response",async
   h.get("chat-memory-manager").open=true;h.get("chat-memory-manager").handlers.toggle();await flush();
   const row=h.get("chat-memory-list").children[0];assert.ok(row);
   h.get("chat-memory-source-list").append({textContent:"Old cached preference"});
+  h.get("chat-archive-query").value="Old cached preference";
   row.children.find(n=>n.textContent==="المصدر والإصدارات").handlers.click();await flush();
   row.children.find(n=>n.textContent==="نسيان").handlers.click();await flush();
   release({items:[{status:"current",revision:1,snapshot:{content:memory.content}}],sources:[]});await flush();
   assert.equal(h.get("chat-memory-source-list").children.length,0);
   assert.equal(h.get("chat-memory-list").children.length,0);
   assert.equal(h.get("chat-vault-import").hidden,true);
+  assert.equal(h.get("chat-archive-query").value,"");
 });
 
 test("archive excerpts remain inert and opening a source returns to fullscreen chat",async()=>{

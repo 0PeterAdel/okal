@@ -37,9 +37,12 @@ from okal_core.intelligence import Intelligence
 store=Store(Path(sys.argv[1])); chat=Intelligence(store)
 cid=chat.create('Synthetic pre-migration bilingual archive')['id']
 for i in range(100):
- claim=chat.begin(cid,uuid.uuid4().hex,'Synthetic owner turn '+str(i)+' / محادثة اختبار فقط')
+ message=('Always answer in English.' if i==0 else 'Always answer in Egyptian Arabic.' if i==1
+          else 'Synthetic owner turn '+str(i)+' / محادثة اختبار فقط')
+ claim=chat.begin(cid,uuid.uuid4().hex,message)
  chat.finish(claim['turn_id'],claim['lease'],{'answer':'Synthetic archived answer.','mode':'pinned_local_ollama'})
-memory=chat.save_memory('language','Egyptian Arabic',kind='semantic',days=30)
+ if i==0:old_source=claim['turn_id']
+memory=chat.save_memory('language','Always answer in English.',kind='semantic',source_turn=old_source,days=30)
 chat.save_memory('communication.style','I prefer brief answers.',kind='semantic')
 with store.connect() as db:
  assert db.execute('SELECT version FROM chat_schema').fetchone()[0]==1
@@ -63,9 +66,18 @@ print(json.dumps({'conversation_id':cid,'memory_id':memory['id'],'expires_at':me
         assert not db.execute('PRAGMA foreign_key_check').fetchall()
     assert chat.settings()['retention_days']==0
     records={r['key']:r for r in chat.memories()['items']}
-    assert records['language']['expires_at']==before['expires_at']
+    assert records['communication.language']['expires_at']==before['expires_at']
     assert records['communication.style']['expires_at']==0
     assert chat.cognitive.backfill()['enqueued']==0
+    first=chat.cognitive.claim_job()
+    chat.cognitive.apply_job(first['turn_id'],first['lease'],[{'key':'communication.language',
+        'kind':'instruction','scope':'owner','quote':'Always answer in English.'}])
+    later=chat.cognitive.claim_job()
+    chat.cognitive.apply_job(later['turn_id'],later['lease'],[{'key':'communication.language',
+        'kind':'instruction','scope':'owner','quote':'Always answer in Egyptian Arabic.'}])
+    corrected={r['key']:r for r in chat.memories()['items']}['communication.language']
+    assert corrected['id']==before['memory_id'] and corrected['content']=='Always answer in Egyptian Arabic.'
+    assert chat.cognitive.versions(corrected['id'])['items'][1]['status']=='superseded'
     rejection=subprocess.run([sys.executable,'-c',
         'from pathlib import Path;import sys;from okal_core.store import Store;from okal_core.intelligence import Intelligence;Intelligence(Store(Path(sys.argv[1])))',
         str(original)],env=baseline_env,capture_output=True,text=True,timeout=30)
@@ -92,6 +104,7 @@ print('restored old Core verified')
         'migrated_integrity':'ok','foreign_key_violations':0,'source_schema':1,'target_schema':2,
         'retention_default_migrated_to_forever':True,'explicit_finite_memory_expiry_preserved':True,
         'legacy_default_memory_expiry_migrated_to_forever':True,
+        'later_archived_correction_supersedes_legacy_source':True,
         'idempotent_backfill':True,'old_code_refuses_new_schema':True,
         'backup_restored_and_old_code_verified':True,'backup_unchanged':True}
     (args.state/'report.json').write_text(json.dumps(report,indent=2)+'\n')
