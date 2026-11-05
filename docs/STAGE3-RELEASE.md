@@ -13,7 +13,7 @@ performed. All modifying acceptance scenarios used synthetic resources.
 | 2. Private online backup | Passed | Live SQLite backup API; quick_check ok, zero foreign-key errors; directory 0700, DB 0600; old code/unit and rollback preserved privately. |
 | 3. Staged deployment | Passed | Detached archive and fresh hash-locked environment tested before deploying; healthy real service, exact logo, persistent UI Chat/Memory and legacy workflows verified. |
 | 4. Broad owner capabilities | Passed within explicit supported scope | Assisted home write grant, separately reviewed mount carve-out, actual file receipts and native private/code EROFS denials. Literal root/all-files access remains unavailable. |
-| 5. Real service E2E | Passed | 31-scenario reproducible HTTP audit, additional legacy writes, real English/Arabic UI approval/recovery, read-bearer denial, policy revision and restart checks. |
+| 5. Real service E2E | Passed | 32-scenario reproducible HTTP audit, additional legacy writes, real English/Arabic UI approval/recovery, read-bearer denial, policy revision and restart checks. |
 
 These results certify the bounded supported capabilities below. They do not
 claim root access, complete access to every file, provider sending, cold boot or
@@ -26,8 +26,9 @@ Production checkout: `/home/okal/Projects/Okal`, branch `main`. Before deploymen
 were not deployed there. First reviewed deployment:
 `d0946631f1609590a4a7b19545cdaf5bc8ae22e6` via security
 [PR #120](https://github.com/0PeterAdel/okal/pull/120). Accepted application code:
-`d570d544b18a6fc10e0d59f86d8e530d0fbb8dc2` after transport
-[PR #121](https://github.com/0PeterAdel/okal/pull/121). This evidence PR adds only
+`efd3cb52f672877823e4b4f95850f4c7c8c50a29` after transport
+[PR #121](https://github.com/0PeterAdel/okal/pull/121) and read-bearer hardening
+[PR #122](https://github.com/0PeterAdel/okal/pull/122). This evidence PR adds only
 the opt-in audit runner and this report; the final checkout SHA is recorded on
 the rollout issue after its reviewed merge.
 
@@ -64,10 +65,11 @@ Runtime: Python 3.14, Playwright 1.64.1, Chromium 156.0.8078.79, Bubblewrap
 installation succeeded in a new environment; `pip check` found no broken
 requirements. No dependency or license change beyond reviewed Stage 2 was made.
 
-The final isolated application regression passed 480 Python tests and 79 Node
+The final isolated application regression passed 481 Python tests and 79 Node
 tests. A detached archive passed the preceding 479-test suite under umask 077,
 process restart smoke and real synthetic action acceptance before the initial
-deployment. The additional HTTP policy regression brought the count to 480.
+deployment. The HTTP policy regression brought the count to 480; the matching-Origin
+read-bearer regression brought it to 481.
 Native PDF parsing ran on this host; CI's missing-native skip is not host proof.
 Governance and whitespace checks passed.
 
@@ -83,7 +85,8 @@ private copy; its umask-dependent security fixture was fixed in PR #120.
 
 The standalone runner uses only HTTP against `127.0.0.1:8766`, with the same
 owner-origin gate as the UI. It never imports Store/Engine, launches a scheduler
-or grants standing permissions. The final run recorded 31 passing scenarios:
+or grants standing permissions. The final hardened run recorded 32 passing scenarios (31 without the optional
+real read-token check):
 
 - List/read; new file/directory; copy and move/rename; source and preview hashes.
 - Rename, trash and extension-organization recovery, with unchanged hashes.
@@ -100,14 +103,14 @@ or grants standing permissions. The final run recorded 31 passing scenarios:
   verified focus and closure of only that synthetic window.
 
 Representative final receipt IDs: file chain
-`92343e8e587d4ca4915ba9c6ba642923`; organization/recovery
-`df7d0483eb4c4fbbb78d3c26d873b937`; browser download
-`be825641999946ce822446c136c173c8`; running cancellation
-`16eda4ec51914cbdbbce33113136e0fd`; revoked preview
-`aa04bb39b87d4b86867e268fe51928cf`; native focus
-`456c3422bcbe445a80228337493ff36e`. Full receipts stay private in the backup
+`34ad7fe5c40e439d828e356cbb5d6381`; organization/recovery
+`a953b4f3047e4d88860bdebfcccf0f31`; browser download
+`1253ff1f04e048e7b7ec600756fdcd0a`; running cancellation
+`464d0911eb7944428ac43c05b7761997`; revoked preview
+`fbd2015564e345808ec462cd493e5883`; native focus
+`55e73112e7d544a3b2336058d0a76091`. Full receipts stay private in the backup
 directory. The final HTTP receipt bundle SHA-256 is
-`d02efc585990ca5e6f8729264513c86de28055b1f04d62cfb963d7e1d0e6c581`.
+`fe43a595fdf7e9de69e44ee9a835d677f75310af07f0419a50a032eef3dc44e9`.
 
 Additional actual HTTP writes created/read back a synthetic Task, then dismissed
 it; saved/read back a local Calendar goal, then cancelled it. Cached Gmail read
@@ -130,11 +133,12 @@ payloads matched before/after restart (shared SHA-256
 `2a54d4e3734516054fab6e7dbf2eda61e25cd2c5c800093841b97ccc287683c4`).
 localStorage/sessionStorage contained zero entries. The synthetic memory was
 then forgotten through the UI; associated recall text was redacted as designed.
-UI receipt recovery preserved the English file in private recovery with the
-original hash. Synthetic workspaces and receipts are retained for inspection.
+UI receipt recovery preserved both English and Arabic files in private recovery
+with their original hashes; Arabic recovery was repeated on the hardened service. Synthetic workspaces and receipts are retained for inspection.
 
 A real temporary `inbox:read` device token could read summaries (200) but its
-bearer-only Actions and Chat requests were denied (401); it was then revoked.
+Actions and Chat requests were denied (401), including when combined with a
+matching owner Origin. Both synthetic test tokens were revoked.
 Production retains the existing local auto-unlock mode. It was not changed into
 key-protected mode to manufacture session evidence. Remote Access is unconfigured
 and stopped; existing remote authentication requirements remain unchanged.
@@ -143,6 +147,12 @@ During acceptance a real defect was found: policy saves returned 422 because
 the transport passed `policy` to the engine's `payload` argument. PR #121 fixed
 the binding and added HTTP save/readback/stale-revision coverage. Real policy
 save, UI save, revocation and regrant passed after reviewed deployment.
+
+A stricter negative test then found that the local auto-unlock owner gate ignored
+an Authorization header when Origin matched. PR #122 explicitly rejects bearer
+headers on owner POST routes. It passed 481 Python/79 Node tests and fresh CI;
+after reviewed deployment, the full 32-scenario audit and actual UI recovery
+passed. Normal owner-browser behavior and read-device GETs remain available.
 
 ## Approved scope and remaining limits
 
@@ -186,7 +196,9 @@ The runner refuses an existing workspace with `--prepare`, never removes test
 data, closes its loopback-only server and closes only its observed new Foot
 window. Remove the temporary loopback grant afterward. A protected-mode owner
 may provide a private session-cookie file with `--cookie-file`; no credential is
-printed or placed in a URL. Do not run fixture scripts against personal folders.
+printed or placed in a URL. For the 32nd scenario pass `--read-token-file` with
+private JSON from the normal `device-add` operator command; revoke that temporary
+device afterward. No fixture runner sends email. Do not run it on personal folders.
 
 For code/unit rollback use the privately saved old code/interpreter and unit
 instructions in `ROLLBACK.md`; remove only new Stage 3 drop-ins after cancelling
