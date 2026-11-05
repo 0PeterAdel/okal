@@ -196,7 +196,9 @@ class Intelligence:
         for row in db.execute('SELECT id FROM chat_memories WHERE conversation_id=? '
                               'OR source_turn IN (SELECT id FROM chat_turns WHERE conversation_id=?)',
                               (conversation_id, conversation_id)).fetchall():
-            self._forget(db, row[0])
+            if not self.cognitive.retain_independent_source(db,row[0],conversation_id):
+                self._forget(db, row[0])
+        self.cognitive.deleting_history(db, conversation_id)
         db.execute('DELETE FROM chat_conversations WHERE id=?', (conversation_id,))
 
     def delete(self, conversation_id):
@@ -247,22 +249,29 @@ class Intelligence:
                             self.now + LEASE_SECONDS, self.now))
             db.execute("UPDATE chat_conversations SET updated_at=?,title=CASE WHEN title='New conversation' "
                        'THEN ? ELSE title END WHERE id=?', (self.now, message[:70], conversation_id))
+            db.execute('''INSERT OR IGNORE INTO memory_turn_projects(turn_id,project_id)
+                VALUES(?,(SELECT project_id FROM memory_conversations WHERE conversation_id=?))''',
+                (turn_id,conversation_id))
             return {'lease': lease, 'turn_id': turn_id}
 
-    def memories(self, conversation_id=None):
+    def memories(self, conversation_id=None, project_id=None):
         if conversation_id is not None:
             identifier(conversation_id)
+        if project_id is not None:
+            identifier(project_id)
         with self.store.connect() as db, db:
             db.execute('BEGIN IMMEDIATE')
             self._prune(db)
-            rows = db.execute("SELECT * FROM chat_memories WHERE scope='owner' OR conversation_id=? "
-                              'ORDER BY updated_at DESC,id LIMIT 500', (conversation_id,)).fetchall()
-            return {'items': [dict(r, status='active', assertion='owner_statement') for r in rows]}
+            rows = db.execute("SELECT m.*,x.project_id,x.assertion FROM chat_memories m "
+                              "JOIN memory_meta x ON x.memory_id=m.id WHERE scope='owner' OR conversation_id=? "
+                              'OR (? IS NOT NULL AND x.project_id=?) ORDER BY updated_at DESC,id LIMIT 500',
+                              (conversation_id, project_id, project_id)).fetchall()
+            return {'items': [dict(r, status='remembered' if r['assertion']=='remembered' else r['assertion']) for r in rows]}
 
     def save_memory(self, key, content, kind='semantic', conversation_id=None,
-                    source_turn=None, revision=0, days=0):
+                    source_turn=None, revision=0, days=0, project_id=None):
         return self.cognitive.save(key, content, kind, conversation_id,
-                                   source_turn, revision, days)
+                                   source_turn, revision, days, project_id=project_id)
 
     def forget(self, memory_id):
         identifier(memory_id)
@@ -273,11 +282,8 @@ class Intelligence:
         return {'deleted': True}
 
     def context(self, conversation_id, message, turn_id):
-        query = terms(message)
-        memories = self.memories(conversation_id)['items']
-        ranked = sorted(((len(query & terms(m['key'] + ' ' + m['content'])), m) for m in memories),
-                        key=lambda pair: (pair[0], pair[1]['updated_at']), reverse=True)
-        selected = [m for score, m in ranked if score > 0][:5]
+        from .cognitive.retrieval import Retrieval
+        selected, retrieval = Retrieval(self.cognitive).select(conversation_id, message)
         # Register provenance BEFORE inference so forgetting during generation
         # fences the in-flight turn and prevents resurrecting forgotten output.
         with self.store.connect() as db, db:
@@ -291,6 +297,16 @@ class Intelligence:
             rows = db.execute("SELECT * FROM chat_turns WHERE conversation_id=? AND id<>? "
                               "AND status='complete' ORDER BY seq DESC LIMIT 24",
                               (conversation_id, turn_id)).fetchall()
+            dependencies = [(r['id'], r['user_text']) for r in rows[:12]]
+            dependencies.extend((r['turn_id'],r['owner_excerpt']) for r in retrieval.get('archive_excerpts', []))
+            dependencies.extend((r['turn_id'],None) for r in retrieval.get('conversation_checkpoint', []))
+            for source_id, excerpt in dependencies:
+                if source_id == turn_id:
+                    continue
+                current = db.execute('SELECT user_text FROM chat_turns WHERE id=?', (source_id,)).fetchone()
+                if current is None or (excerpt is not None and not current[0].startswith(excerpt)):
+                    raise Conflict('archive_source_changed_retry')
+                db.execute('INSERT OR IGNORE INTO memory_turn_sources VALUES(?,?)', (turn_id,source_id))
             for r in rows[:12]:
                 db.execute('''INSERT OR IGNORE INTO chat_sources
                     SELECT ?,memory_id FROM chat_sources WHERE turn_id=?''', (turn_id, r['id']))
@@ -308,11 +324,23 @@ class Intelligence:
         with self.store.connect() as db:
             if db.execute("SELECT 1 FROM sqlite_master WHERE name='computer_runs'").fetchone():
                 action_receipts=[dict(r) for r in db.execute(
-                    'SELECT id,instruction,status FROM computer_runs WHERE conversation_id=? ORDER BY created_at DESC LIMIT 3',
-                    (conversation_id,))]
+                    '''SELECT r.id,r.instruction,r.status,r.created_at,
+                    COUNT(s.id) AS total_steps,SUM(CASE WHEN s.status='verified' THEN 1 ELSE 0 END) AS verified_steps
+                    FROM computer_runs r LEFT JOIN computer_steps s ON s.run_id=r.id
+                    LEFT JOIN chat_turns t ON t.conversation_id=r.conversation_id AND t.request_id=r.request_id
+                    LEFT JOIN memory_turn_projects p ON p.turn_id=t.id
+                    WHERE (r.conversation_id=? AND ? IS NULL) OR p.project_id=?
+                    GROUP BY r.id ORDER BY r.created_at DESC LIMIT 3''',
+                    (conversation_id,(retrieval.get('project') or {}).get('id'),
+                     (retrieval.get('project') or {}).get('id')))]
+        for receipt in action_receipts:
+            receipt['instruction']=receipt['instruction'][:160]
+            receipt['verified']=bool(receipt['status']=='succeeded' and receipt['total_steps']>0
+                                     and receipt['verified_steps']==receipt['total_steps'])
+            receipt['source']='computer_execution_receipt'
         return recent, {'action_receipts': action_receipts, 'memories': selected, 'older_owner_excerpts': older,
                         'history_limited': len(rows) >= 12,
-                        'memory_selection': 'bounded_lexical_overlap',
+                        **retrieval,
                         'memory_assertion': 'owner_statement_not_independently_verified'}
 
     def finish(self, turn_id, lease, response):
@@ -333,6 +361,8 @@ class Intelligence:
             if not changed:
                 raise Conflict('turn_expired_deleted_or_forgotten')
             self.cognitive.enqueue(db, turn_id)
+            if response.get('source')=='explicit_project_clarification':
+                db.execute("UPDATE memory_jobs SET status='scope_required' WHERE turn_id=?", (turn_id,))
         return response
 
 
@@ -351,9 +381,36 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
     turn_id, lease = claim['turn_id'], claim['lease']
     try:
         from .chat import ask
+        from .cognitive.retrieval import Retrieval
+        from .cognitive.learning import EXTERNAL
+        with store.connect() as db:
+            prior = db.execute('SELECT response FROM chat_turns WHERE conversation_id=? AND id<>? ORDER BY seq DESC LIMIT 1',
+                               (conversation_id,turn_id)).fetchone()
+        choices = (json.loads(prior[0]).get('project_choices',[]) if prior and prior[0] else [])
+        choice_text = re.sub(r'^(?:i mean|اقصد|أقصد|قصدي)\s*[:،,]?\s*','',message.strip(),flags=re.I).strip(' .؟?')
+        chosen = next((p for p in state.cognitive.projects()['items']
+                       if p['name'] in choices and p['name_key']==choice_text.casefold()),None)
+        if chosen:
+            association = state.cognitive.conversation_state(conversation_id)
+            state.cognitive.associate(conversation_id,chosen['id'],association['revision'])
+            with store.connect() as db, db:
+                db.execute('UPDATE memory_turn_projects SET project_id=?,revision=revision+1 WHERE turn_id=?', (chosen['id'],turn_id))
+        # A unique full project name in the owner's own project discussion is
+        # an explicit reference, unlike a semantic guess or shared keyword.
+        if not EXTERNAL.search(message) and re.search(r'\bproject|\bcontinue|\bresume|نكمل|مشروع',message,re.I):
+            project_id, ambiguous = Retrieval(state.cognitive).resolve_project(conversation_id,message)
+            association = state.cognitive.conversation_state(conversation_id)
+            if project_id and not ambiguous and association['project_id'] is None:
+                state.cognitive.associate(conversation_id,project_id,association['revision'])
         history, context = state.context(conversation_id, message, turn_id)
         memory = remember_request(message)
-        if memory:
+        if context.get('project_ambiguity'):
+            response = {'answer': 'Which project do you mean? / تقصد أي مشروع؟ ' +
+                        ' · '.join(context['project_ambiguity'])[:700],
+                        'proposal': None, 'mode': 'owner_memory', 'saved': False,
+                        'source': 'explicit_project_clarification', 'voice_enabled': False,
+                        'project_choices': context['project_ambiguity']}
+        elif memory:
             key, value = memory
             existing = next((m for m in state.memories()['items'] if m['key'] == key.casefold()), None)
             if existing and existing['content'] != value:

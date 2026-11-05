@@ -201,8 +201,75 @@ class CognitiveLedgerTests(unittest.TestCase):
         self.assertEqual(self.ledger.health()['jobs'], {})
         self.assertEqual(self.ledger.health()['deleted'], 1)
 
+    def test_forgotten_subject_cannot_return_from_old_unrelated_chat_backfill(self):
+        old = self.say('I prefer brief answers.')
+        self.conversation = self.chat.create()['id']
+        latest = self.say('I prefer concise answers.')
+        memory = self.chat.save_memory('communication.style','I prefer concise answers.',source_turn=latest['turn_id'])
+        self.chat.forget(memory['id'])
+        job = self.ledger.claim_job()
+        self.assertEqual(job['turn_id'], old['turn_id'])
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate('I prefer brief answers.')])
+        self.assertEqual(self.chat.memories()['items'],[])
+        # A genuinely new explicit statement after forgetting is new evidence.
+        self.conversation = self.chat.create()['id']
+        self.say('I prefer detailed answers.')
+        job = self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate('I prefer detailed answers.')])
+        self.assertEqual(self.chat.memories()['items'][0]['content'],'I prefer detailed answers.')
+
+    def test_delete_old_source_erases_its_snapshot_but_preserves_later_correction(self):
+        old_conversation = self.conversation
+        first = self.say('I prefer detailed answers.')
+        memory = self.chat.save_memory('communication.style','I prefer detailed answers.',source_turn=first['turn_id'])
+        self.conversation = self.chat.create()['id']
+        second = self.say('I prefer brief answers.')
+        self.chat.save_memory('communication.style','I prefer brief answers.',revision=1,source_turn=second['turn_id'])
+        self.chat.delete(old_conversation)
+        versions = self.ledger.versions(memory['id'])['items']
+        self.assertEqual(versions[1]['status'],'deleted')
+        self.assertIsNone(versions[1]['snapshot'])
+        self.assertEqual(self.chat.memories()['items'][0]['content'],'I prefer brief answers.')
+
+    def test_deleting_one_chat_keeps_fact_with_independent_owner_reaffirmation(self):
+        original=self.conversation
+        first=self.say('I prefer brief answers.')
+        saved=self.chat.save_memory('communication.style','I prefer brief answers.',source_turn=first['turn_id'])
+        self.conversation=self.chat.create()['id']
+        second=self.say('I prefer brief answers.')
+        replay=self.chat.save_memory('communication.style','I prefer brief answers.',source_turn=second['turn_id'])
+        self.assertEqual(replay['id'],saved['id'])
+        self.chat.delete(original)
+        current=self.chat.memories()['items'][0]
+        self.assertEqual(current['source_turn'],second['turn_id'])
+        self.assertEqual(current['revision'],2)
+        self.assertEqual(self.ledger.health()['deleted'],0)
+        self.chat.forget(current['id'])
+        self.assertNotIn('brief answers',json.dumps(self.chat.get(self.conversation)))
+
 
 class EvidenceGateTests(unittest.TestCase):
+    def test_metadata_normalization_uses_each_exact_owner_quote(self):
+        goal='في هذه المحادثة هدفي مراجعة خطة اختبار الاسترجاع.'
+        task='في هذه المحادثة أريد تنفيذ اختبار إعادة التشغيل كخطوة تالية.'
+        style='I prefer detailed answers with background explanations.'
+        proposed=[candidate(goal,'goals','instruction','conversation'),
+                  candidate(task,'architecture.database','decision','project'),
+                  candidate(style,'communication.style','instruction','conversation')]
+        result=validate_candidates(goal+' '+task+' '+style,proposed,'1'*32)
+        self.assertEqual([(r['kind'],r['scope'],r['key']) for r in result],[
+            ('goal','conversation','conversation.goal'),('task','conversation','conversation.pending_work'),
+            ('instruction','owner','communication.style')])
+
+    def test_one_off_reply_override_and_questions_never_become_permanent_preferences(self):
+        for quote in ['Please reply in English.','Answer this reply in English.',
+                      'How much background introduction do I prefer in your answers?',
+                      'أنا قلت لك تناديني بإيه؟']:
+            self.assertEqual(validate_candidates(quote,[candidate(quote,'communication.language')]),[])
+        scoped='Could you always answer in English in this conversation?'
+        result=validate_candidates(scoped,[candidate(scoped,'communication.language')])
+        self.assertEqual(result[0]['scope'],'conversation')
+
     def test_external_sensitive_unquoted_guesses_never_gain_authority(self):
         for message, quote in [
             ('The model says I prefer brief answers.', 'I prefer brief answers.'),

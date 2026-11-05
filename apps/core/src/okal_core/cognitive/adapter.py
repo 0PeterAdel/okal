@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import uuid
 
 from .providers import BASE_URL, LocalRuntime, configure
 from ..store import private_directory, private_file
@@ -59,13 +60,29 @@ class Mem0Adapter:
                        'digest': self.runtime.embedder.digest,
                        'dimensions': self.runtime.dimensions, 'prefix_version': 1}
         manifest = self.directory / 'index.json'
-        existed = manifest.exists()
-        private_file(manifest)
-        if existed and json.loads(manifest.read_text()) != fingerprint:
-            raise ValueError('embedding_upgrade_requires_new_index_and_rebuild')
-        if not existed:
+        initialize = not manifest.exists()
+        if manifest.exists() or manifest.is_symlink():
+            private_file(manifest)
+            raw = manifest.read_text()
+            if not raw and not any(index.iterdir()) and not (self.directory/'derived-history.sqlite3').exists():
+                initialize = True  # Recover the interrupted pre-index creation path.
+            elif not raw:
+                raise ValueError('index_manifest_corrupt_rebuild_required')
+            elif json.loads(raw) != fingerprint:
+                raise ValueError('embedding_upgrade_requires_new_index_and_rebuild')
+        if initialize:
             self.runtime.embed(['Verify embedding dimensions.'])
-        manifest.write_text(json.dumps(fingerprint), encoding='utf-8')
+            temporary=self.directory/('.index-'+uuid.uuid4().hex+'.tmp')
+            fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+            try:
+                with os.fdopen(fd,'w',encoding='utf-8') as stream:
+                    stream.write(json.dumps(fingerprint));stream.flush();os.fsync(stream.fileno())
+                os.replace(temporary,manifest)
+                directory_fd=os.open(self.directory,os.O_RDONLY|os.O_DIRECTORY)
+                try:os.fsync(directory_fd)
+                finally:os.close(directory_fd)
+            finally:
+                temporary.unlink(missing_ok=True)
         history = self.directory / 'derived-history.sqlite3'
         private_file(history)
         self.memory = Memory.from_config({
@@ -121,6 +138,13 @@ class Mem0Adapter:
             self.memory.delete(match['id'])
         self._purge_history()
         return {'id': memory_id, 'deleted': True}
+
+    def reset_projection(self):
+        # Reset the reviewed provider in place. Memory.reset() replaces its
+        # Qdrant client and can collide with the existing embedded path lock.
+        self.memory.vector_store.reset()
+        self._purge_history()
+        return {'reset': True}
 
     def _purge_history(self):
         # Mem0's internal change history is a disposable cache, never a second

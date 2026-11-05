@@ -80,6 +80,30 @@ class VaultTests(unittest.TestCase):
         with self.assertRaises(Conflict):
             self.vault.import_revision(self.memory['id'], 100)
 
+    def test_general_computer_actions_cannot_read_curated_vault(self):
+        from types import SimpleNamespace
+        from okal_core.computer.files import Files
+        from okal_core.computer.contracts import Denied
+        self.vault.export(self.memory)
+        files=Files([SimpleNamespace(root=self.temp.name,write=True)], self.store.directory)
+        with self.assertRaises(Denied):
+            files.read(str(self.vault._locate(self.memory['id'])[0]))
+
+    def test_automatic_note_text_cannot_embed_remote_images_or_break_fence(self):
+        content='I prefer literal examples: ![image](https://invalid.example/private) ``` <img src="https://invalid.example">'
+        record=self.chat.save_memory('literal examples',content)
+        self.vault.export(record)
+        path=self.vault._locate(record['id'])[0]
+        raw=path.read_text()
+        self.assertIn('````text\n'+content+'\n````',raw)
+        self.assertEqual(self.vault.preview(record['id'])['content'],content)
+
+    def test_ephemeral_conversation_tasks_do_not_create_vault_notes(self):
+        conversation=self.chat.create()['id']
+        record=self.chat.save_memory('pending','I need to run a temporary test.',kind='task',conversation_id=conversation)
+        self.assertEqual(self.vault.export(record)['status'],'not_curated')
+        self.assertEqual(self.vault._locate(record['id']),[])
+
 
 if __name__ == '__main__':
     unittest.main()

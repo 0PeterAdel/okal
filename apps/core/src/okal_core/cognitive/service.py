@@ -6,6 +6,9 @@ import threading
 
 from .process import AdapterClient, AdapterUnavailable
 from .vault import Vault
+from .learning import OWNER,EXTERNAL
+from .ledger import SENSITIVE
+from ..store import Conflict
 
 
 @contextmanager
@@ -59,15 +62,15 @@ class MemoryWorker:
             except AdapterUnavailable:
                 index_status, error = 'failed', 'local_adapter_unavailable'
         # Vault failure never prevents indexing or personal memory/chat use.
-        if vault_status != 'current':
+        if vault_status not in {'current','not_curated'}:
             try:
                 vault = Vault(self.ledger)
-                vault.export(record) if record else vault.delete(memory_id)
-                vault_status = 'current'
+                result=vault.export(record) if record else vault.delete(memory_id)
+                vault_status = 'not_curated' if result['status']=='not_curated' else 'current'
             except Exception:
                 vault_status, error = 'failed', 'vault_conflict_or_unavailable'
         attempts = job['attempts'] + 1
-        status = 'current' if index_status == vault_status == 'current' else (
+        status = 'current' if index_status == 'current' and vault_status in {'current','not_curated'} else (
             'failed' if attempts >= 5 else 'pending')
         with self.store.connect() as db, db:
             db.execute('''UPDATE memory_outbox SET index_status=?,vault_status=?,status=?,
@@ -81,6 +84,22 @@ class MemoryWorker:
         if not self.adapter.config_path.exists():
             self.status = 'not_configured'
             return
+        with self.store.connect() as db:
+            rebuild = dict(db.execute('SELECT * FROM memory_index_state WHERE id=1').fetchone())
+        if rebuild['status']=='pending' and rebuild['available_at']<=self.ledger.now:
+            try:
+                self.adapter.call('reset', {})
+            except AdapterUnavailable:
+                with self.store.connect() as db, db:
+                    db.execute('UPDATE memory_index_state SET status=?,attempts=attempts+1,available_at=? WHERE generation=?',
+                        ('failed' if rebuild['attempts']>=4 else 'pending', self.ledger.now+60,rebuild['generation']))
+                self.status='delayed'
+                return
+            with self.store.connect() as db, db:
+                db.execute('BEGIN IMMEDIATE')
+                for row in db.execute('SELECT id,revision FROM chat_memories').fetchall():
+                    self.ledger._outbox(db,row['id'],row['revision'],'upsert')
+                db.execute("UPDATE memory_index_state SET status='current',attempts=0 WHERE generation=?", (rebuild['generation'],))
         self.ledger.backfill()
         with self.store.connect() as db:
             ready = [dict(r) for r in db.execute("SELECT * FROM memory_outbox WHERE status='pending' "
@@ -100,19 +119,29 @@ class MemoryWorker:
             job = self.ledger.claim_job()
             if job:
                 try:
-                    state = self.ledger.conversation_state(job['conversation_id'])
+                    project_id=job['scope_project_id']
                     # Existing subject labels help Mem0 consolidate; source text
                     # and authoritative revision checks remain in Core.
                     with self.store.connect() as db:
                         existing = [dict(r) for r in db.execute(
-                            'SELECT key,kind,scope FROM chat_memories WHERE scope IN (?,?,?) '
+                            'SELECT id,revision,key,kind,scope FROM chat_memories WHERE scope IN (?,?,?) '
                             'ORDER BY updated_at DESC LIMIT 16',
-                            ('owner', job['conversation_id'], 'project:' + (state['project_id'] or '')))]
+                            ('owner', job['conversation_id'], 'project:' + (project_id or '')))]
+                    if OWNER.search(job['user_text']) and not EXTERNAL.search(job['user_text']) and not SENSITIVE.search(job['user_text']):
+                        # Mem0 semantic retrieval supplies consolidation subjects;
+                        # Core resolves every returned ID/revision and scope.
+                        hits=self.adapter.call('search',{'query':job['user_text'],'limit':8})
+                        related=[r for r in self.ledger.active(hits) if r['scope'] in {
+                            'owner',job['conversation_id'],'project:'+(project_id or '')}]
+                        candidates=[{k:r[k] for k in ('id','revision','key','kind','scope')} for r in related]+existing
+                        existing=list({r['id']:r for r in candidates}.values())[:16]
                     candidates = self.adapter.call('extract', {'message': job['user_text'],
-                        'project_id': state['project_id'], 'existing': existing})
+                        'project_id': project_id, 'existing': existing})
                     self.ledger.apply_job(job['turn_id'], job['lease'], candidates)
-                except Exception:
-                    self.ledger.fail_job(job['turn_id'], job['lease'])
+                except Exception as exc:
+                    code='source_changed' if isinstance(exc,Conflict) else (
+                        'local_adapter_unavailable' if isinstance(exc,AdapterUnavailable) else 'invalid_candidates')
+                    self.ledger.fail_job(job['turn_id'], job['lease'],code)
                     self.status = 'delayed'
                     return
         self.status = 'idle'

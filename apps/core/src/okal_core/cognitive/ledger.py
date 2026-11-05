@@ -62,6 +62,10 @@ class Ledger:
                     conversation_id TEXT PRIMARY KEY REFERENCES chat_conversations(id) ON DELETE CASCADE,
                     project_id TEXT REFERENCES memory_projects(id), revision INTEGER NOT NULL DEFAULT 1,
                     state TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL)''',
+                '''CREATE TABLE IF NOT EXISTS memory_turn_projects (
+                    turn_id TEXT PRIMARY KEY REFERENCES chat_turns(id) ON DELETE CASCADE,
+                    project_id TEXT REFERENCES memory_projects(id) ON DELETE SET NULL,
+                    revision INTEGER NOT NULL DEFAULT 1)''',
                 '''CREATE TABLE IF NOT EXISTS memory_meta (
                     memory_id TEXT PRIMARY KEY REFERENCES chat_memories(id) ON DELETE CASCADE,
                     project_id TEXT REFERENCES memory_projects(id),
@@ -78,6 +82,8 @@ class Ledger:
                 '''CREATE TABLE IF NOT EXISTS memory_tombstones (
                     memory_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
                     deleted_at INTEGER NOT NULL)''',
+                '''CREATE TABLE IF NOT EXISTS memory_subject_tombstones (
+                    subject_hash TEXT PRIMARY KEY, cutoff_seq INTEGER NOT NULL)''',
                 '''CREATE TABLE IF NOT EXISTS memory_outbox (
                     memory_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
                     operation TEXT NOT NULL CHECK(operation IN ('upsert','delete')),
@@ -92,13 +98,34 @@ class Ledger:
                     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)''',
                 '''CREATE INDEX IF NOT EXISTS memory_jobs_ready
                     ON memory_jobs(status,available_at,created_at)''',
+                '''CREATE TABLE IF NOT EXISTS memory_turn_sources (
+                    turn_id TEXT NOT NULL REFERENCES chat_turns(id) ON DELETE CASCADE,
+                    source_turn TEXT NOT NULL REFERENCES chat_turns(id) ON DELETE CASCADE,
+                    PRIMARY KEY(turn_id,source_turn))''',
                 '''CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
                     memory_id UNINDEXED, key, content, tokenize='unicode61 remove_diacritics 2')''',
             )
             for statement in statements:
                 db.execute(statement)
+            archive_exists = db.execute("SELECT 1 FROM sqlite_master WHERE name='chat_archive_fts'").fetchone()
+            db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chat_archive_fts USING fts5(user_text,response,content='chat_turns',content_rowid='seq')")
+            db.execute('''CREATE TRIGGER IF NOT EXISTS chat_archive_insert AFTER INSERT ON chat_turns BEGIN
+                INSERT INTO chat_archive_fts(rowid,user_text,response) VALUES(new.seq,new.user_text,new.response); END''')
+            db.execute('''CREATE TRIGGER IF NOT EXISTS chat_archive_delete AFTER DELETE ON chat_turns BEGIN
+                INSERT INTO chat_archive_fts(chat_archive_fts,rowid,user_text,response)
+                VALUES('delete',old.seq,old.user_text,old.response); END''')
+            db.execute('''CREATE TRIGGER IF NOT EXISTS chat_archive_update AFTER UPDATE ON chat_turns BEGIN
+                INSERT INTO chat_archive_fts(chat_archive_fts,rowid,user_text,response)
+                VALUES('delete',old.seq,old.user_text,old.response);
+                INSERT INTO chat_archive_fts(rowid,user_text,response) VALUES(new.seq,new.user_text,new.response); END''')
+            if not archive_exists:
+                db.execute("INSERT INTO chat_archive_fts(chat_archive_fts) VALUES('rebuild')")
             db.execute('CREATE TABLE IF NOT EXISTS memory_clock (id INTEGER PRIMARY KEY CHECK(id=1),seq INTEGER NOT NULL)')
             db.execute('INSERT OR IGNORE INTO memory_clock VALUES(1,0)')
+            db.execute('''CREATE TABLE IF NOT EXISTS memory_index_state (
+                id INTEGER PRIMARY KEY CHECK(id=1),generation INTEGER NOT NULL,
+                status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,available_at INTEGER NOT NULL DEFAULT 0)''')
+            db.execute("INSERT OR IGNORE INTO memory_index_state(id,generation,status) VALUES(1,1,'current')")
             columns = {r['name'] for r in db.execute('PRAGMA table_info(memory_outbox)')}
             for column in ('index_status', 'vault_status'):
                 if column not in columns:
@@ -112,6 +139,9 @@ class Ledger:
                     if column not in columns:
                         db.execute('ALTER TABLE ' + table + ' ADD COLUMN ' + column +
                                    ' INTEGER NOT NULL DEFAULT ' + str(default))
+            columns = {r['name'] for r in db.execute('PRAGMA table_info(memory_jobs)')}
+            if 'scope_project_id' not in columns:
+                db.execute('ALTER TABLE memory_jobs ADD COLUMN scope_project_id TEXT')
             if first:
                 # Owner requested keep-until-deleted. The former default 90
                 # cannot be distinguished from an explicitly selected 90 in v1.
@@ -186,6 +216,9 @@ class Ledger:
             old = db.execute('SELECT * FROM chat_memories WHERE scope=? AND key=?', (scope, key)).fetchone()
             if old and old['content'] == content and old['kind'] == kind:
                 if revision in (0, old['revision'] - 1):
+                    if source_turn:
+                        db.execute('INSERT OR IGNORE INTO memory_evidence VALUES(?,?,?,?)',
+                                   (old['id'],old['revision'],source_turn,content))
                     return dict(old)
             if (old and revision != old['revision']) or (not old and revision != 0):
                 raise Conflict('memory_revision_conflict')
@@ -224,13 +257,14 @@ class Ledger:
     def forget(self, db, memory_id):
         from ..intelligence import identifier
         identifier(memory_id)
-        row = db.execute('SELECT revision,content FROM chat_memories WHERE id=?', (memory_id,)).fetchone()
+        row = db.execute('SELECT revision,content,scope,key FROM chat_memories WHERE id=?', (memory_id,)).fetchone()
         if row is None:
             return
         evidence = db.execute('SELECT turn_id,quote FROM memory_evidence WHERE memory_id=?',
                               (memory_id,)).fetchall()
         affected = {r[0] for r in db.execute('SELECT turn_id FROM chat_sources WHERE memory_id=?', (memory_id,))}
         quotes = {r['quote'] for r in evidence} | {row['content']}
+        invalidated = set(affected)
         # Exact source spans are removed throughout the archive. Other owner
         # sentences survive; dependent assistant responses are invalidated.
         for turn in db.execute('SELECT id,user_text,conversation_id FROM chat_turns').fetchall():
@@ -239,6 +273,7 @@ class Ledger:
                 cleaned = cleaned.replace(quote, '[forgotten]')
             changed = cleaned != turn['user_text']
             if changed or turn['id'] in affected:
+                invalidated.add(turn['id'])
                 db.execute("UPDATE chat_turns SET user_text=?,response=NULL,status='failed',"
                            'lease=NULL,lease_until=NULL,digest=? WHERE id=?', (
                     cleaned, hashlib.sha256(cleaned.encode()).hexdigest(), turn['id']))
@@ -249,17 +284,75 @@ class Ledger:
                 # Derived per-chat summaries may paraphrase the fact.
                 db.execute("UPDATE memory_conversations SET state='{}',revision=revision+1 WHERE conversation_id=?",
                            (turn['conversation_id'],))
+        self.invalidate_sources(db, invalidated)
         db.execute('UPDATE memory_versions SET snapshot=NULL,status=\'deleted\' WHERE memory_id=?', (memory_id,))
         db.execute('DELETE FROM memory_evidence WHERE memory_id=?', (memory_id,))
         db.execute('DELETE FROM memory_fts WHERE memory_id=?', (memory_id,))
+        db.execute("INSERT INTO memory_fts(memory_fts) VALUES('optimize')")
+        db.execute("INSERT INTO chat_archive_fts(chat_archive_fts) VALUES('optimize')")
         db.execute('DELETE FROM chat_memories WHERE id=?', (memory_id,))
         revision = row['revision'] + 1
         db.execute('INSERT OR REPLACE INTO memory_tombstones VALUES(?,?,?)', (memory_id, revision, self.now))
+        subject_hash = hashlib.sha256((row['scope'] + '\0' + row['key']).encode()).hexdigest()
+        db.execute('INSERT OR REPLACE INTO memory_subject_tombstones VALUES(?,?)', (subject_hash,self._next_seq(db)))
         self._outbox(db, memory_id, revision, 'delete')
+
+    def invalidate_sources(self, db, turn_ids):
+        """Fence transitive archive/history consumers without erasing owner text."""
+        dependents = db.execute('''WITH RECURSIVE affected(id) AS (
+            SELECT value FROM json_each(?) UNION
+            SELECT s.turn_id FROM memory_turn_sources s JOIN affected a ON s.source_turn=a.id)
+            SELECT id FROM affected''', (json.dumps(list(turn_ids)),)).fetchall()
+        for dependent in dependents:
+            db.execute("UPDATE chat_turns SET response=NULL,status='failed',lease=NULL,lease_until=NULL WHERE id=?",
+                       (dependent[0],))
+            # Its owner message remains evidence, but a late worker must
+            # not finish against the invalidated context/source generation.
+            db.execute("UPDATE memory_jobs SET status='forgotten',lease=NULL,lease_until=NULL WHERE turn_id=?",
+                       (dependent[0],))
+
+    def deleting_history(self, db, conversation_id):
+        sources = {r[0] for r in db.execute('SELECT id FROM chat_turns WHERE conversation_id=?', (conversation_id,))}
+        sources.update(r[0] for r in db.execute('''SELECT s.turn_id FROM chat_sources s
+            JOIN memory_evidence e ON e.memory_id=s.memory_id JOIN chat_turns t ON t.id=e.turn_id
+            WHERE t.conversation_id=?''', (conversation_id,)))
+        self.invalidate_sources(db, sources)
+        # Current facts with another source survive; old snapshots tied to the
+        # deleted source do not remain as a hidden competing history.
+        db.execute('''UPDATE memory_versions SET snapshot=NULL,status='deleted' WHERE (memory_id,revision) IN
+            (SELECT memory_id,revision FROM memory_evidence WHERE turn_id IN
+            (SELECT id FROM chat_turns WHERE conversation_id=?))''', (conversation_id,))
+        for row in db.execute('SELECT conversation_id,state FROM memory_conversations').fetchall():
+            state = json.loads(row['state'])
+            cleaned = {k:v for k,v in state.items() if v.get('turn_id') not in sources}
+            if cleaned != state:
+                db.execute('UPDATE memory_conversations SET state=?,revision=revision+1 WHERE conversation_id=?',
+                           (json.dumps(cleaned,ensure_ascii=False),row['conversation_id']))
+
+    def retain_independent_source(self, db, memory_id, deleted_conversation):
+        """Deleting one chat is not forgetting a fact restated in another chat."""
+        row=db.execute('SELECT * FROM chat_memories WHERE id=?',(memory_id,)).fetchone()
+        if row is None or row['conversation_id']==deleted_conversation:
+            return False
+        alternative=db.execute('''SELECT e.turn_id FROM memory_evidence e JOIN chat_turns t ON t.id=e.turn_id
+            WHERE e.memory_id=? AND e.revision=? AND t.conversation_id<>?
+            AND instr(t.user_text,e.quote)>0 ORDER BY t.seq DESC LIMIT 1''',
+            (memory_id,row['revision'],deleted_conversation)).fetchone()
+        if alternative is None:
+            return False
+        record=dict(row,source_turn=alternative[0],revision=row['revision']+1,updated_at=self.now)
+        db.execute('UPDATE chat_memories SET source_turn=?,revision=?,updated_at=? WHERE id=?',
+                   (record['source_turn'],record['revision'],self.now,memory_id))
+        db.execute('UPDATE memory_meta SET write_seq=? WHERE memory_id=?',(self._next_seq(db),memory_id))
+        self._snapshot(db,record)
+        db.execute('INSERT INTO memory_evidence VALUES(?,?,?,?)',
+                   (memory_id,record['revision'],record['source_turn'],record['content']))
+        self._outbox(db,memory_id,record['revision'],'upsert')
+        return True
 
     def _backfill(self, db, limit=100):
         rows = db.execute("SELECT t.id,t.digest,t.seq FROM chat_turns t LEFT JOIN memory_jobs j "
-                          "ON j.turn_id=t.id WHERE t.status='complete' AND j.turn_id IS NULL "
+                          "ON j.turn_id=t.id WHERE t.status IN ('complete','failed') AND t.response IS NOT NULL AND j.turn_id IS NULL "
                           "ORDER BY t.seq LIMIT ?", (limit,)).fetchall()
         for row in rows:
             # A stable negative sequence orders historical turns before new
@@ -269,7 +362,7 @@ class Ledger:
         return len(rows)
 
     def enqueue(self, db, turn_id):
-        if db.execute("SELECT 1 FROM chat_turns WHERE id=? AND status='complete'", (turn_id,)).fetchone() and not db.execute(
+        if db.execute("SELECT 1 FROM chat_turns WHERE id=? AND status IN ('complete','failed') AND response IS NOT NULL", (turn_id,)).fetchone() and not db.execute(
                 'SELECT 1 FROM memory_jobs WHERE turn_id=?', (turn_id,)).fetchone():
             db.execute('''INSERT INTO memory_jobs(turn_id,digest,created_at,updated_at,source_seq)
                 SELECT id,digest,?,?,? FROM chat_turns WHERE id=?''',
@@ -286,18 +379,27 @@ class Ledger:
         from ..intelligence import identifier
         identifier(memory_id)
         with self.store.connect() as db:
-            return {'items': [dict(r, snapshot=json.loads(r['snapshot']) if r['snapshot'] else None)
+            return {'sources': [dict(r) for r in db.execute('''SELECT e.turn_id,e.quote,t.conversation_id,t.created_at
+                                  FROM memory_evidence e JOIN chat_turns t ON t.id=e.turn_id
+                                  WHERE e.memory_id=? ORDER BY e.revision DESC LIMIT 100''', (memory_id,))],
+                    'items': [dict(r, snapshot=json.loads(r['snapshot']) if r['snapshot'] else None)
                               for r in db.execute('SELECT * FROM memory_versions WHERE memory_id=? '
                                                   'ORDER BY revision DESC LIMIT 100', (memory_id,))]}
 
     def active(self, ids: list[dict]):
         """No stale vector, forged scope or stale vault revision gains authority."""
-        if len(ids) > 24:
+        from ..intelligence import identifier
+        if not isinstance(ids,list) or len(ids) > 24:
             raise ValueError('retrieval_result_budget')
         result = []
         with self.store.connect() as db:
             for candidate in ids:
-                row = db.execute('''SELECT m.*,x.project_id,x.assertion FROM chat_memories m
+                if not isinstance(candidate,dict):
+                    raise ValueError('invalid_retrieval_reference')
+                identifier(candidate.get('id'))
+                if type(candidate.get('revision')) is not int or candidate['revision'] < 1:
+                    raise ValueError('invalid_retrieval_revision')
+                row = db.execute('''SELECT m.*,x.project_id,x.assertion,x.effective_seq FROM chat_memories m
                     JOIN memory_meta x ON x.memory_id=m.id LEFT JOIN memory_tombstones t ON t.memory_id=m.id
                     WHERE m.id=? AND m.revision=? AND t.memory_id IS NULL
                     AND (m.expires_at=0 OR m.expires_at>?)''',
@@ -309,9 +411,30 @@ class Ledger:
     def health(self):
         with self.store.connect() as db:
             counts = lambda table: {r[0]: r[1] for r in db.execute('SELECT status,COUNT(*) FROM ' + table + ' GROUP BY status')}
-            return {'schema': 1, 'jobs': counts('memory_jobs'), 'index': counts('memory_outbox'),
+            worker = getattr(self.store, 'memory_worker', None)
+            return {'schema': 1, 'jobs': counts('memory_jobs'), 'projections': counts('memory_outbox'),
+                    'index': {r[0]:r[1] for r in db.execute('SELECT index_status,COUNT(*) FROM memory_outbox GROUP BY index_status')},
+                    'vault': {r[0]:r[1] for r in db.execute('SELECT vault_status,COUNT(*) FROM memory_outbox GROUP BY vault_status')},
+                    'worker': worker.status if worker else 'not_started',
+                    'configured': (self.store.directory/'cognitive.json').exists(),
+                    'rebuild': dict(db.execute('SELECT generation,status,attempts FROM memory_index_state WHERE id=1').fetchone()),
                     'active': db.execute('SELECT COUNT(*) FROM chat_memories').fetchone()[0],
                     'deleted': db.execute('SELECT COUNT(*) FROM memory_tombstones').fetchone()[0]}
+
+    def browse(self, status='current', offset=0):
+        if status not in {'current','superseded','deleted','inferred','unverified'} or type(offset) is not int or not 0 <= offset <= 1_000_000:
+            raise ValueError('invalid_memory_browser_filter')
+        with self.store.connect() as db:
+            if status in {'current','inferred','unverified'}:
+                rows = db.execute('''SELECT m.*,x.assertion,x.project_id FROM chat_memories m JOIN memory_meta x ON x.memory_id=m.id
+                    WHERE (?='current' OR x.assertion=?) AND (m.expires_at=0 OR m.expires_at>?)
+                    ORDER BY m.updated_at DESC,m.id LIMIT 51 OFFSET ?''', (status,status,self.now,offset)).fetchall()
+                items = [dict(r,status=r['assertion']) for r in rows[:50]]
+            else:
+                rows = db.execute('SELECT * FROM memory_versions WHERE status=? ORDER BY created_at DESC,memory_id,revision DESC LIMIT 51 OFFSET ?',
+                                  (status,offset)).fetchall()
+                items = [dict(r,snapshot=json.loads(r['snapshot']) if r['snapshot'] else None) for r in rows[:50]]
+            return {'items':items, 'next_offset':offset+50 if len(rows)>50 else None}
 
     def projects(self):
         with self.store.connect() as db:
@@ -363,6 +486,19 @@ class Ledger:
                 VALUES(?,?,?,?) ON CONFLICT(conversation_id) DO UPDATE SET project_id=excluded.project_id,
                 revision=excluded.revision,updated_at=excluded.updated_at''',
                 (conversation_id, project_id, revision + 1, self.now))
+            if old is None or old['project_id'] is None:
+                # First explicit association may bind previously unassigned
+                # source turns. Switching projects never relabels old sources.
+                db.execute('''INSERT INTO memory_turn_projects(turn_id,project_id)
+                    SELECT id,? FROM chat_turns WHERE conversation_id=? AND 1
+                    ON CONFLICT(turn_id) DO UPDATE SET project_id=excluded.project_id,
+                    revision=memory_turn_projects.revision+1 WHERE memory_turn_projects.project_id IS NULL''',
+                    (project_id,conversation_id))
+            db.execute('''UPDATE memory_turn_projects SET project_id=?,revision=revision+1 WHERE turn_id IN
+                (SELECT j.turn_id FROM memory_jobs j JOIN chat_turns t ON t.id=j.turn_id
+                WHERE j.status='scope_required' AND t.conversation_id=?)''', (project_id,conversation_id))
+            db.execute("UPDATE memory_jobs SET status='pending',lease=NULL,lease_until=NULL WHERE status='scope_required' "
+                       'AND turn_id IN (SELECT id FROM chat_turns WHERE conversation_id=?)', (conversation_id,))
             return {'conversation_id': conversation_id, 'project_id': project_id, 'revision': revision + 1}
 
     def conversation_state(self, conversation_id):
@@ -386,18 +522,20 @@ class Ledger:
             row = db.execute('''SELECT j.*,t.user_text,t.conversation_id FROM memory_jobs j
                 JOIN chat_turns t ON t.id=j.turn_id WHERE j.attempts<5 AND j.available_at<=?
                 AND (j.status='pending' OR (j.status='running' AND j.lease_until<=?))
-                AND t.status='complete' AND t.digest=j.digest ORDER BY t.seq LIMIT 1''',
+                AND t.status IN ('complete','failed') AND t.response IS NOT NULL
+                AND t.digest=j.digest ORDER BY t.seq LIMIT 1''',
                 (self.now, self.now)).fetchone()
             if row is None:
                 return None
             lease = uid()
             basis = db.execute('SELECT seq FROM memory_clock WHERE id=1').fetchone()[0]
-            association = db.execute('SELECT revision FROM memory_conversations WHERE conversation_id=?',
-                                     (row['conversation_id'],)).fetchone()
+            association = db.execute('SELECT project_id,revision FROM memory_turn_projects WHERE turn_id=?',
+                                     (row['turn_id'],)).fetchone()
             db.execute("UPDATE memory_jobs SET status='running',attempts=attempts+1,lease=?,"
-                       'lease_until=?,updated_at=?,basis_seq=?,project_revision=? WHERE turn_id=?',
-                       (lease, self.now + 140, self.now, basis, association[0] if association else 0, row['turn_id']))
-            return dict(row, lease=lease)
+                       'lease_until=?,updated_at=?,basis_seq=?,project_revision=?,scope_project_id=? WHERE turn_id=?',
+                       (lease, self.now + 140, self.now, basis, association[1] if association else 0,
+                        association[0] if association else None, row['turn_id']))
+            return dict(row, lease=lease, scope_project_id=association[0] if association else None)
 
     def fail_job(self, turn_id, lease, code='local_adapter_unavailable'):
         if code not in {'local_adapter_unavailable', 'invalid_candidates', 'source_changed', 'projection_failed'}:
@@ -413,15 +551,17 @@ class Ledger:
         with self.store.connect() as db, db:
             db.execute('BEGIN IMMEDIATE')
             job = db.execute('''SELECT j.*,t.user_text,t.conversation_id,t.digest AS current_digest,
-                t.status AS turn_status FROM memory_jobs j JOIN chat_turns t ON t.id=j.turn_id
+                t.status AS turn_status,t.response AS turn_response FROM memory_jobs j JOIN chat_turns t ON t.id=j.turn_id
                 WHERE j.turn_id=? AND j.lease=? AND j.status='running' AND j.lease_until>?''',
                 (turn_id, lease, self.now)).fetchone()
-            if job is None or job['current_digest'] != job['digest'] or job['turn_status'] != 'complete':
+            if (job is None or job['current_digest'] != job['digest']
+                    or job['turn_status'] not in {'complete','failed'} or job['turn_response'] is None):
                 raise Conflict('source_changed_or_job_lease_lost')
-            association = db.execute('SELECT project_id,revision FROM memory_conversations WHERE conversation_id=?',
-                                     (job['conversation_id'],)).fetchone()
+            association = db.execute('SELECT project_id,revision FROM memory_turn_projects WHERE turn_id=?',
+                                     (turn_id,)).fetchone()
             project_id = association[0] if association else None
-            if job['project_revision'] != (association[1] if association else 0):
+            if (job['project_revision'] != (association[1] if association else 0)
+                    or job['scope_project_id'] != project_id):
                 raise Conflict('conversation_association_changed_during_extraction')
             approved = validate_candidates(job['user_text'], candidates, project_id)
             saved = []
@@ -431,10 +571,16 @@ class Ledger:
             for candidate in approved:
                 scope = job['conversation_id'] if candidate['scope'] == 'conversation' else (
                     'project:' + project_id if candidate['scope'] == 'project' else 'owner')
+                subject_hash = hashlib.sha256((scope + '\0' + candidate['key']).encode()).hexdigest()
+                if db.execute('SELECT 1 FROM memory_subject_tombstones WHERE subject_hash=? AND cutoff_seq>=?',
+                              (subject_hash,job['source_seq'])).fetchone():
+                    continue
                 old = db.execute('SELECT m.*,x.write_seq,x.effective_seq FROM chat_memories m '
                                  'JOIN memory_meta x ON x.memory_id=m.id WHERE m.scope=? AND m.key=?',
                                  (scope, candidate['key'])).fetchone()
                 if old and old['content'] == candidate['quote']:
+                    db.execute('INSERT OR IGNORE INTO memory_evidence VALUES(?,?,?,?)',
+                        (old['id'],old['revision'],turn_id,candidate['quote']))
                     continue
                 if old and old['write_seq'] > job['basis_seq']:
                     raise Conflict('memory_changed_during_extraction')
@@ -467,4 +613,12 @@ class Ledger:
                               "WHERE status='failed'").rowcount
             projections = db.execute("UPDATE memory_outbox SET status='pending',attempts=0,available_at=0,error=NULL "
                                      "WHERE status='failed'").rowcount
+            db.execute("UPDATE memory_index_state SET status='pending',attempts=0,available_at=0 WHERE status='failed'")
             return {'retried_jobs': jobs, 'retried_projections': projections}
+
+    def request_rebuild(self):
+        with self.store.connect() as db, db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute("UPDATE memory_index_state SET generation=generation+1,status='pending',attempts=0,available_at=0 WHERE id=1")
+            return {'generation': db.execute('SELECT generation FROM memory_index_state WHERE id=1').fetchone()[0],
+                    'status':'pending'}

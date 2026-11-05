@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from .config import AdapterConfig
-from .providers import LocalRuntime, install_network_guard
+from .providers import LocalRuntime, install_network_guard, install_file_guard
 
 
 def dispatch(adapter, method, payload):
@@ -17,6 +17,8 @@ def dispatch(adapter, method, payload):
         raise ValueError('invalid_memory_payload')
     if method == 'ping' and not payload:
         return {'local': True, 'engine': 'mem0', 'index': 'qdrant'}
+    if method == 'reset' and not payload:
+        return adapter.reset_projection()
     if method == 'search' and set(payload) == {'query', 'limit'}:
         return adapter.search(payload['query'], payload['limit'])
     if method == 'project' and set(payload) == {'record'}:
@@ -36,6 +38,7 @@ def main():
     os.umask(0o077)
     config = AdapterConfig.read(args.config)
     install_network_guard()
+    install_file_guard(args.directory,Path(__file__).resolve().parents[2])
     from .adapter import Mem0Adapter
     runtime = LocalRuntime(config.llm, config.embedding, config.dimensions,
                            embedding_gpu=config.embedding_gpu)

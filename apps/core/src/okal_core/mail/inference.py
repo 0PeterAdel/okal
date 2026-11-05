@@ -101,6 +101,9 @@ class LocalModel:
                 "keep_alive": "2m" if reuse_model else 0,
             },
         )
+        self.last_usage={key:response.get(key) for key in (
+            'prompt_eval_count','eval_count','total_duration','load_duration')
+            if type(response.get(key)) is int and response[key]>=0}
         try:
             if (
                 response.get("done") is not True

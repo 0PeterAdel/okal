@@ -13,6 +13,7 @@ import time
 import uuid
 
 from .config import AdapterConfig
+from ..store import private_directory
 
 
 class AdapterUnavailable(ValueError):
@@ -35,17 +36,20 @@ class AdapterClient:
         environment = {
             'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'PYTHONPATH': str(source),
             'PYTHONNOUSERSITE': '1', 'MEM0_TELEMETRY': 'False', 'DO_NOT_TRACK': '1',
+            'PYTHONDONTWRITEBYTECODE': '1',
             'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
             'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1', 'OTEL_SDK_DISABLED': 'true',
         }
+        projection=private_directory(self.directory/'cognitive')
         self.process = subprocess.Popen([
             str(config.python), '-m', 'okal_core.cognitive.worker_process',
             '--config', str(self.config_path), '--directory', str(self.directory / 'cognitive')],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            cwd=self.directory, env=environment, shell=False, bufsize=0, close_fds=True)
+            cwd=projection, env=environment, shell=False, bufsize=0, close_fds=True)
+        os.set_blocking(self.process.stdin.fileno(), False)
 
     def call(self, method, payload, *, timeout=90, opportunistic=False):
-        if method not in {'project', 'delete', 'search', 'extract', 'ping'}:
+        if method not in {'project', 'delete', 'search', 'extract', 'ping', 'reset'}:
             raise ValueError('unknown_memory_operation')
         if not self.lock.acquire(timeout=0 if opportunistic else 1):
             raise AdapterUnavailable('memory_adapter_busy')
@@ -56,9 +60,16 @@ class AdapterClient:
             raw = json.dumps({'id': request_id, 'method': method, 'payload': payload}, ensure_ascii=False).encode() + b'\n'
             if len(raw) > 32_000:
                 raise ValueError('memory_request_budget')
-            process.stdin.write(raw)
-            process.stdin.flush()
             deadline = time.monotonic() + timeout
+            sent = 0
+            while sent < len(raw):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not select.select([], [process.stdin], [], remaining)[1]:
+                    raise AdapterUnavailable('memory_adapter_timeout')
+                try:
+                    sent += os.write(process.stdin.fileno(),raw[sent:])
+                except BlockingIOError:
+                    continue
             result = bytearray()
             while True:
                 remaining = deadline - time.monotonic()

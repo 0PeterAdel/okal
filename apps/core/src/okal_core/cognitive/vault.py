@@ -4,10 +4,12 @@ Only owner-confirmed imports can revise SQLite. Stale notes never create facts.
 Stable ID filenames avoid path construction from owner text or model output.
 """
 import hashlib
+import html
 import json
 import os
 from pathlib import Path
 import stat
+import re
 import uuid
 
 from ..store import Conflict, private_directory
@@ -33,6 +35,11 @@ class Vault:
                   'preferences' if record['scope'] == 'owner' else 'projects')
         return private_directory(self.root / folder) / ('memory-' + record['id'] + '.md')
 
+    def curated(self, record):
+        return (record['scope']=='owner' or record['scope'].startswith('project:')
+                or record['kind']=='lesson') and record['kind'] in {
+                    'semantic','instruction','decision','goal','constraint','lesson'}
+
     def _read(self, path):
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         try:
@@ -54,10 +61,18 @@ class Vault:
             metadata[key] = json.loads(value)
         if set(metadata) != {'okal', 'memory_id', 'revision', 'scope', 'base_sha256', 'source_turn'}:
             raise ValueError('invalid_vault_metadata')
-        if (metadata['okal'] != 1 or type(metadata['revision']) is not int
-                or body.count(START) != 1 or body.count(END) != 1):
+        if type(metadata['okal']) is not int or metadata['okal'] not in {1,2} or type(metadata['revision']) is not int:
             raise ValueError('invalid_vault_note_contract')
-        content = body.split(START, 1)[1].split(END, 1)[0].strip()
+        if metadata['okal']==1:
+            if body.count(START)!=1 or body.count(END)!=1:
+                raise ValueError('invalid_vault_note_contract')
+            content = body.split(START, 1)[1].split(END, 1)[0].strip()
+        else:
+            prefix,separator,statement=body.partition('\n## Owner statement\n\n')
+            match=re.fullmatch(r'(`{3,})text\n(.*)\n\1\n?',statement,re.S) if separator else None
+            if match is None:
+                raise ValueError('edit_inside_vault_statement_block')
+            content=match[2].strip()
         return metadata, content
 
     def export(self, record):
@@ -68,6 +83,9 @@ class Vault:
             return self._export(record)
 
     def _export(self, record):
+        if not self.curated(record):
+            self.delete(record['id'])
+            return {'memory_id':record['id'],'revision':record['revision'],'status':'not_curated'}
         path = self._path(record)
         if path.exists() or path.is_symlink():
             metadata, content = self._read(path)
@@ -77,15 +95,21 @@ class Vault:
                 raise Conflict('vault_owner_edit_requires_import_or_discard')
             if metadata['revision'] > record['revision']:
                 raise Conflict('vault_newer_revision_conflict')
-        metadata = {'okal': 1, 'memory_id': record['id'], 'revision': record['revision'],
+        metadata = {'okal': 2, 'memory_id': record['id'], 'revision': record['revision'],
                     'scope': record['scope'], 'base_sha256': digest(record['content']),
                     'source_turn': record.get('source_turn')}
-        title = record['key'].replace('\n', ' ').replace('#', '').replace('[', '').replace(']', '')
+        titles={'communication.language':'Reply language','communication.style':'Communication style',
+                'communication.structure':'Response structure','architecture.database':'Database decision'}
+        title = html.escape(titles.get(record['key'],record['key'].replace('_',' ').replace('.',' ')))
+        title = title.replace('\n',' ').replace('#','').replace('[','').replace(']','')
         link = '\nProject: [[project-' + record['scope'][8:] + ']]\n' if record['scope'].startswith('project:') else ''
         raw = '---\n' + '\n'.join(k + ': ' + json.dumps(v, ensure_ascii=False)
                                    for k,v in metadata.items()) + '\n---\n# ' + title + '\n'
-        raw += link + '\nOwner statement; not independently verified.\n\n' + START + '\n'
-        raw += record['content'] + '\n' + END + '\n'
+        # Literal text fences prevent an automatically extracted remote image,
+        # HTML tag or link from making Obsidian fetch private URLs on open.
+        fence='`'*max(3,1+max((len(v) for v in re.findall(r'`+',record['content'])),default=0))
+        raw += link + '\nOwner statement; not independently verified.\n\n## Owner statement\n\n'
+        raw += fence+'text\n'+record['content']+'\n'+fence+'\n'
         temporary = path.with_name('.' + uuid.uuid4().hex + '.tmp')
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         try:
@@ -130,8 +154,6 @@ class Vault:
             raise Conflict('vault_stale_or_deleted_no_import')
         from ..intelligence import text
         content = text(content, 600)
-        if START in content or END in content:
-            raise ValueError('invalid_vault_content')
         return {'memory_id': memory_id, 'revision': metadata['revision'],
                 'content': content, 'changed': content != records[0]['content']}
 

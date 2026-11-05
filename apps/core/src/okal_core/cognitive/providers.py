@@ -9,6 +9,8 @@ import math
 import re
 import socket
 import sys
+import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -168,4 +170,40 @@ def install_network_guard():
                 raise PermissionError('memory_dns_denied')
         elif event in {'socket.bind', 'subprocess.Popen', 'os.system', 'os.exec', 'os.posix_spawn'}:
             raise PermissionError('memory_process_operation_denied')
+    sys.addaudithook(audit)
+
+
+def install_file_guard(directory: Path, source: Path):
+    """Reject accidental Python-level access to Core DB, credentials and home.
+
+    The dedicated process can read its reviewed code/runtime and system files;
+    writes are limited to its disposable projection directory. Native-code
+    compromise still requires an OS sandbox; this hook is defense in depth.
+    """
+    writable=directory.resolve()
+    readable=[writable,source.resolve(),Path(sys.prefix).resolve(),Path(sys.base_prefix).resolve()]
+    readable.extend(Path(p).resolve() for p in (
+        '/etc/ssl/certs','/etc/ssl/cert.pem','/etc/localtime','/etc/timezone',
+        '/etc/nsswitch.conf','/etc/hosts','/etc/resolv.conf','/etc/gai.conf',
+        '/dev/null','/dev/urandom','/dev/random'))
+    def allowed(value, write=False):
+        if isinstance(value,int):return True
+        supplied=Path(os.fsdecode(value))
+        if write and not supplied.is_absolute():return False
+        path=supplied.resolve()
+        roots=[writable] if write else readable
+        return any(path==root or root in path.parents for root in roots)
+    def audit(event,args):
+        if event=='open':
+            path,mode,flags=args
+            write=bool(flags & (os.O_WRONLY|os.O_RDWR|os.O_CREAT|os.O_TRUNC|os.O_APPEND))
+            if not allowed(path,write):raise PermissionError('memory_file_access_denied')
+        elif event=='sqlite3.connect':
+            if args[0]!=':memory:' and not allowed(args[0],True):raise PermissionError('memory_database_access_denied')
+        elif event in {'os.listdir','os.scandir'}:
+            if args[0] is not None and not allowed(args[0]):raise PermissionError('memory_directory_access_denied')
+        elif event in {'os.mkdir','os.remove','os.rmdir','os.chmod','os.truncate','os.utime'}:
+            if not allowed(args[0],True):raise PermissionError('memory_file_write_denied')
+        elif event in {'os.rename','os.link','os.symlink'}:
+            if not all(allowed(path,True) for path in args[:2]):raise PermissionError('memory_file_write_denied')
     sys.addaudithook(audit)
