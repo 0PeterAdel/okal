@@ -100,7 +100,7 @@
               <button id="chat-new" type="button" class="chat-new">+ محادثة جديدة</button>
             </div>
           </div>
-          <details class="chat-library">
+          <details class="chat-library" id="chat-memory-manager">
             <summary>المحادثات المحفوظة والذاكرة / Conversations &amp; Memory</summary>
             <div class="chat-library-grid">
               <section aria-label="المحادثات المحفوظة">
@@ -110,13 +110,13 @@
                 <button type="button" id="chat-history-more" hidden>المزيد من المحادثات</button>
                 <button type="button" id="chat-delete">حذف المحادثة</button>
                 <button type="button" id="chat-older" hidden>رسائل أقدم</button>
-                <label for="chat-retention">الاحتفاظ بالمحادثات بالأيام (1–365)</label>
-                <input id="chat-retention" type="number" min="1" max="365" value="90"/>
+                <label for="chat-retention">الاحتفاظ بالأيام · 0 = لحد ما تحذفها / Keep until deleted</label>
+                <input id="chat-retention" type="number" min="0" max="365" value="0"/>
                 <button type="button" id="chat-retention-save">تطبيق مدة الاحتفاظ</button>
               </section>
               <section aria-label="إدارة الذاكرة">
-                <p>الرسائل محفوظة محليًا. الذاكرة معلومة بتختار تحفظها، مش تخمين من الموديل.
-                  للحفظ من المحادثة: <bdi>remember language: English</bdi> أو <bdi>افتكر اللغة: عربي</bdi>.</p>
+                <p>التعلم المحلي بيختار معلومات من كلامك بعد حفظ الرسالة. تقدر تراجع المصدر وتصحح أو تنسى أي معلومة.
+                  كلام المساعد والمستندات مش حقائق شخصية مؤكدة. المعلومات الحساسة مستبعدة من التعلم التلقائي.</p>
                 <div id="chat-memory-list"></div>
                 <form id="chat-memory-form">
                   <label for="chat-memory-key">اسم المعلومة</label>
@@ -124,16 +124,65 @@
                   <label for="chat-memory-value">المعلومة</label>
                   <textarea id="chat-memory-value" maxlength="600" required></textarea>
                   <label for="chat-memory-kind">النوع</label>
-                  <select id="chat-memory-kind"><option value="semantic">تفضيل / معلومة</option>
-                    <option value="episodic">قرار / تجربة</option><option value="task">مهمة للمتابعة</option></select>
+                  <select id="chat-memory-kind"><option value="instruction">تعليمات وتفضيلات الرد</option><option value="semantic">معلومة</option>
+                    <option value="episodic">واقعة</option><option value="task">عمل معلق</option>
+                    <option value="decision">قرار</option><option value="goal">هدف</option>
+                    <option value="constraint">قيد</option><option value="lesson">درس مستفاد</option></select>
                   <label for="chat-memory-scope">النطاق</label>
                   <select id="chat-memory-scope"><option value="owner">كل المحادثات</option>
-                    <option value="conversation">المحادثة الحالية</option></select>
-                  <label for="chat-memory-days">صلاحية المعلومة بالأيام</label>
-                  <input id="chat-memory-days" type="number" min="1" max="365" value="365"/>
+                    <option value="conversation">المحادثة الحالية</option><option value="project">المشروع المختار</option></select>
+                  <label for="chat-memory-days">الصلاحية بالأيام · 0 = لحد ما تنساها</label>
+                  <input id="chat-memory-days" type="number" min="0" max="365" value="0"/>
                   <button type="submit">حفظ المعلومة</button>
                   <button type="button" id="chat-memory-reset">معلومة جديدة</button>
                 </form>
+              </section>
+              <section aria-label="حالة الذاكرة والمشروعات" class="memory-workspace">
+                <h2>الذاكرة الشخصية / Personal memory</h2>
+                <p id="chat-memory-health" role="status" aria-live="polite">حدّث الحالة لعرض التعلم والفهرسة والخزنة.</p>
+                <button type="button" id="chat-memory-health-refresh">تحديث الحالة</button>
+                <button type="button" id="chat-memory-retry">إعادة المحاولات الفاشلة</button>
+                <button type="button" id="chat-memory-backfill">فحص السجل القديم للتعلم</button>
+                <button type="button" id="chat-memory-rebuild">إعادة بناء الفهرس من الذاكرة الحالية</button>
+                <label for="chat-memory-project">المشروع / Project</label>
+                <select id="chat-memory-project"><option value="">بدون مشروع</option></select>
+                <button type="button" id="chat-project-associate">ربط المحادثة بالمشروع المختار</button>
+                <p id="chat-conversation-state" dir="auto"></p>
+                <details><summary>مشروع جديد / New project</summary>
+                  <form id="chat-project-form">
+                    <label for="chat-project-name">اسم واضح وفريد</label><input id="chat-project-name" maxlength="100" required/>
+                    <label for="chat-project-description">وصف المشروع</label><textarea id="chat-project-description" maxlength="600"></textarea>
+                    <button type="submit">إنشاء المشروع</button>
+                  </form>
+                </details>
+                <label for="chat-memory-lifecycle">حالة المعلومات / Memory lifecycle</label>
+                <select id="chat-memory-lifecycle"><option value="current">Remembered · الحالي</option>
+                  <option value="inferred">Inferred · مستنتج</option><option value="unverified">Unverified · غير مؤكد</option>
+                  <option value="superseded">Superseded · اتغير</option><option value="deleted">Deleted · محذوف</option></select>
+                <button type="button" id="chat-memory-browse">عرض الحالة</button>
+                <div id="chat-memory-lifecycle-list" aria-live="polite"></div>
+                <button type="button" id="chat-memory-browse-more" hidden>نتائج إضافية</button>
+                <details id="chat-memory-sources"><summary>المصادر والإصدارات / Sources &amp; revisions</summary>
+                  <div id="chat-memory-source-list"></div>
+                </details>
+                <details><summary>خزنة Obsidian المحلية / Knowledge vault</summary>
+                  <p>ملاحظات منتقاة مرتبطة بالذاكرة. تعديل الملاحظة محتاج معاينة واستيراد؛ النسخة القديمة ما ترجعش معلومة منسية.</p>
+                  <label for="chat-vault-memory">معرّف المعلومة</label><input id="chat-vault-memory" maxlength="32"/>
+                  <button type="button" id="chat-vault-preview">معاينة تعديل الخزنة</button>
+                  <p id="chat-vault-preview-text" dir="auto"></p>
+                  <button type="button" id="chat-vault-import" hidden>تأكيد استيراد التعديل</button>
+                </details>
+              </section>
+              <section aria-label="البحث في المحادثات" class="memory-workspace">
+                <h2>بحث في السجل / Search conversations</h2>
+                <form id="chat-archive-form">
+                  <label for="chat-archive-query">كلمة أو موضوع</label><input id="chat-archive-query" maxlength="300" required dir="auto"/>
+                  <label for="chat-archive-scope">نطاق البحث</label><select id="chat-archive-scope">
+                    <option value="all">كل المحادثات</option><option value="conversation">المحادثة الحالية</option><option value="project">المشروع المختار</option></select>
+                  <button type="submit">بحث / Search</button>
+                </form>
+                <div id="chat-archive-results" aria-live="polite"></div>
+                <button type="button" id="chat-archive-more" hidden>نتائج أقدم</button>
               </section>
             </div>
           </details>

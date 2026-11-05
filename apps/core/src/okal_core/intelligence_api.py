@@ -13,7 +13,10 @@ from .store import Conflict
 PREFIX = '/api/v1/chat/'
 PATHS = {PREFIX + name for name in (
     'conversations', 'create', 'get', 'delete', 'turn', 'memories',
-    'memory-save', 'memory-delete', 'settings')}
+    'memory-save', 'memory-delete', 'settings', 'memory-health', 'memory-retry',
+    'memory-backfill', 'memory-rebuild', 'memory-versions', 'memory-browse', 'memory-search',
+    'projects', 'project-save', 'project-associate', 'conversation-state',
+    'vault-preview', 'vault-import')}
 
 
 class Payload(BaseModel):
@@ -44,6 +47,7 @@ class Turn(Conversation):
 
 class Memories(Payload):
     conversation_id: str | None = None
+    project_id: str | None = None
 
 
 class SaveMemory(Memories):
@@ -63,8 +67,36 @@ class Settings(Payload):
     days: int | None = Field(default=None, ge=0, le=365)
 
 
+class ProjectSave(Payload):
+    name: str = Field(min_length=1,max_length=100)
+    description: str = Field(default='',max_length=600)
+    project_id: str | None = None
+    revision: int = Field(default=0,ge=0)
+
+
+class Association(Conversation):
+    project_id: str | None = None
+    revision: int = Field(default=0,ge=0)
+
+
+class MemoryBrowse(Payload):
+    status: Literal['current','superseded','deleted','inferred','unverified'] = 'current'
+    offset: int = Field(default=0,ge=0,le=1_000_000)
+
+
+class Archive(Memories):
+    query: str = Field(min_length=1,max_length=300)
+    before: int | None = Field(default=None,ge=1)
+
+
+class VaultImport(Forget):
+    revision: int = Field(ge=1)
+
+
 def register(app, store, authorized):
     state = Intelligence(store)
+    from .cognitive.retrieval import Retrieval
+    from .cognitive.vault import Vault
     routes = {
         'conversations': (ListConversations, state.conversations),
         'create': (Create, state.create),
@@ -75,6 +107,19 @@ def register(app, store, authorized):
         'memory-save': (SaveMemory, state.save_memory),
         'memory-delete': (Forget, state.forget),
         'settings': (Settings, state.settings),
+        'memory-health': (Payload, state.cognitive.health),
+        'memory-retry': (Payload, state.cognitive.retry_failed),
+        'memory-backfill': (Payload, state.cognitive.backfill),
+        'memory-rebuild': (Payload, state.cognitive.request_rebuild),
+        'memory-versions': (Forget, state.cognitive.versions),
+        'memory-browse': (MemoryBrowse, state.cognitive.browse),
+        'memory-search': (Archive, Retrieval(state.cognitive).archive),
+        'projects': (Payload, state.cognitive.projects),
+        'project-save': (ProjectSave, state.cognitive.save_project),
+        'project-associate': (Association, state.cognitive.associate),
+        'conversation-state': (Conversation, state.cognitive.conversation_state),
+        'vault-preview': (Forget, lambda **kw: Vault(state.cognitive).preview(**kw)),
+        'vault-import': (VaultImport, lambda **kw: Vault(state.cognitive).import_revision(**kw)),
     }
 
     def endpoint(schema, operation):
@@ -96,6 +141,8 @@ def register(app, store, authorized):
                 raise HTTPException(409, str(exc)) from None
             except sqlite3.OperationalError:
                 raise HTTPException(503, 'private_state_busy_retry') from None
+            except OSError:
+                raise HTTPException(503, 'private_memory_projection_unavailable') from None
             except (ValueError, TypeError):
                 # Do not include validation input or exception strings: they
                 # may contain the very secret that the validator rejected.

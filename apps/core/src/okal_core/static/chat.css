@@ -405,3 +405,10 @@ body[data-view="chat"] #chat-home:has(#computer-settings[open]) > .chat-layout{d
 .computer-run button{min-height:44px;background:#172d3d;color:#f0c778;border:1px solid #66839b;border-radius:8px;padding:8px;cursor:pointer}
 .computer-run pre{font-size:11px;direction:ltr;max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .computer-run summary{cursor:pointer;padding:8px}
+.memory-workspace p, #chat-memory-source-list p, #chat-memory-lifecycle-list p,
+#chat-memory-list p, #chat-archive-results p { overflow-wrap:anywhere; white-space:pre-wrap; }
+.memory-workspace article, #chat-memory-lifecycle-list p { border-block-end:1px solid rgba(175,206,255,.15); padding-block:.6rem; }
+.memory-workspace h2 { font-size:1rem; margin-block:.6rem; }
+.memory-workspace details { margin-block:.8rem; }
+.memory-workspace button, #chat-memory-list button { margin:.25rem; }
+#chat-memory-health { font-size:.85rem; line-height:1.8; }

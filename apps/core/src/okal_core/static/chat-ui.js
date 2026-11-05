@@ -51,7 +51,8 @@ function clearChatUI() {
   chatRetry = null;
   chatReady = false;
   if (chatResetMemoryEditor) chatResetMemoryEditor();
-  for (const id of ["chat-conversations","chat-memory-list"]) {
+  for (const id of ["chat-conversations","chat-memory-list","chat-memory-source-list",
+    "chat-memory-lifecycle-list","chat-archive-results","chat-conversation-state","chat-vault-preview-text"]) {
     document.getElementById(id)?.replaceChildren();
   }
   for (const id of ["chat-memory-key","chat-memory-value"]) {
@@ -87,6 +88,7 @@ function clearChatUI() {
     label.className = "chat-bubble-role";
     label.textContent = role === "user" ? "أنت" : "OKAL · local";
     const text = document.createElement("div");
+    text.dir = "auto";
     text.className = "chat-message-content";
     if (role === "assistant" && typeof renderOKALMarkdown === "function") {
       renderOKALMarkdown(text, content);
@@ -226,20 +228,31 @@ function clearChatUI() {
     return response.json();
   };
   let older = null, moreConversations = null, memoryRevision = 0;
+  let editingProject = null, associationRevision = 0, browseOffset = null, archiveBefore = null, vaultPreview = null;
+  const selectedProject = () => get("chat-memory-project").value || null;
+  const labels = {remembered:"Remembered · من كلامك", current:"Remembered · الحالي",
+    inferred:"Inferred · مستنتج", unverified:"Unverified · غير مؤكد",
+    superseded:"Superseded · اتغير", deleted:"Deleted · محذوف"};
   function rememberSelection(id) {
     // Only an identifier goes in browser history; all text stays server-side.
     if (typeof window !== "undefined") window.history.replaceState({okalConversation:id}, "");
   }
   function resetMemoryEditor() {
     memoryRevision = 0;
+    editingProject = null; vaultPreview = null;
     get("chat-memory-key").value = ""; get("chat-memory-key").disabled = false;
     get("chat-memory-value").value = "";
     get("chat-memory-scope").disabled = false;
+    get("chat-memory-days").value = "0";
+    get("chat-vault-import").hidden = true;
+    for(const id of ["chat-memory-source-list","chat-memory-lifecycle-list","chat-archive-results","chat-vault-preview-text"])
+      get(id).replaceChildren();
+    get("chat-vault-memory").value="";
   }
   chatResetMemoryEditor = resetMemoryEditor;
   async function refreshMemories() {
     const seq=chatSequence;
-    const data = await post("memories", {conversation_id:chatConversation});
+    const data = await post("memories", {conversation_id:chatConversation,project_id:selectedProject()});
     if (seq !== chatSequence) return;
     get("chat-memory-list").replaceChildren();
     for (const item of data.items) {
@@ -248,26 +261,104 @@ function clearChatUI() {
       value.textContent = item.key + ": " + item.content;
       const source = document.createElement("small");
       source.textContent = item.kind + " · " + item.source + " · v" + item.revision +
-        " · " + new Date(item.expires_at * 1000).toLocaleDateString() +
-        " · " + (item.scope === "owner" ? "كل المحادثات" : "المحادثة فقط");
+        " · " + (item.expires_at ? new Date(item.expires_at * 1000).toLocaleDateString() : "لحد ما تنساها") +
+        " · " + (labels[item.assertion] || labels.remembered) +
+        " · " + (item.scope === "owner" ? "كل المحادثات" : item.project_id ? "المشروع" : "المحادثة فقط");
       const edit = document.createElement("button"); edit.type="button"; edit.textContent="تعديل";
       edit.addEventListener("click", () => {
         memoryRevision = item.revision;
+        editingProject = item.project_id || null;
         get("chat-memory-key").value = item.key; get("chat-memory-key").disabled = true;
         get("chat-memory-value").value = item.content;
         get("chat-memory-kind").value = item.kind;
-        get("chat-memory-scope").value = item.scope === "owner" ? "owner" : "conversation";
+        get("chat-memory-scope").value = item.scope === "owner" ? "owner" : item.project_id ? "project" : "conversation";
+        get("chat-memory-days").value = item.expires_at ? String(Math.max(1,Math.ceil((item.expires_at*1000-Date.now())/86400000))) : "0";
         get("chat-memory-scope").disabled = true;
         get("chat-memory-value").focus();
       });
       const forget = document.createElement("button"); forget.type="button"; forget.textContent="نسيان";
       forget.addEventListener("click", () => guarded(async () => {
-        if (!confirm("نسيان المعلومة ومسح الرسائل المرتبطة بها من السياق؟")) return;
+        if (!confirm("نسيان المعلومة وحذف نصها وإبطال الردود المعتمدة عليها؟ باقي كلامك هيفضل محفوظ.")) return;
         await post("memory-delete", {memory_id:item.id}); resetMemoryEditor();
+        chatSequence+=1;if(chatAbort)chatAbort.abort();chatAbort=null;chatPending=false;send.disabled=false;chatRetry=null;
         await refreshMemories(); if (chatConversation) await resume(chatConversation); await library();
       }));
-      row.append(value, source, edit, forget); get("chat-memory-list").append(row);
+      const sources = document.createElement("button"); sources.type="button"; sources.textContent="المصدر والإصدارات";
+      sources.addEventListener("click",()=>guarded(()=>showSources(item.id)));
+      row.append(value, source, edit, forget, sources); get("chat-memory-list").append(row);
     }
+  }
+  async function showSources(id) {
+    const seq=chatSequence, data=await post("memory-versions",{memory_id:id});
+    if(seq!==chatSequence)return;
+    const target=get("chat-memory-source-list"); target.replaceChildren();
+    vaultPreview=null;get("chat-vault-import").hidden=true;
+    get("chat-vault-memory").value=id;
+    for(const item of data.items) {
+      const p=document.createElement("p"); p.dir="auto";
+      p.textContent=(labels[item.status] || item.status)+" · v"+item.revision+" · "+
+        (item.snapshot?.content || "النص محذوف / Content deleted"); target.append(p);
+    }
+    for(const item of data.sources || []) {
+      const p=document.createElement("p"); p.dir="auto"; p.textContent="من رسالتك: "+item.quote;
+      const open=document.createElement("button");open.type="button";open.textContent="افتح محادثة المصدر";
+      open.addEventListener("click",()=>guarded(async()=>{await resume(item.conversation_id);get("chat-memory-manager").open=false;}));
+      target.append(p,open);
+    }
+    get("chat-memory-sources").open=true;
+  }
+  async function memoryDashboard() {
+    const seq=chatSequence;
+    const [health,projects,state]=await Promise.all([post("memory-health"),post("projects"),
+      chatConversation ? post("conversation-state",{conversation_id:chatConversation}) : Promise.resolve(null)]);
+    if(seq!==chatSequence)return;
+    const count = value => Object.entries(value || {}).map(([k,v])=>k+": "+v).join(" · ") || "0";
+    get("chat-memory-health").textContent=(health.configured ? "تعلم محلي · "+health.worker : "محرك التعلم غير مهيأ؛ السجل والذاكرة اليدوية متاحين")+
+      " | التعلم: "+count(health.jobs)+" | الفهرسة: "+count(health.index)+" | الخزنة: "+count(health.vault);
+    const project=get("chat-memory-project"), prior=project.value || state?.project_id || "";
+    project.replaceChildren();
+    const empty=document.createElement("option");empty.value="";empty.textContent="بدون مشروع";project.append(empty);
+    for(const item of projects.items) {
+      const option=document.createElement("option");option.value=item.id;option.textContent=item.name;project.append(option);
+    }
+    project.value=projects.items.some(p=>p.id===prior) ? prior : "";
+    associationRevision=state?.revision || 0;
+    get("chat-conversation-state").textContent=state ? (Object.values(state.state || {}).map(v=>v.quote).join(" · ") || "لسه مفيش نقطة تقدم محفوظة للمحادثة دي.") : "ابدأ أو افتح محادثة لعرض تقدمها.";
+    await refreshMemories();
+  }
+  async function browseMemories(append=false) {
+    const seq=chatSequence,data=await post("memory-browse",{status:get("chat-memory-lifecycle").value || "current",offset:append ? browseOffset : 0});
+    if(seq!==chatSequence)return;
+    const target=get("chat-memory-lifecycle-list");if(!append)target.replaceChildren();
+    for(const item of data.items) {
+      const record=item.snapshot || item, p=document.createElement("p");p.dir="auto";
+      p.textContent=(labels[item.status] || item.status)+" · "+(record.content || "النص محذوف")+" · v"+item.revision;
+      const open=document.createElement("button");open.type="button";open.textContent="المصدر والإصدارات";
+      open.addEventListener("click",()=>guarded(()=>showSources(item.memory_id || item.id)));target.append(p,open);
+    }
+    if(!data.items.length&&!append)target.textContent="لا توجد معلومات بالحالة دي / No entries";
+    browseOffset=data.next_offset;get("chat-memory-browse-more").hidden=browseOffset===null;
+  }
+  async function archiveSearch(append=false) {
+    const scope=get("chat-archive-scope").value;
+    if(scope==="conversation"&&!chatConversation)throw new Error("افتح محادثة الأول.");
+    if(scope==="project"&&!selectedProject())throw new Error("اختار مشروع الأول.");
+    const seq=chatSequence,data=await post("memory-search",{query:get("chat-archive-query").value,
+      conversation_id:scope==="conversation" ? chatConversation : null,
+      project_id:scope==="project" ? selectedProject() : null,before:append ? archiveBefore : null});
+    if(seq!==chatSequence)return;
+    const target=get("chat-archive-results");if(!append)target.replaceChildren();
+    for(const item of data.items) {
+      const article=document.createElement("article"),p=document.createElement("p");p.dir="auto";
+      p.textContent=item.title+" · "+new Date(item.created_at*1000).toLocaleString()+"\n"+item.owner_excerpt;
+      const assistant=document.createElement("p");assistant.dir="auto";
+      assistant.textContent=item.assistant_excerpt ? "رد سابق غير متحقق: "+item.assistant_excerpt : "";
+      const open=document.createElement("button");open.type="button";open.textContent="افتح المحادثة";
+      open.addEventListener("click",()=>guarded(async()=>{await resume(item.conversation_id);get("chat-memory-manager").open=false;}));
+      article.append(p,assistant,open);target.append(article);
+    }
+    if(!data.items.length&&!append)target.textContent="مش لاقي نص مطابق في السجل / No matching history";
+    archiveBefore=data.next_before;get("chat-archive-more").hidden=archiveBefore===null;
   }
   async function library(append=false) {
     const seq = chatSequence;
@@ -396,7 +487,7 @@ function clearChatUI() {
     await post("delete",{conversation_id:id}); await library(); await refreshMemories();
   }));
   get("chat-retention-save").addEventListener("click",()=>guarded(async()=>{
-    if(!confirm("تطبيق المدة وحذف المحادثات الأقدم منها؟")) return;
+    if(Number(get("chat-retention").value)>0 && !confirm("تطبيق المدة وحذف المحادثات الأقدم منها؟")) return;
     await post("settings",{days:Number(get("chat-retention").value)});
     clearChatUI(); rememberSelection(null); await chatLoadLibrary();
   }));
@@ -405,9 +496,12 @@ function clearChatUI() {
     event.preventDefault(); guarded(async()=>{
       if(get("chat-memory-scope").value==="conversation" && !chatConversation)
         throw new Error("ابدأ محادثة الأول.");
+      const scope=get("chat-memory-scope").value;
+      if(scope==="project" && !(editingProject || selectedProject()))throw new Error("اختار مشروع الأول.");
       await post("memory-save",{key:get("chat-memory-key").value,content:get("chat-memory-value").value,
         kind:get("chat-memory-kind").value,revision:memoryRevision,
-        conversation_id:get("chat-memory-scope").value==="owner" ? null : chatConversation,
+        conversation_id:scope==="conversation" ? chatConversation : null,
+        project_id:scope==="project" ? (editingProject || selectedProject()) : null,
         days:Number(get("chat-memory-days").value)});
       resetMemoryEditor(); await refreshMemories();
       if(chatConversation) await resume(chatConversation);
@@ -415,6 +509,50 @@ function clearChatUI() {
       status.textContent="المعلومة محفوظة بطلبك؛ تقدر تعدّلها أو تنساها.";
     });
   });
+  get("chat-memory-manager").addEventListener("toggle",()=>{
+    if(get("chat-memory-manager").open)guarded(memoryDashboard);
+  });
+  get("chat-memory-health-refresh").addEventListener("click",()=>guarded(memoryDashboard));
+  get("chat-memory-project").addEventListener("change",()=>guarded(refreshMemories));
+  get("chat-memory-browse").addEventListener("click",()=>guarded(()=>browseMemories()));
+  get("chat-memory-browse-more").addEventListener("click",()=>guarded(()=>browseMemories(true)));
+  get("chat-memory-retry").addEventListener("click",()=>guarded(async()=>{
+    await post("memory-retry");await memoryDashboard();
+  }));
+  get("chat-memory-backfill").addEventListener("click",()=>guarded(async()=>{
+    await post("memory-backfill");await memoryDashboard();
+    status.textContent="تمت جدولة دفعة من السجل المحلي؛ التقدم ظاهر في حالة التعلم.";
+  }));
+  get("chat-memory-rebuild").addEventListener("click",()=>guarded(async()=>{
+    await post("memory-rebuild");await memoryDashboard();
+    status.textContent="تمت جدولة إعادة بناء الفهرس؛ السجل الأصلي محفوظ.";
+  }));
+  get("chat-project-form").addEventListener("submit",event=>{
+    event.preventDefault();guarded(async()=>{
+      const result=await post("project-save",{name:get("chat-project-name").value,description:get("chat-project-description").value});
+      get("chat-project-name").value="";get("chat-project-description").value="";
+      await memoryDashboard();get("chat-memory-project").value=result.id;await refreshMemories();
+    });
+  });
+  get("chat-project-associate").addEventListener("click",()=>guarded(async()=>{
+    if(!chatConversation)throw new Error("ابدأ أو افتح محادثة الأول.");
+    await post("project-associate",{conversation_id:chatConversation,project_id:selectedProject(),revision:associationRevision});
+    await memoryDashboard();status.textContent="تم تحديث ارتباط المشروع بطلبك؛ مفيش تنفيذ أدوات تلقائي.";
+  }));
+  get("chat-archive-form").addEventListener("submit",event=>{event.preventDefault();guarded(()=>archiveSearch());});
+  get("chat-archive-more").addEventListener("click",()=>guarded(()=>archiveSearch(true)));
+  get("chat-vault-memory").addEventListener("input",()=>{vaultPreview=null;get("chat-vault-import").hidden=true;});
+  get("chat-vault-preview").addEventListener("click",()=>guarded(async()=>{
+    const seq=chatSequence,preview=await post("vault-preview",{memory_id:get("chat-vault-memory").value});
+    if(seq!==chatSequence)return;
+    vaultPreview=preview;get("chat-vault-preview-text").textContent=preview.content;
+    get("chat-vault-import").hidden=!preview.changed;
+  }));
+  get("chat-vault-import").addEventListener("click",()=>guarded(async()=>{
+    if(!vaultPreview || !confirm("اعتماد النص الظاهر كتعديل منك على المعلومة؟"))return;
+    await post("vault-import",{memory_id:vaultPreview.memory_id,revision:vaultPreview.revision});
+    resetMemoryEditor();await memoryDashboard();
+  }));
 
   get("chat-form").addEventListener("submit", event => {
     event.preventDefault();
