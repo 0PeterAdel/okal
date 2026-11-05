@@ -75,3 +75,5 @@ POST authorization explicitly rejects any Authorization header, including local
 auto-unlock mode; a paired read device cannot borrow the browser-owner path.
 Normal UI requests use the configured owner session/origin path without bearer
 headers. Read-only GET behavior and remote Access requirements are unchanged.
+
+Observed owner-device outcomes are in [Stage 3 release evidence](STAGE3-RELEASE.md).
