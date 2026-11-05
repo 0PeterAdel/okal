@@ -92,6 +92,21 @@ class Retrieval:
         pending_query=bool(re.search(r'pending|next|unfinished|متبقي|معلق|الجاية|خطوة|لسه',message,re.I))
         name_query=bool(re.search(r'\bname|address me|call me|اسمي|الاسم|تناديني',message,re.I))
         match = fts_query(message)
+        if project_id is None and not chat_query and decision_query and match:
+            # A distinctive decision reference can retrieve across projects
+            # without changing the conversation association. Multiple matches
+            # require clarification; titles or semantic similarity never merge
+            # projects or create a write scope.
+            with self.store.connect() as db:
+                matches=[dict(r) for r in db.execute('''SELECT DISTINCT p.id,p.name
+                    FROM memory_fts f JOIN chat_memories m ON m.id=f.memory_id
+                    JOIN memory_meta x ON x.memory_id=m.id JOIN memory_projects p ON p.id=x.project_id
+                    WHERE memory_fts MATCH ? AND m.kind='decision'
+                    AND (m.expires_at=0 OR m.expires_at>?) LIMIT 3''',(match,self.ledger.now))]
+            if len(matches)>1:
+                return [],{'project_ambiguity':[p['name'] for p in matches],
+                           'memory_selection':'explicit_project_required'}
+            if matches:project_id=matches[0]['id']
         with self.store.connect() as db:
             related = {r[0] for r in db.execute('SELECT turn_id FROM memory_turn_projects WHERE project_id=?', (project_id,))} if project_id else set()
             eligible = """(m.scope='owner' OR m.conversation_id=? OR (? IS NOT NULL AND (x.project_id=?

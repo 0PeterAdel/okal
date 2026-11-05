@@ -148,11 +148,13 @@
                 <select id="chat-memory-project"><option value="">بدون مشروع</option></select>
                 <button type="button" id="chat-project-associate">ربط المحادثة بالمشروع المختار</button>
                 <p id="chat-conversation-state" dir="auto"></p>
-                <details><summary>مشروع جديد / New project</summary>
+                <details><summary>تعريف المشروع / Project details</summary>
+                  <button type="button" id="chat-project-edit">تعديل المشروع المختار</button>
+                  <button type="button" id="chat-project-new">مشروع جديد</button>
                   <form id="chat-project-form">
                     <label for="chat-project-name">اسم واضح وفريد</label><input id="chat-project-name" maxlength="100" required/>
                     <label for="chat-project-description">وصف المشروع</label><textarea id="chat-project-description" maxlength="600"></textarea>
-                    <button type="submit">إنشاء المشروع</button>
+                    <button type="submit">حفظ المشروع</button>
                   </form>
                 </details>
                 <label for="chat-memory-lifecycle">حالة المعلومات / Memory lifecycle</label>
@@ -171,6 +173,9 @@
                   <button type="button" id="chat-vault-preview">معاينة تعديل الخزنة</button>
                   <p id="chat-vault-preview-text" dir="auto"></p>
                   <button type="button" id="chat-vault-import" hidden>تأكيد استيراد التعديل</button>
+                  <button type="button" id="chat-vault-project-preview">معاينة وصف المشروع المختار من الخزنة</button>
+                  <p id="chat-vault-project-text" dir="auto"></p>
+                  <button type="button" id="chat-vault-project-import" hidden>تأكيد استيراد وصف المشروع</button>
                 </details>
               </section>
               <section aria-label="البحث في المحادثات" class="memory-workspace">

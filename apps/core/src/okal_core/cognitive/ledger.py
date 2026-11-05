@@ -107,6 +107,15 @@ class Ledger:
             )
             for statement in statements:
                 db.execute(statement)
+            db.execute('''CREATE TABLE IF NOT EXISTS memory_project_outbox (
+                project_id TEXT PRIMARY KEY REFERENCES memory_projects(id) ON DELETE CASCADE,
+                revision INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0, available_at INTEGER NOT NULL DEFAULT 0,
+                generation INTEGER NOT NULL DEFAULT 1)''')
+            if 'generation' not in {r['name'] for r in db.execute('PRAGMA table_info(memory_project_outbox)')}:
+                db.execute('ALTER TABLE memory_project_outbox ADD COLUMN generation INTEGER NOT NULL DEFAULT 1')
+            db.execute('''INSERT OR IGNORE INTO memory_project_outbox(project_id,revision)
+                SELECT id,revision FROM memory_projects''')
             archive_exists = db.execute("SELECT 1 FROM sqlite_master WHERE name='chat_archive_fts'").fetchone()
             db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chat_archive_fts USING fts5(user_text,response,content='chat_turns',content_rowid='seq')")
             db.execute('''CREATE TRIGGER IF NOT EXISTS chat_archive_insert AFTER INSERT ON chat_turns BEGIN
@@ -178,6 +187,8 @@ class Ledger:
                    (record['id'], record['key'], record['content']))
 
     def _outbox(self, db, memory_id, revision, operation):
+        db.execute('''UPDATE memory_project_outbox SET status='pending',attempts=0,available_at=0,generation=generation+1
+            WHERE project_id IN (SELECT project_id FROM memory_meta WHERE memory_id=?)''',(memory_id,))
         db.execute('''INSERT INTO memory_outbox(memory_id,revision,operation,updated_at)
             VALUES(?,?,?,?) ON CONFLICT(memory_id) DO UPDATE SET
             revision=excluded.revision,operation=excluded.operation,status='pending',
@@ -290,6 +301,8 @@ class Ledger:
         db.execute('DELETE FROM memory_fts WHERE memory_id=?', (memory_id,))
         db.execute("INSERT INTO memory_fts(memory_fts) VALUES('optimize')")
         db.execute("INSERT INTO chat_archive_fts(chat_archive_fts) VALUES('optimize')")
+        db.execute('''UPDATE memory_project_outbox SET status='pending',attempts=0,available_at=0,generation=generation+1
+            WHERE project_id IN (SELECT project_id FROM memory_meta WHERE memory_id=?)''',(memory_id,))
         db.execute('DELETE FROM chat_memories WHERE id=?', (memory_id,))
         revision = row['revision'] + 1
         db.execute('INSERT OR REPLACE INTO memory_tombstones VALUES(?,?,?)', (memory_id, revision, self.now))
@@ -415,6 +428,7 @@ class Ledger:
             return {'schema': 1, 'jobs': counts('memory_jobs'), 'projections': counts('memory_outbox'),
                     'index': {r[0]:r[1] for r in db.execute('SELECT index_status,COUNT(*) FROM memory_outbox GROUP BY index_status')},
                     'vault': {r[0]:r[1] for r in db.execute('SELECT vault_status,COUNT(*) FROM memory_outbox GROUP BY vault_status')},
+                    'project_vault': counts('memory_project_outbox'),
                     'worker': worker.status if worker else 'not_started',
                     'configured': (self.store.directory/'cognitive.json').exists(),
                     'rebuild': dict(db.execute('SELECT generation,status,attempts FROM memory_index_state WHERE id=1').fetchone()),
@@ -464,9 +478,12 @@ class Ledger:
                 :revision,:created_at,:updated_at) ON CONFLICT(id) DO UPDATE SET name=excluded.name,
                 name_key=excluded.name_key,description=excluded.description,revision=excluded.revision,
                 updated_at=excluded.updated_at''', result)
+            db.execute('''INSERT INTO memory_project_outbox(project_id,revision) VALUES(?,?)
+                ON CONFLICT(project_id) DO UPDATE SET revision=excluded.revision,status='pending',
+                generation=memory_project_outbox.generation+1,attempts=0,available_at=0''', (result['id'],result['revision']))
             return result
 
-    def associate(self, conversation_id, project_id=None, revision=0):
+    def associate(self, conversation_id, project_id=None, revision=0, *, include_history=True):
         from ..intelligence import identifier, Missing
         identifier(conversation_id)
         if project_id:
@@ -486,7 +503,7 @@ class Ledger:
                 VALUES(?,?,?,?) ON CONFLICT(conversation_id) DO UPDATE SET project_id=excluded.project_id,
                 revision=excluded.revision,updated_at=excluded.updated_at''',
                 (conversation_id, project_id, revision + 1, self.now))
-            if old is None or old['project_id'] is None:
+            if include_history and (old is None or old['project_id'] is None):
                 # First explicit association may bind previously unassigned
                 # source turns. Switching projects never relabels old sources.
                 db.execute('''INSERT INTO memory_turn_projects(turn_id,project_id)
@@ -614,6 +631,7 @@ class Ledger:
             projections = db.execute("UPDATE memory_outbox SET status='pending',attempts=0,available_at=0,error=NULL "
                                      "WHERE status='failed'").rowcount
             db.execute("UPDATE memory_index_state SET status='pending',attempts=0,available_at=0 WHERE status='failed'")
+            db.execute("UPDATE memory_project_outbox SET status='pending',attempts=0,available_at=0 WHERE status='failed'")
             return {'retried_jobs': jobs, 'retried_projections': projections}
 
     def request_rebuild(self):

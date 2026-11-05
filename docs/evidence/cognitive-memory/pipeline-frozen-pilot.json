@@ -1,0 +1,80 @@
+{
+  "complete_corpus": false,
+  "source_conversations": 10,
+  "source_turns": 50,
+  "archive_turns_including_queries": 82,
+  "archive_assistant_mode": "fixture_archive; scripted dialogue is never scored as model output",
+  "actual_scored_answers": 32,
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 13,
+      "recall": 0.65
+    },
+    "project": {
+      "answered": 2,
+      "passed": 1,
+      "recall": 0.5
+    },
+    "conversation": {
+      "answered": 10,
+      "passed": 10,
+      "recall": 1.0
+    }
+  },
+  "extraction_precision": 1.0,
+  "extraction_recall": 0.9705882352941176,
+  "false_candidates_on_negative_sources": 0,
+  "ingestion_seconds": 261.0150597519969,
+  "ingestion_turns_per_second": 0.19155982818580441,
+  "retrieval_seconds_p50": 1.4438728585009812,
+  "retrieval_seconds_p95": 1.7220466470025713,
+  "answer_seconds_p50": 6.45661363850013,
+  "answer_seconds_p95": 7.849994525997317,
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "duplicate_current_keys": 0,
+  "forbidden_python_network_attempts": 0,
+  "health": {
+    "schema": 1,
+    "jobs": {
+      "done": 82
+    },
+    "projections": {
+      "current": 24
+    },
+    "index": {
+      "current": 24
+    },
+    "vault": {
+      "current": 4,
+      "not_curated": 20
+    },
+    "worker": "idle",
+    "configured": true,
+    "rebuild": {
+      "generation": 1,
+      "status": "current",
+      "attempts": 0
+    },
+    "active": 24,
+    "deleted": 0
+  },
+  "profile_unchanged_by_recall_questions": true,
+  "actual_prompt_tokens_max": 1574,
+  "interruption_injected": true,
+  "elapsed_monotonic_seconds": 635.3903257260026,
+  "disk_bytes": 895607,
+  "resources": {
+    "samples": 618,
+    "min_available_ram_bytes": 3972882432,
+    "peak_total_used_ram_bytes": 12466171904,
+    "baseline_gpu_used_mib": 1737,
+    "peak_total_gpu_used_mib": 5646,
+    "parent_peak_rss_bytes": 49799168,
+    "scope": "Observed whole-device RAM/VRAM peaks include existing desktop/services; sampled, not exclusive attribution."
+  },
+  "diagnostic_only": true,
+  "source_head": "72b3192",
+  "scorer_limitations": "Exact keyword scoring missed two correct paraphrases; original scores preserved. Explicit identity extraction was genuinely missing."
+}

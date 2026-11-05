@@ -55,7 +55,8 @@ function clearChatUI() {
     "chat-memory-lifecycle-list","chat-archive-results","chat-conversation-state","chat-vault-preview-text"]) {
     document.getElementById(id)?.replaceChildren();
   }
-  for (const id of ["chat-memory-key","chat-memory-value"]) {
+  for (const id of ["chat-memory-key","chat-memory-value","chat-project-name","chat-project-description",
+    "chat-archive-query","chat-memory-project"]) {
     const node = document.getElementById(id); if (node) node.value = "";
   }
   const retry = document.getElementById("chat-retry"); if (retry) retry.hidden = true;
@@ -229,6 +230,7 @@ function clearChatUI() {
   };
   let older = null, moreConversations = null, memoryRevision = 0;
   let editingProject = null, associationRevision = 0, browseOffset = null, archiveBefore = null, vaultPreview = null;
+  let projectRecords=[], projectEdit=null, projectVaultPreview=null;
   const selectedProject = () => get("chat-memory-project").value || null;
   const labels = {remembered:"Remembered · من كلامك", current:"Remembered · الحالي",
     inferred:"Inferred · مستنتج", unverified:"Unverified · غير مؤكد",
@@ -240,6 +242,9 @@ function clearChatUI() {
   function resetMemoryEditor() {
     memoryRevision = 0;
     editingProject = null; vaultPreview = null;
+    projectEdit=null;projectVaultPreview=null;projectRecords=[];
+    get("chat-project-name").value="";get("chat-project-description").value="";
+    get("chat-vault-project-import").hidden=true;get("chat-vault-project-text").replaceChildren();
     get("chat-memory-key").value = ""; get("chat-memory-key").disabled = false;
     get("chat-memory-value").value = "";
     get("chat-memory-scope").disabled = false;
@@ -315,6 +320,8 @@ function clearChatUI() {
     const count = value => Object.entries(value || {}).map(([k,v])=>k+": "+v).join(" · ") || "0";
     get("chat-memory-health").textContent=(health.configured ? "تعلم محلي · "+health.worker : "محرك التعلم غير مهيأ؛ السجل والذاكرة اليدوية متاحين")+
       " | التعلم: "+count(health.jobs)+" | الفهرسة: "+count(health.index)+" | الخزنة: "+count(health.vault);
+    get("chat-memory-health").textContent+=" | ملاحظات المشروعات: "+count(health.project_vault);
+    projectRecords=projects.items;
     const project=get("chat-memory-project"), prior=project.value || state?.project_id || "";
     project.replaceChildren();
     const empty=document.createElement("option");empty.value="";empty.textContent="بدون مشروع";project.append(empty);
@@ -393,6 +400,16 @@ function clearChatUI() {
           const note=document.createElement("small");
           note.textContent="ذاكرة محفوظة: " + turn.response.context_sources.map(s=>s.id.slice(0,8)).join(", ");
           box.append(note);
+          for(const source of turn.response.context_sources.slice(0,8)) {
+            const open=document.createElement("button");open.type="button";open.textContent="مصدر الذاكرة · "+source.id.slice(0,8);
+            open.addEventListener("click",()=>guarded(async()=>{
+              get("chat-memory-manager").open=true;await showSources(source.id);
+            }));box.append(open);
+          }
+        }
+        for(const source of (turn.response.archive_sources || []).slice(0,3)) {
+          const open=document.createElement("button");open.type="button";open.textContent="محادثة سابقة · المصدر";
+          open.addEventListener("click",()=>guarded(()=>resume(source.conversation_id)));box.append(open);
         }
       }
       if (!prepend && turn === data.turns.at(-1) && turn.status !== "complete" && turn.message !== "[forgotten]") {
@@ -409,6 +426,9 @@ function clearChatUI() {
     if (chatPending) return;
     if (!id) return;
     const seq=keepSequence ? chatSequence : ++chatSequence;
+    if(!prepend && chatConversation!==id) {
+      resetMemoryEditor();get("chat-memory-project").value="";
+    }
     chatConversation=id;
     const data=await post("get", {conversation_id:id,before:prepend ? older : null});
     if (seq !== chatSequence) return;
@@ -416,7 +436,7 @@ function clearChatUI() {
     status.textContent="محادثة محفوظة محليًا · " + (data.turns.at(-1)?.status === "running"
       ? "الطلب لسه بيتعالج؛ حدّث السجل لمتابعته." : "جاهزة للاستكمال");
     get("chat-conversations").value=id;
-    await refreshMemories();
+    await guarded(memoryDashboard);
   }
   async function guarded(operation) {
     try {await operation();} catch(error) {status.textContent=error.message || "تعذر الطلب المحلي.";}
@@ -529,10 +549,21 @@ function clearChatUI() {
   }));
   get("chat-project-form").addEventListener("submit",event=>{
     event.preventDefault();guarded(async()=>{
-      const result=await post("project-save",{name:get("chat-project-name").value,description:get("chat-project-description").value});
+      const result=await post("project-save",{name:get("chat-project-name").value,description:get("chat-project-description").value,
+        project_id:projectEdit?.id || null,revision:projectEdit?.revision || 0});
+      projectEdit=null;
       get("chat-project-name").value="";get("chat-project-description").value="";
       await memoryDashboard();get("chat-memory-project").value=result.id;await refreshMemories();
     });
+  });
+  get("chat-project-edit").addEventListener("click",()=>guarded(async()=>{
+    projectEdit=projectRecords.find(p=>p.id===selectedProject()) || null;
+    if(!projectEdit)throw new Error("اختار مشروع الأول.");
+    get("chat-project-name").value=projectEdit.name;get("chat-project-description").value=projectEdit.description;
+    get("chat-project-name").focus();
+  }));
+  get("chat-project-new").addEventListener("click",()=>{
+    projectEdit=null;get("chat-project-name").value="";get("chat-project-description").value="";
   });
   get("chat-project-associate").addEventListener("click",()=>guarded(async()=>{
     if(!chatConversation)throw new Error("ابدأ أو افتح محادثة الأول.");
@@ -551,6 +582,18 @@ function clearChatUI() {
   get("chat-vault-import").addEventListener("click",()=>guarded(async()=>{
     if(!vaultPreview || !confirm("اعتماد النص الظاهر كتعديل منك على المعلومة؟"))return;
     await post("vault-import",{memory_id:vaultPreview.memory_id,revision:vaultPreview.revision});
+    resetMemoryEditor();await memoryDashboard();
+  }));
+  get("chat-vault-project-preview").addEventListener("click",()=>guarded(async()=>{
+    if(!selectedProject())throw new Error("اختار مشروع الأول.");
+    const seq=chatSequence,preview=await post("vault-project-preview",{project_id:selectedProject()});
+    if(seq!==chatSequence)return;
+    projectVaultPreview=preview;get("chat-vault-project-text").textContent=preview.content;
+    get("chat-vault-project-import").hidden=!preview.changed;
+  }));
+  get("chat-vault-project-import").addEventListener("click",()=>guarded(async()=>{
+    if(!projectVaultPreview || !confirm("اعتماد وصف المشروع الظاهر كتعديل منك؟"))return;
+    await post("vault-project-import",{project_id:projectVaultPreview.project_id,revision:projectVaultPreview.revision});
     resetMemoryEditor();await memoryDashboard();
   }));
 

@@ -95,6 +95,23 @@ class RetrievalTests(unittest.TestCase):
         job=self.ledger.claim_job()
         self.assertEqual(job['scope_project_id'],project['id'])
 
+    def test_automatic_reference_does_not_relabel_unrelated_earlier_history(self):
+        first=self.say('I prefer concise replies.')
+        project=self.ledger.save_project('Orion garden')
+        second=self.say('Continue the Orion garden project.')
+        with self.store.connect() as db:
+            mappings={r[0]:r[1] for r in db.execute('SELECT turn_id,project_id FROM memory_turn_projects')}
+        self.assertIsNone(mappings[first['turn_id']])
+        self.assertEqual(mappings[second['turn_id']],project['id'])
+
+    def test_distinctive_decision_reference_retrieves_without_writing_association(self):
+        project=self.ledger.save_project('Local assistant')
+        decision=self.ledger.save('memory.engine','We chose Mem0 for multilingual memory.',kind='decision',project_id=project['id'])
+        selected,context=self.search.select(self.con,'Why did we choose Mem0?')
+        self.assertIn(decision['id'],[r['id'] for r in selected])
+        self.assertEqual(context['project']['id'],project['id'])
+        self.assertIsNone(self.ledger.conversation_state(self.con)['project_id'])
+
     def test_one_clarification_binds_original_source_to_confirmed_project(self):
         garden=self.ledger.save_project('Orion garden')
         satellite=self.ledger.save_project('Orion satellite')

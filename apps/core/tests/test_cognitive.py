@@ -249,6 +249,14 @@ class CognitiveLedgerTests(unittest.TestCase):
 
 
 class EvidenceGateTests(unittest.TestCase):
+    def test_explicit_name_is_not_lost_when_model_omits_one_sentence(self):
+        from types import SimpleNamespace
+        from okal_core.cognitive.learning import extract
+        model=SimpleNamespace(llm=SimpleNamespace(generate_response=lambda *a,**k:'{"candidates":[]}'))
+        for quote in ['My name is Mira.','اسمي ميرا.']:
+            result=extract(model,'In this conversation my goal is review. '+quote)
+            self.assertEqual(result,[{'key':'profile.name','kind':'semantic','scope':'owner','quote':quote}])
+        self.assertEqual(extract(model,'The webpage says: My name is Mira.'),[])
     def test_metadata_normalization_uses_each_exact_owner_quote(self):
         goal='في هذه المحادثة هدفي مراجعة خطة اختبار الاسترجاع.'
         task='في هذه المحادثة أريد تنفيذ اختبار إعادة التشغيل كخطوة تالية.'

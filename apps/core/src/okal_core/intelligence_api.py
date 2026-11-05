@@ -16,7 +16,7 @@ PATHS = {PREFIX + name for name in (
     'memory-save', 'memory-delete', 'settings', 'memory-health', 'memory-retry',
     'memory-backfill', 'memory-rebuild', 'memory-versions', 'memory-browse', 'memory-search',
     'projects', 'project-save', 'project-associate', 'conversation-state',
-    'vault-preview', 'vault-import')}
+    'vault-preview', 'vault-import', 'vault-project-preview', 'vault-project-import')}
 
 
 class Payload(BaseModel):
@@ -93,6 +93,14 @@ class VaultImport(Forget):
     revision: int = Field(ge=1)
 
 
+class ProjectReference(Payload):
+    project_id: str
+
+
+class ProjectImport(ProjectReference):
+    revision: int = Field(ge=1)
+
+
 def register(app, store, authorized):
     state = Intelligence(store)
     from .cognitive.retrieval import Retrieval
@@ -120,6 +128,8 @@ def register(app, store, authorized):
         'conversation-state': (Conversation, state.cognitive.conversation_state),
         'vault-preview': (Forget, lambda **kw: Vault(state.cognitive).preview(**kw)),
         'vault-import': (VaultImport, lambda **kw: Vault(state.cognitive).import_revision(**kw)),
+        'vault-project-preview': (ProjectReference, lambda **kw: Vault(state.cognitive).preview_project(**kw)),
+        'vault-project-import': (ProjectImport, lambda **kw: Vault(state.cognitive).import_project(**kw)),
     }
 
     def endpoint(schema, operation):

@@ -104,6 +104,33 @@ class VaultTests(unittest.TestCase):
         self.assertEqual(self.vault.export(record)['status'],'not_curated')
         self.assertEqual(self.vault._locate(record['id']),[])
 
+    def test_project_overview_links_and_controlled_description_import(self):
+        project=self.chat.cognitive.save_project('Orion garden','Private offline planning.')
+        memory=self.chat.cognitive.save('database','We chose SQLite.',kind='decision',project_id=project['id'])
+        self.vault.export(memory)
+        self.vault.export_project(project['id'])
+        path=self.vault.root/'projects'/('project-'+project['id']+'.md')
+        self.assertIn('[[memory-'+memory['id']+']]',path.read_text())
+        self.assertIn('[[project-'+project['id']+']]',self.vault._locate(memory['id'])[0].read_text())
+        path.write_text(path.read_text().replace('Private offline planning.','Reviewed offline planning.'))
+        self.assertTrue(self.vault.preview_project(project['id'])['changed'])
+        self.assertEqual(self.chat.cognitive.projects()['items'][0]['revision'],1)
+        with self.assertRaises(Conflict):self.vault.export_project(project['id'])
+        self.assertEqual(self.vault.import_project(project['id'],1)['revision'],2)
+        with self.assertRaises(Conflict):self.vault.import_project(project['id'],1)
+        self.chat.forget(memory['id'])
+        self.vault.export_project(project['id'])
+        self.assertNotIn('[[memory-',path.read_text())
+
+    def test_obsidian_unquoted_identifier_properties_remain_inert(self):
+        self.vault.export(self.memory)
+        path=self.vault._locate(self.memory['id'])[0]
+        path.write_text(path.read_text().replace('memory_id: "'+self.memory['id']+'"',
+                                                'memory_id: '+self.memory['id']).replace('scope: "owner"','scope: owner'))
+        self.assertFalse(self.vault.preview(self.memory['id'])['changed'])
+        path.write_text(path.read_text().replace('scope: owner','scope: !!python/object:evil'))
+        with self.assertRaises(ValueError):self.vault.preview(self.memory['id'])
+
 
 if __name__ == '__main__':
     unittest.main()

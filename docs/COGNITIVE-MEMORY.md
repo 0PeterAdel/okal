@@ -116,6 +116,10 @@ Project identity is captured per source turn. Switching the active chat project
 cannot relabel earlier source turns. Unique full owner project references may
 establish an association; shared keywords never merge projects. Conflicting
 references require one clarification, and unresolved messages wait for scope.
+Automatic association binds the current turn and future turns, never earlier
+unrelated history. Explicit owner association can bind previously unassigned
+history. Distinctive decision lookup can retrieve one project without writing
+an association; multiple matching projects require clarification.
 
 Private backups and independent filesystem snapshots have separate retention;
 forgetting live memory cannot erase previously exported offline copies.
@@ -154,7 +158,11 @@ than every conversational task. Stable IDs, revisions and base hashes govern
 owner-confirmed imports; stale/deleted notes cannot overwrite SQLite. Statements
 are rendered inside literal dynamically sized text fences, preventing automatic
 remote-image/HTML fetching from extracted Markdown. Note edits remain local and
-never authorize computer tools.
+never authorize computer tools. Project overview notes provide controlled links
+to current knowledge and editable project descriptions. Separate revision and
+generation checks prevent lost project-note updates; owner-confirmed description
+imports use the same project CAS as the UI. Inert unquoted identifier properties
+from Obsidian are supported without evaluating general YAML.
 
 ## Rollout boundary
 
@@ -165,3 +173,11 @@ adapter environment, and run resumable backfill with visible health. Do not
 replace the live database with a synthetic evaluation database. Downgrade requires
 the pre-migration backup and the corresponding old code; do not run old code
 against schema 2. A detailed measured rollout/runbook is required before release.
+
+The frozen 50-turn pilot at `72b3192` recovered interruption, reached 100% per-chat
+recall and 97.06% extraction recall, but omitted the explicitly stated name. Its
+original strict scores were preference 65%, project 50% (two questions). Two
+correct paraphrases also exposed scorer vocabulary gaps; the original report is
+preserved. Explicit first-person name sentences now supplement model proposals
+through the same exact-source gate. The scorer recognizes equivalent concurrent
+writing and direct-response phrases; numerical acceptance thresholds are unchanged.

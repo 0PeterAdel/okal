@@ -142,8 +142,6 @@ class Intelligence:
         with self.store.connect() as db, db:
             db.execute('BEGIN IMMEDIATE')
             self._prune(db)
-            if db.execute('SELECT COUNT(*) FROM chat_conversations').fetchone()[0] >= 500:
-                raise ValueError('conversation_limit_delete_old_conversations')
             result = dict(id=uuid.uuid4().hex, title=title, created_at=self.now, updated_at=self.now)
             db.execute('INSERT INTO chat_conversations VALUES(:id,:title,:created_at,:updated_at)', result)
             return result
@@ -240,9 +238,6 @@ class Intelligence:
                 db.execute("UPDATE chat_turns SET status='running',lease=?,lease_until=?,response=NULL WHERE id=?",
                            (lease, self.now + LEASE_SECONDS, turn_id))
             else:
-                if db.execute('SELECT COUNT(*) FROM chat_turns WHERE conversation_id=?',
-                              (conversation_id,)).fetchone()[0] >= 2000:
-                    raise ValueError('conversation_full_start_new')
                 db.execute('''INSERT INTO chat_turns(id,conversation_id,request_id,digest,user_text,
                            status,lease,lease_until,created_at) VALUES(?,?,?,?,?,'running',?,?,?)''',
                            (turn_id, conversation_id, request_id, digest, message, lease,
@@ -401,7 +396,10 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
             project_id, ambiguous = Retrieval(state.cognitive).resolve_project(conversation_id,message)
             association = state.cognitive.conversation_state(conversation_id)
             if project_id and not ambiguous and association['project_id'] is None:
-                state.cognitive.associate(conversation_id,project_id,association['revision'])
+                state.cognitive.associate(conversation_id,project_id,association['revision'],include_history=False)
+                with store.connect() as db, db:
+                    db.execute('UPDATE memory_turn_projects SET project_id=?,revision=revision+1 WHERE turn_id=?',
+                               (project_id,turn_id))
         history, context = state.context(conversation_id, message, turn_id)
         memory = remember_request(message)
         if context.get('project_ambiguity'):

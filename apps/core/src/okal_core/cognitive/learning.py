@@ -183,4 +183,14 @@ def extract(memory, message: str, project_id=None, existing=(), *, diagnostics=N
         raise ValueError('invalid_extraction_envelope')
     if diagnostics is not None:
         diagnostics(parsed)
-    return validate_candidates(message, parsed['candidates'], project_id)
+    candidates=parsed['candidates']
+    # Explicit identity statements are high-value and the small model can omit
+    # one when a message also contains goals and preferences. Supplement only
+    # a complete first-person name sentence, retaining the exact owner quote.
+    # All normal evidence, sensitive-data, question and scope gates still apply.
+    identities=[q for q in quotes if re.fullmatch(
+        r'(?:My (?:full )?name is|اسمي|أنا اسمي|انا اسمي)\s+[^.!?؟؛\n]{1,80}[.!]?',q,re.I)]
+    for quote in identities:
+        if not any(v.get('quote')==quote for v in candidates) and len(candidates)<4:
+            candidates.append({'key':'profile.name','kind':'semantic','scope':'owner','quote':quote})
+    return validate_candidates(message, candidates, project_id)

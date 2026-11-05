@@ -50,6 +50,9 @@ function harness(reply, fixtures={}) {
       if(url==="/api/v1/chat/get") return response({id:cid,turns,next_before:null});
       if(url==="/api/v1/chat/conversations") return response({items:[{id:cid,title:"Saved"}],next_before:null});
       if(url==="/api/v1/chat/memories") return response({items:[]});
+      if(url==="/api/v1/chat/projects") return response({items:[]});
+      if(url==="/api/v1/chat/memory-health") return response({configured:false});
+      if(url==="/api/v1/chat/conversation-state") return response({project_id:null,revision:0,state:{}});
       if(url==="/api/v1/chat/settings") return response({retention_days:90});
       if(url==="/api/v1/calendar/local/save")return response({
         id:"aaaaaaaabbbbccccddddeeeeeeeeeeee",revision:1,replayed:false

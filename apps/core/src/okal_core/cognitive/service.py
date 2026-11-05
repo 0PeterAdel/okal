@@ -110,6 +110,19 @@ class MemoryWorker:
             if self.stop_event.is_set():
                 return
             self._project(job)
+        with self.store.connect() as db:
+            projects=[dict(r) for r in db.execute('''SELECT * FROM memory_project_outbox
+                WHERE status='pending' AND available_at<=? ORDER BY project_id LIMIT 2''',(self.ledger.now,))]
+        for project in projects:
+            try:
+                Vault(self.ledger).export_project(project['project_id'])
+                status='current'
+            except Exception:
+                status='failed' if project['attempts']>=4 else 'pending'
+            with self.store.connect() as db, db:
+                db.execute('''UPDATE memory_project_outbox SET status=?,attempts=attempts+1,available_at=?
+                    WHERE project_id=? AND revision=? AND generation=?''',(status,0 if status=='current' else self.ledger.now+60,
+                        project['project_id'],project['revision'],project['generation']))
         if self.stop_event.is_set():
             return
         with mail_idle(self.store.directory) as idle:

@@ -104,7 +104,7 @@ def build():
     for i,project in enumerate(projects):
         queries.append({'id':f'project-{i:02}','family':'project','project':project['label'],
             'question':f'Continue the {project["name"]} project. Which database is current and why? Please reply in English.',
-            'concepts':[['PostgreSQL'],['concurrent','simultaneous','multiple devices','تزامن','نفس الوقت']],
+            'concepts':[['PostgreSQL'],['concurrent','simultaneous','multiple devices','more than one device','same time','تزامن','نفس الوقت']],
             'obsolete':['SQLite'],'requires':[f'c{180+i:03}']})
     profile_questions=[
         ('name','What name did I tell you to remember?'),('language','فاكر أنا بحب تكلمني إزاي؟'),
@@ -121,7 +121,7 @@ def build():
     ]
     for index,(field,question) in enumerate(profile_questions):
         concepts={'name':[['Mira','ميرا']], 'language':[['مصري','مصرى','Egyptian']],
-                  'style':[['brief','concise','short','direct','مختصر','الموضوع']]}[field]
+                  'style':[['brief','concise','short','direct','straight to the point','skip introductions','مختصر','الموضوع']]}[field]
         queries.append({'id':f'profile-{index:02}','family':'preference','subject':field,
             'question':question,'concepts':concepts,'requires':['c140' if field=='style' else 'c000']})
     for query in queries:

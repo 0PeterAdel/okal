@@ -32,6 +32,7 @@ from okal_core.cognitive.service import MemoryWorker
 from okal_core.intelligence import Intelligence, respond
 from okal_core.mail.private import write_private
 from okal_core.store import Store, private_file
+from okal_core.store import Conflict
 
 
 def normalized(value):
@@ -122,6 +123,46 @@ class ObservedAdapter:
         self.client.close()
 
 
+def lifecycle_probe(chat, adapter):
+    """Real stale-vector/vault fences and physical index deletion, synthetic only."""
+    from okal_core.cognitive.vault import Vault
+    ledger=chat.cognitive
+    cid=chat.create('Synthetic forgetting probe')['id']
+    claim=chat.begin(cid,uuid.uuid4().hex,'My preferred test phrase is amber canoe 672.')
+    chat.finish(claim['turn_id'],claim['lease'],{'answer':'Synthetic fixture acknowledgement.','mode':'fixture_archive'})
+    record=ledger.save('evaluation.phrase','My preferred test phrase is amber canoe 672.',source_turn=claim['turn_id'])
+    adapter.call('project',{'record':record})
+    vault=Vault(ledger);vault.export(record)
+    path=vault._locate(record['id'])[0];stale=path.read_text()
+    hits=adapter.call('search',{'query':'amber canoe 672','limit':16})
+    assert record['id'] in {r['id'] for r in ledger.active(hits)},'probe_insert_missing'
+    consumer=chat.create('Synthetic context consumer')['id']
+    inflight=chat.begin(consumer,uuid.uuid4().hex,'What is my amber canoe phrase?')
+    chat.context(consumer,'amber canoe 672',inflight['turn_id'])
+    chat.forget(record['id'])
+    assert record['id'] not in {r['id'] for r in ledger.active(hits)},'stale_vector_resurrection'
+    fenced=False
+    try:chat.finish(inflight['turn_id'],inflight['lease'],{'answer':'amber canoe 672','mode':'owner_memory'})
+    except Conflict:fenced=True
+    assert fenced,'cached_context_not_fenced'
+    rejected=False
+    try:vault.import_revision(record['id'],record['revision'])
+    except Conflict:rejected=True
+    assert rejected,'stale_vault_import'
+    chosen,context=Retrieval(ledger).select(cid,'amber canoe 672')
+    assert 'amber canoe 672' not in json.dumps({'records':chosen,'context':context}), 'active_context_resurrection'
+    adapter.call('delete',{'id':record['id']});vault.delete(record['id'])
+    hits=adapter.call('search',{'query':'amber canoe 672','limit':16})
+    assert record['id'] not in {r['id'] for r in hits},'physical_vector_not_deleted'
+    path.write_text(stale)
+    try:vault.import_revision(record['id'],record['revision'])
+    except Conflict:pass
+    else:raise AssertionError('rediscovered_note_resurrection')
+    vault.delete(record['id'])
+    return {'stale_vector_rejected':True,'cached_context_fenced':True,'stale_vault_rejected':True,
+            'active_context_absent':True,'physical_vector_deleted':True,'rediscovered_note_rejected':True}
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--state',type=Path,required=True)
@@ -174,6 +215,8 @@ def main():
                 'mode':'fixture_archive','source':'synthetic_corpus_fixture'})
             gold[claim['turn_id']]=turn['expected'];source_turns.append(claim['turn_id'])
     manifest={'corpus_sha256':hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
+        'source_head':subprocess.run(['git','rev-parse','HEAD'],capture_output=True,text=True,check=True).stdout.strip(),
+        'source_clean':not subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,check=True).stdout.strip(),
         'conversations':conversations,'projects':projects,'source_turns':source_turns,
         'archive_assistant_mode':'fixture_archive; scripted dialogue is never scored as model output',
         'started_wall_time':time.time(),'limit_conversations':args.conversations,'limit_answers':args.answers}
@@ -220,6 +263,13 @@ def main():
             before=time.monotonic()
             selected_records,metadata=Retrieval(ledger).select(cid,query['question'])
             retrieval_latencies.append(time.monotonic()-before)
+            with store.connect() as db:
+                relevant={r['id'] for r in db.execute('SELECT * FROM chat_memories')
+                    if has_concepts(r['content'],query['concepts']) and (
+                        r['scope']=='owner' if query['family']=='preference' else
+                        r['scope']=='project:'+projects[query['project']] if query['family']=='project' else
+                        r['conversation_id']==cid)}
+            retrieved={r['id'] for r in selected_records}
             before=time.monotonic()
             actual=respond(store,cid,uuid.uuid4().hex,query['question'])
             answer=actual['answer']
@@ -231,6 +281,9 @@ def main():
             row['expected_reply_language']=query['expected_reply_language']
             row['inference_usage']=actual.get('inference_usage',{})
             row['subject']=query.get('subject')
+            row['retrieval_precision_at_8']=len(retrieved & relevant)/len(retrieved) if retrieved else 0
+            row['retrieval_recall_at_8']=len(retrieved & relevant)/len(relevant) if relevant else 0
+            row['relevant_ledger_ids']=sorted(relevant)
             arabic=len(re.findall(r'[\u0621-\u064a]',answer));latin=len(re.findall(r'[a-z]',answer,re.I))
             row['language_adherence']=(None if arabic+latin<20 else
                 (latin>arabic if query['expected_reply_language']=='English' else arabic>=latin))
@@ -248,6 +301,18 @@ def main():
             time.sleep(.1)
         with store.connect() as db:
             profile_after={r['key']:r['content'] for r in db.execute("SELECT key,content FROM chat_memories WHERE scope='owner'")}
+        lifecycle=lifecycle_probe(chat,observed)
+        # Rebuild a real persistent index from SQLite after the forgetting
+        # probe. This also proves that deletion tombstones survive reindexing.
+        ledger.request_rebuild()
+        for rebuild_tick in range(1000):
+            if time.monotonic()>=deadline:raise RuntimeError('bounded_evaluation_deadline')
+            worker.tick();health=ledger.health()
+            if not health['projections'].get('pending',0) and health['rebuild']['status']=='current':break
+            if rebuild_tick%20==0:print(json.dumps({'phase':'rebuild','health':health}),flush=True)
+        else:raise RuntimeError('bounded_rebuild_limit')
+        chosen,context=Retrieval(ledger).select(cid,'amber canoe 672')
+        lifecycle['forgotten_absent_after_rebuild']='amber canoe 672' not in json.dumps({'records':chosen,'context':context})
         with store.connect() as db:
             integrity=db.execute('PRAGMA integrity_check').fetchone()[0]
             foreign_keys=[tuple(r) for r in db.execute('PRAGMA foreign_key_check')]
@@ -268,11 +333,15 @@ def main():
             'ingestion_seconds':ingestion_seconds,'ingestion_turns_per_second':len(source_turns)/ingestion_seconds,
             'retrieval_seconds_p50':statistics.median(retrieval_latencies) if retrieval_latencies else None,
             'retrieval_seconds_p95':quantile(retrieval_latencies,.95),
+            'retrieval_precision_at_8_mean':statistics.mean(r['retrieval_precision_at_8'] for r in answers) if answers else None,
+            'retrieval_recall_at_8_mean':statistics.mean(r['retrieval_recall_at_8'] for r in answers) if answers else None,
+            'retrieval_relevance_definition':'Current ledger records containing expected concepts in the queried scope; always-present personalization counts against precision.',
             'answer_seconds_p50':statistics.median(r['seconds'] for r in answers) if answers else None,
             'answer_seconds_p95':quantile([r['seconds'] for r in answers],.95),
             'integrity_check':integrity,'foreign_key_violations':foreign_keys,'duplicate_current_keys':duplicates,
             'forbidden_python_network_attempts':len(network_denied),'health':ledger.health(),
             'profile_unchanged_by_recall_questions':profile_before==profile_after,
+            'lifecycle_probe':lifecycle,
             'actual_prompt_tokens_max':max((r['inference_usage'].get('prompt_eval_count',0) for r in answers),default=0),
             'interruption_injected':observed.interrupted,'elapsed_monotonic_seconds':time.monotonic()-started,
             'disk_bytes':sum(p.stat().st_size for p in args.state.rglob('*') if p.is_file())}
@@ -284,7 +353,16 @@ def main():
         observed.close();report['resources']=samples.finish();os.close(lock)
     (args.state/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
     print(json.dumps(report,ensure_ascii=False),flush=True)
-    return 2 if failure else 0
+    if not failure:
+        thresholds={'preference':.90,'project':.85,'conversation':.90}
+        report['quality_gates']={key:report['families'][key]['recall'] is not None and
+            report['families'][key]['recall']>=value for key,value in thresholds.items()}
+        report['consistency_gates']={'profile_stable':report['profile_unchanged_by_recall_questions'],
+            'no_false_negative_source_candidates':report['false_candidates_on_negative_sources']==0,
+            'no_duplicates':duplicates==0,'integrity':integrity=='ok' and not foreign_keys,
+            'no_external_attempts':not network_denied,'lifecycle':all(lifecycle.values())}
+        (args.state/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+    return 2 if failure or not all(report.get('quality_gates',{}).values()) or not all(report.get('consistency_gates',{}).values()) else 0
 
 
 if __name__=='__main__':
