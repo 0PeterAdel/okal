@@ -13,12 +13,14 @@ class ProcessGuardTests(unittest.TestCase):
             root=Path(temporary);projection=root/'projection';projection.mkdir(mode=0o700)
             code_root=root/'code';code_root.mkdir();(code_root/'module.py').write_text('reviewed code')
             (root/'core.sqlite3').write_text('synthetic private state')
+            (root/'vault').mkdir();(root/'vault/note.md').write_text('unapproved synthetic edit')
             script='''
 import pathlib,sqlite3,sys
 from okal_core.cognitive.providers import install_file_guard
 root=pathlib.Path(sys.argv[1]);projection=root/'projection'
 install_file_guard(projection,root/'code')
 for operation in [lambda:(root/'core.sqlite3').read_text(),lambda:sqlite3.connect(root/'core.sqlite3'),
+                  lambda:(root/'vault/note.md').read_text(),lambda:(root/'vault/note.md').write_text('bad'),
                   lambda:(root/'code/module.py').write_text('bad')]:
  try:operation()
  except PermissionError:pass

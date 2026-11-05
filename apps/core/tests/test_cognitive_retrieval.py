@@ -78,6 +78,27 @@ class RetrievalTests(unittest.TestCase):
         selected,_=self.search.select(self.con,'اسمي إيه؟')
         self.assertTrue(any('Mira' in r['content'] for r in selected))
 
+    def test_legacy_credential_values_never_gain_active_context_or_vault_authority(self):
+        from okal_core.cognitive.vault import Vault
+        memory=self.chat.save_memory('legacy.login','Legacy account note.')
+        source=self.say('Synthetic historical conversation.')
+        secret='My password is synthetic-legacy-value.'
+        with self.store.connect() as db,db:
+            db.execute('UPDATE chat_memories SET content=? WHERE id=?',(secret,memory['id']))
+            db.execute("UPDATE memory_meta SET category='credential_quarantined',assertion='unverified' WHERE memory_id=?",(memory['id'],))
+            db.execute('UPDATE chat_turns SET user_text=? WHERE id=?',(secret,source['turn_id']))
+        self.assertEqual(self.ledger.active([{'id':memory['id'],'revision':1}]),[])
+        selected,_=self.search.select(self.con,'What is the legacy account note?')
+        self.assertNotIn(memory['id'],[r['id'] for r in selected])
+        shown=self.chat.memories()['items'][0]
+        self.assertTrue(shown['quarantined']);self.assertNotIn('synthetic-legacy-value',shown['content'])
+        self.assertEqual(Vault(self.ledger).export(dict(memory,content=secret))['status'],'not_curated')
+        claim=self.chat.begin(self.con,uuid.uuid4().hex,'Hello')
+        history,context=self.chat.context(self.con,'Hello',claim['turn_id'])
+        from okal_core.intelligence import safe_context
+        self.assertNotIn('synthetic-legacy-value',json.dumps({'history':history,'context':safe_context(context)}))
+        self.assertIn('synthetic-legacy-value',json.dumps(self.chat.get(self.con)))
+
     def test_project_names_do_not_merge_and_explicit_name_recovers_across_chats(self):
         garden = self.ledger.save_project('Orion garden')
         satellite = self.ledger.save_project('Orion satellite')
@@ -121,6 +142,8 @@ class RetrievalTests(unittest.TestCase):
     def test_distinctive_decision_reference_retrieves_without_writing_association(self):
         project=self.ledger.save_project('Local assistant')
         decision=self.ledger.save('memory.engine','We chose Mem0 for multilingual memory.',kind='decision',project_id=project['id'])
+        other=self.ledger.save_project('Separate archive')
+        self.ledger.save('archive.database','We chose SQLite for archive memory.',kind='decision',project_id=other['id'])
         selected,context=self.search.select(self.con,'Why did we choose Mem0?')
         self.assertIn(decision['id'],[r['id'] for r in selected])
         self.assertEqual(context['project']['id'],project['id'])

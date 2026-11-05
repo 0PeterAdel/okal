@@ -51,6 +51,13 @@ class CognitiveLedgerTests(unittest.TestCase):
         saved=self.chat.save_memory('health','My medical appointment is monthly.',sensitive_confirmed=True)
         self.assertEqual(saved['content'],'My medical appointment is monthly.')
         with self.assertRaises(ValueError):self.chat.save_memory('credential','password=synthetic-secret',sensitive_confirmed=True)
+        for key,content in [('login','My password is synthetic-value.'),('api key','synthetic-value'),
+                            ('login','كلمة المرور هي قيمة تجريبية')]:
+            with self.subTest(key=key):
+                with self.assertRaises(ValueError):self.chat.save_memory(key,content,sensitive_confirmed=True)
+        with self.assertRaises(ValueError):self.ledger.save_project('Synthetic project','My password is synthetic-value.')
+        for secret in ['My password is synthetic-value.','كلمة المرور هي قيمة تجريبية']:
+            with self.assertRaises(ValueError):self.say(secret)
 
     def test_correction_preserves_source_history_and_versions(self):
         first = self.say('I prefer detailed answers. My project is a garden.')

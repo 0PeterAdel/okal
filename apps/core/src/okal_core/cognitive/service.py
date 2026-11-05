@@ -7,7 +7,7 @@ import threading
 from .process import AdapterClient, AdapterUnavailable
 from .vault import Vault
 from .learning import OWNER,EXTERNAL
-from .ledger import SENSITIVE
+from .ledger import SENSITIVE, CREDENTIAL_CATEGORY
 from ..store import Conflict
 
 
@@ -97,7 +97,8 @@ class MemoryWorker:
                 return
             with self.store.connect() as db, db:
                 db.execute('BEGIN IMMEDIATE')
-                for row in db.execute('SELECT id,revision FROM chat_memories').fetchall():
+                for row in db.execute('''SELECT m.id,m.revision FROM chat_memories m
+                    JOIN memory_meta x ON x.memory_id=m.id WHERE x.category<>'credential_quarantined' ''').fetchall():
                     self.ledger._outbox(db,row['id'],row['revision'],'upsert')
                 db.execute("UPDATE memory_index_state SET status='current',attempts=0 WHERE generation=?", (rebuild['generation'],))
         self.ledger.backfill()
@@ -140,7 +141,7 @@ class MemoryWorker:
                             'SELECT id,revision,key,kind,scope FROM chat_memories WHERE scope IN (?,?,?) '
                             'ORDER BY updated_at DESC LIMIT 16',
                             ('owner', job['conversation_id'], 'project:' + (project_id or '')))]
-                    if OWNER.search(job['user_text']) and not EXTERNAL.search(job['user_text']) and not SENSITIVE.search(job['user_text']):
+                    if OWNER.search(job['user_text']) and not EXTERNAL.search(job['user_text']) and not SENSITIVE.search(job['user_text']) and not CREDENTIAL_CATEGORY.search(job['user_text']):
                         # Mem0 semantic retrieval supplies consolidation subjects;
                         # Core resolves every returned ID/revision and scope.
                         hits=self.adapter.call('search',{'query':job['user_text'],'limit':8})

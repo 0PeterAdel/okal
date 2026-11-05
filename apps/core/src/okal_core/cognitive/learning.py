@@ -7,7 +7,7 @@ from copy import deepcopy
 import json
 import re
 
-from .ledger import KINDS, SENSITIVE
+from .ledger import KINDS, SENSITIVE, CREDENTIAL_CATEGORY
 
 EXTERNAL = re.compile(
     r'```|^\s*>|\b(?:webpage|page|website|document|email|model|assistant|article|tool)\s+'
@@ -169,7 +169,7 @@ def validate_candidates(message: str, candidates: list, project_id=None) -> list
         kind, scope = item['kind'], item['scope']
         if kind not in KINDS or scope not in {'owner', 'conversation', 'project'}:
             raise ValueError('invalid_candidate_scope_or_kind')
-        if (quote not in message or not OWNER.search(quote) or SENSITIVE.search(quote)
+        if (quote not in message or not OWNER.search(quote) or SENSITIVE.search(quote) or CREDENTIAL_CATEGORY.search(quote)
                 or ordinary_question(quote)):
             continue
         if re.search(r'\b(?:hypothetical|if i|if we|imagine|for example)\b|مثال افتراضي|لو فرضنا', quote, re.I):
@@ -204,7 +204,7 @@ def extract(memory, message: str, project_id=None, existing=(), *, diagnostics=N
     Do not call Mem0.add(infer=True): its autonomous update decisions cannot
     acquire authority over OKAL's ledger or bypass the exact-source gate.
     """
-    if EXTERNAL.search(message) or SENSITIVE.search(message) or not OWNER.search(message):
+    if EXTERNAL.search(message) or SENSITIVE.search(message) or CREDENTIAL_CATEGORY.search(message) or not OWNER.search(message):
         return []
     payload = json.dumps({'OWNER_MESSAGE': message, 'PROJECT_ID': project_id,
                           'EXISTING_SUBJECTS': list(existing)[:16]}, ensure_ascii=False)

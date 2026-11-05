@@ -48,7 +48,12 @@ owner-data rehearsal.
 
 Migration changes `chat_schema=1` to `2`, adding the cognitive ledger, source
 graph, FTS index, project state, jobs, versions, tombstones and outboxes.
-It preserves complete stored conversations. It cannot recover purged data.
+It preserves stored conversations. Legacy completed turns receive a conservative
+privacy dependency chain, so later assistant answers may be invalidated when a
+legacy fact is explicitly forgotten; unrelated owner messages remain. Credential-
+related legacy memories are withheld from active recall and projections, with an
+owner-visible quarantine indicator. Their private archive/ledger data remains for
+owner review/deletion. Migration cannot recover already-purged data.
 
 The old 90-day chat default and exact 365-day memory default become indefinite
 retention. Stage 1 did not record whether those exact values were explicitly
@@ -86,7 +91,9 @@ The conversational mail/model config remains separate and unchanged.
 
 Core imports no Mem0 package. A dedicated subprocess receives only bounded
 JSON over private pipes, with a clean environment and private working directory.
-It has one exclusive embedded-Qdrant owner. Never start a second worker against
+Its writable/readable projection scope is `cognitive/adapter`; the vault and
+Obsidian profile are siblings outside that scope. It has one exclusive
+embedded-Qdrant owner. Never start a second worker against
 the same index. Do not expose Qdrant's HTTP service or use a temporary `/tmp`
 index for durable memory. Runtime Python audit hooks provide additional denials;
 they are not a native-code-compromise sandbox.

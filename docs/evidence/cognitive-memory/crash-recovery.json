@@ -1,0 +1,15 @@
+{
+  "synthetic_only": true,
+  "real_initial_chat": true,
+  "parent_sigkill_while_job_running": true,
+  "unexpired_lease_not_stolen": true,
+  "real_wall_clock_lease_recovery": true,
+  "recovered_job_status": "done",
+  "attempts": 2,
+  "current_memory_records": 1,
+  "index_current": true,
+  "vault_current": true,
+  "idempotent_backfill": true,
+  "integrity_check": "ok",
+  "foreign_key_violations": 0
+}

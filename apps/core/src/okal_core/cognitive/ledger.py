@@ -17,6 +17,19 @@ SENSITIVE = re.compile(
     r'\b(?:password|passwd|token|secret|medical|diagnos\w*|blood pressure|'
     r'bank account|credit card|iban|salary|social security)\b|'
     r'كلمة السر|كلمة المرور|حساب بنكي|بطاقة ائتمان|تشخيص|مرض|راتبي|مرتبي', re.I)
+CREDENTIAL_CATEGORY = re.compile(
+    r'\b(?:password|passwd|passphrase|credentials?|api[_ -]?keys?|access[_ -]?tokens?|'
+    r'refresh[_ -]?tokens?|client[_ -]?secrets?|private[_ -]?keys?)\b|'
+    r'كلمة\s*(?:السر|المرور)|توكن|مفتاح سري|مفتاح خاص',re.I)
+
+
+def owner_view(record):
+    """Withhold a legacy credential value without destroying the owner's archive."""
+    result=dict(record)
+    if CREDENTIAL_CATEGORY.search(result.get('key','')+' '+result.get('content','')):
+        result.update(content='[Legacy credential-related memory excluded; forget to remove it.]',
+                      quarantined=True,assertion='unverified',status='unverified')
+    return result
 
 
 def uid():
@@ -152,6 +165,15 @@ class Ledger:
             if 'scope_project_id' not in columns:
                 db.execute('ALTER TABLE memory_jobs ADD COLUMN scope_project_id TEXT')
             if first:
+                # Stage 1 did not retain transitive archive dependencies. Its
+                # completed turns consumed preceding completed chat context.
+                # A conservative chronological chain preserves forgetting's
+                # privacy fence without deleting unrelated owner messages.
+                db.execute('''INSERT OR IGNORE INTO memory_turn_sources(turn_id,source_turn)
+                    SELECT turn_id,source_turn FROM (
+                        SELECT id AS turn_id,LAG(id) OVER (
+                            PARTITION BY conversation_id ORDER BY seq) AS source_turn
+                        FROM chat_turns WHERE status='complete') WHERE source_turn IS NOT NULL''')
                 # Owner requested keep-until-deleted. The former default 90
                 # cannot be distinguished from an explicitly selected 90 in v1.
                 # Preserve other finite policies; document this migration.
@@ -177,10 +199,13 @@ class Ledger:
                     # source; new V2 owner-editor revisions still outrank backfill.
                     db.execute('''INSERT INTO memory_meta(memory_id,project_id,assertion,category,extractor,effective_seq)
                         VALUES(?,NULL,?,?,?,?)''',
-                               (record['id'], 'remembered', record['kind'], 'stage1-migration',cutoff-(1<<62)))
+                               (record['id'], 'unverified' if CREDENTIAL_CATEGORY.search(record['key']+' '+record['content']) else 'remembered',
+                                'credential_quarantined' if CREDENTIAL_CATEGORY.search(record['key']+' '+record['content']) else record['kind'],
+                                'stage1-migration',cutoff-(1<<62)))
                     self._snapshot(db, record)
-                    self._outbox(db, row['id'], row['revision'], 'upsert')
-                    self._fts(db, record)
+                    unsafe=bool(CREDENTIAL_CATEGORY.search(record['key']+' '+record['content']))
+                    self._outbox(db, row['id'], row['revision'], 'delete' if unsafe else 'upsert')
+                    if not unsafe:self._fts(db, record)
                     if row['source_turn']:
                         db.execute('INSERT OR IGNORE INTO memory_evidence VALUES(?,?,?,?)',
                                    (row['id'], row['revision'], row['source_turn'], row['content']))
@@ -218,6 +243,8 @@ class Ledger:
              assertion='remembered', extractor='owner-editor', _db=None, _source_seq=None):
         from ..intelligence import text, identifier, Missing
         key, content = text(key, 80).casefold(), text(content, 600)
+        if CREDENTIAL_CATEGORY.search(key+' '+content):
+            raise ValueError('credential_memory_forbidden_even_with_sensitive_consent')
         if SENSITIVE.search(content) and extractor not in {
                 'owner-confirmed-sensitive-editor','owner-confirmed-vault-edit'}:
             raise ValueError('sensitive_memory_requires_explicit_editor_confirmation')
@@ -412,10 +439,16 @@ class Ledger:
         from ..intelligence import identifier
         identifier(memory_id)
         with self.store.connect() as db:
-            return {'sources': [dict(r) for r in db.execute('''SELECT e.turn_id,e.quote,t.conversation_id,t.created_at
+            current=db.execute('SELECT key,content FROM chat_memories WHERE id=?',(memory_id,)).fetchone()
+            unsafe=current and CREDENTIAL_CATEGORY.search(current['key']+' '+current['content'])
+            sources=[dict(r) for r in db.execute('''SELECT e.turn_id,e.quote,t.conversation_id,t.created_at
                                   FROM memory_evidence e JOIN chat_turns t ON t.id=e.turn_id
-                                  WHERE e.memory_id=? ORDER BY e.revision DESC LIMIT 100''', (memory_id,))],
-                    'items': [dict(r, snapshot=json.loads(r['snapshot']) if r['snapshot'] else None)
+                                  WHERE e.memory_id=? ORDER BY e.revision DESC LIMIT 100''', (memory_id,))]
+            for source in sources:
+                if unsafe or CREDENTIAL_CATEGORY.search(source['quote']):
+                    source['quote']='[Credential-related legacy source withheld.]'
+            return {'sources':sources,
+                    'items': [dict(r, snapshot=owner_view(json.loads(r['snapshot'])) if r['snapshot'] else None)
                               for r in db.execute('SELECT * FROM memory_versions WHERE memory_id=? '
                                                   'ORDER BY revision DESC LIMIT 100', (memory_id,))]}
 
@@ -437,7 +470,7 @@ class Ledger:
                     WHERE m.id=? AND m.revision=? AND t.memory_id IS NULL
                     AND (m.expires_at=0 OR m.expires_at>?)''',
                     (candidate.get('id'), candidate.get('revision'), self.now)).fetchone()
-                if row:
+                if row and not CREDENTIAL_CATEGORY.search(row['key']+' '+row['content']):
                     result.append(dict(row))
         return result
 
@@ -452,7 +485,8 @@ class Ledger:
                     'worker': worker.status if worker else 'not_started',
                     'configured': (self.store.directory/'cognitive.json').exists(),
                     'rebuild': dict(db.execute('SELECT generation,status,attempts FROM memory_index_state WHERE id=1').fetchone()),
-                    'active': db.execute('SELECT COUNT(*) FROM chat_memories').fetchone()[0],
+                    'active': db.execute("SELECT COUNT(*) FROM memory_meta WHERE category<>'credential_quarantined'").fetchone()[0],
+                    'quarantined':db.execute("SELECT COUNT(*) FROM memory_meta WHERE category='credential_quarantined'").fetchone()[0],
                     'deleted': db.execute('SELECT COUNT(*) FROM memory_tombstones').fetchone()[0]}
 
     def browse(self, status='current', offset=0):
@@ -463,11 +497,11 @@ class Ledger:
                 rows = db.execute('''SELECT m.*,x.assertion,x.project_id FROM chat_memories m JOIN memory_meta x ON x.memory_id=m.id
                     WHERE (?='current' OR x.assertion=?) AND (m.expires_at=0 OR m.expires_at>?)
                     ORDER BY m.updated_at DESC,m.id LIMIT 51 OFFSET ?''', (status,status,self.now,offset)).fetchall()
-                items = [dict(r,status=r['assertion']) for r in rows[:50]]
+                items = [owner_view(dict(r,status=r['assertion'])) for r in rows[:50]]
             else:
                 rows = db.execute('SELECT * FROM memory_versions WHERE status=? ORDER BY created_at DESC,memory_id,revision DESC LIMIT 51 OFFSET ?',
                                   (status,offset)).fetchall()
-                items = [dict(r,snapshot=json.loads(r['snapshot']) if r['snapshot'] else None) for r in rows[:50]]
+                items = [dict(r,snapshot=owner_view(json.loads(r['snapshot'])) if r['snapshot'] else None) for r in rows[:50]]
             return {'items':items, 'next_offset':offset+50 if len(rows)>50 else None}
 
     def projects(self):
@@ -479,6 +513,8 @@ class Ledger:
         from ..intelligence import text, identifier
         name = text(name, 100)
         description = text(description, 600) if description else ''
+        if CREDENTIAL_CATEGORY.search(name+' '+description):
+            raise ValueError('credential_project_note_forbidden')
         if type(revision) is not int or revision < 0:
             raise ValueError('invalid_project_revision')
         if project_id:

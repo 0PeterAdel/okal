@@ -1,0 +1,18 @@
+{
+  "synthetic_only": true,
+  "real_mem0_ping": {
+    "local": true,
+    "engine": "mem0",
+    "index": "qdrant"
+  },
+  "private_adapter_subdirectory": true,
+  "real_insert_semantic_search_delete": true,
+  "arabic_extraction_actual": [
+    {
+      "key": "communication.style",
+      "quote": "أنا بفضل الردود الموجزة.",
+      "kind": "instruction",
+      "scope": "owner"
+    }
+  ]
+}

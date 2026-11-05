@@ -36,7 +36,8 @@ class Vault:
         return private_directory(self.root / folder) / ('memory-' + record['id'] + '.md')
 
     def curated(self, record):
-        return (record['scope']=='owner' or record['scope'].startswith('project:')
+        from .ledger import CREDENTIAL_CATEGORY
+        return not CREDENTIAL_CATEGORY.search(record['key']+' '+record['content']) and (record['scope']=='owner' or record['scope'].startswith('project:')
                 or record['kind']=='lesson') and record['kind'] in {
                     'semantic','instruction','decision','goal','constraint','lesson'}
 

@@ -40,10 +40,10 @@ class AdapterClient:
             'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
             'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1', 'OTEL_SDK_DISABLED': 'true',
         }
-        projection=private_directory(self.directory/'cognitive')
+        projection=private_directory(private_directory(self.directory/'cognitive')/'adapter')
         self.process = subprocess.Popen([
             str(config.python), '-m', 'okal_core.cognitive.worker_process',
-            '--config', str(self.config_path), '--directory', str(self.directory / 'cognitive')],
+            '--config', str(self.config_path), '--directory', str(projection)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             cwd=projection, env=environment, shell=False, bufsize=0, close_fds=True)
         os.set_blocking(self.process.stdin.fileno(), False)

@@ -10,6 +10,8 @@
   "explicit_finite_memory_expiry_preserved": true,
   "legacy_default_memory_expiry_migrated_to_forever": true,
   "later_archived_correction_supersedes_legacy_source": true,
+  "legacy_credentials_quarantined_from_active_memory_and_projections": true,
+  "legacy_dependent_answers_fenced_without_erasing_unrelated_owner_turns": true,
   "idempotent_backfill": true,
   "old_code_refuses_new_schema": true,
   "backup_restored_and_old_code_verified": true,

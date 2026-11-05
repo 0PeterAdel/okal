@@ -44,10 +44,11 @@ for i in range(100):
  if i==0:old_source=claim['turn_id']
 memory=chat.save_memory('language','Always answer in English.',kind='semantic',source_turn=old_source,days=30)
 chat.save_memory('communication.style','I prefer brief answers.',kind='semantic')
+legacy=chat.save_memory('login credential','My password is synthetic-value.',kind='semantic')
 with store.connect() as db:
  assert db.execute('SELECT version FROM chat_schema').fetchone()[0]==1
  assert db.execute('SELECT COUNT(*) FROM chat_turns').fetchone()[0]==100
-print(json.dumps({'conversation_id':cid,'memory_id':memory['id'],'expires_at':memory['expires_at']}))
+print(json.dumps({'conversation_id':cid,'memory_id':memory['id'],'expires_at':memory['expires_at'],'credential_id':legacy['id']}))
 '''
     output=subprocess.run([sys.executable,'-c',create,str(original)],env=baseline_env,
                           capture_output=True,text=True,check=True,timeout=30)
@@ -68,6 +69,14 @@ print(json.dumps({'conversation_id':cid,'memory_id':memory['id'],'expires_at':me
     records={r['key']:r for r in chat.memories()['items']}
     assert records['communication.language']['expires_at']==before['expires_at']
     assert records['communication.style']['expires_at']==0
+    assert records['login credential']['quarantined'] and 'synthetic-value' not in records['login credential']['content']
+    assert not chat.cognitive.active([{'id':before['credential_id'],'revision':1}])
+    assert chat.cognitive.health()['quarantined']==1
+    from okal_core.cognitive.retrieval import Retrieval
+    selected,_=Retrieval(chat.cognitive).select(before['conversation_id'],'What is my login credential?')
+    assert before['credential_id'] not in {r['id'] for r in selected}
+    with chat.store.connect() as db:
+        assert db.execute('SELECT operation FROM memory_outbox WHERE memory_id=?',(before['credential_id'],)).fetchone()[0]=='delete'
     assert chat.cognitive.backfill()['enqueued']==0
     first=chat.cognitive.claim_job()
     chat.cognitive.apply_job(first['turn_id'],first['lease'],[{'key':'communication.language',
@@ -78,6 +87,11 @@ print(json.dumps({'conversation_id':cid,'memory_id':memory['id'],'expires_at':me
     corrected={r['key']:r for r in chat.memories()['items']}['communication.language']
     assert corrected['id']==before['memory_id'] and corrected['content']=='Always answer in Egyptian Arabic.'
     assert chat.cognitive.versions(corrected['id'])['items'][1]['status']=='superseded'
+    chat.forget(corrected['id'])
+    with chat.store.connect() as db:
+        assert db.execute('SELECT COUNT(*) FROM chat_turns').fetchone()[0]==100
+        assert db.execute('SELECT COUNT(*) FROM chat_turns WHERE response IS NOT NULL').fetchone()[0]==0
+        assert db.execute("SELECT COUNT(*) FROM chat_turns WHERE user_text LIKE 'Synthetic owner turn%'").fetchone()[0]==98
     rejection=subprocess.run([sys.executable,'-c',
         'from pathlib import Path;import sys;from okal_core.store import Store;from okal_core.intelligence import Intelligence;Intelligence(Store(Path(sys.argv[1])))',
         str(original)],env=baseline_env,capture_output=True,text=True,timeout=30)
@@ -105,6 +119,8 @@ print('restored old Core verified')
         'retention_default_migrated_to_forever':True,'explicit_finite_memory_expiry_preserved':True,
         'legacy_default_memory_expiry_migrated_to_forever':True,
         'later_archived_correction_supersedes_legacy_source':True,
+        'legacy_credentials_quarantined_from_active_memory_and_projections':True,
+        'legacy_dependent_answers_fenced_without_erasing_unrelated_owner_turns':True,
         'idempotent_backfill':True,'old_code_refuses_new_schema':True,
         'backup_restored_and_old_code_verified':True,'backup_unchanged':True}
     (args.state/'report.json').write_text(json.dumps(report,indent=2)+'\n')

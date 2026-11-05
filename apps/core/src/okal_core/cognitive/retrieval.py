@@ -4,6 +4,7 @@ import math
 import re
 
 from .process import AdapterUnavailable
+from .ledger import CREDENTIAL_CATEGORY
 
 
 def fts_query(query):
@@ -97,12 +98,21 @@ class Retrieval:
             # without changing the conversation association. Multiple matches
             # require clarification; titles or semantic similarity never merge
             # projects or create a write scope.
+            generic={'we','our','why','did','do','choose','chose','chosen','choice','architecture','database',
+                'current','which','project','for','how','was','were','use','using','select','selected',
+                'ليه','لماذا','اخترنا','اختارنا','احنا','إحنا','قاعدة','البيانات','المعمارية','المشروع'}
+            specific=sorted(query-generic,key=lambda w:(-len(w),w))[:8]
+            groups=[]
             with self.store.connect() as db:
-                matches=[dict(r) for r in db.execute('''SELECT DISTINCT p.id,p.name
-                    FROM memory_fts f JOIN chat_memories m ON m.id=f.memory_id
-                    JOIN memory_meta x ON x.memory_id=m.id JOIN memory_projects p ON p.id=x.project_id
-                    WHERE memory_fts MATCH ? AND m.kind='decision'
-                    AND (m.expires_at=0 OR m.expires_at>?) LIMIT 3''',(match,self.ledger.now))]
+                for word in specific:
+                    found=[dict(r) for r in db.execute('''SELECT DISTINCT p.id,p.name
+                        FROM memory_fts f JOIN chat_memories m ON m.id=f.memory_id
+                        JOIN memory_meta x ON x.memory_id=m.id JOIN memory_projects p ON p.id=x.project_id
+                        WHERE memory_fts MATCH ? AND m.kind='decision'
+                        AND (m.expires_at=0 OR m.expires_at>?) LIMIT 3''',(fts_query(word),self.ledger.now))]
+                    if found:groups.append(found)
+            rarest=min((len(group) for group in groups),default=0)
+            matches=list({p['id']:p for group in groups if len(group)==rarest for p in group}.values())
             if len(matches)>1:
                 return [],{'project_ambiguity':[p['name'] for p in matches],
                            'memory_selection':'explicit_project_required'}
@@ -165,9 +175,9 @@ class Retrieval:
             score += max(0, 1 - (self.ledger.now-record['updated_at'])/(90*86400))
             tier=(3 if record['conversation_id']==conversation_id else 2 if record['scope'].startswith('project:') else 1) if instruction else 0
             return tier,(record.get('effective_seq',0) if instruction else score),score,record['updated_at'],record['id']
-        eligible_candidates=[r for r in candidates.values() if not chat_query or (
+        eligible_candidates=[r for r in candidates.values() if not CREDENTIAL_CATEGORY.search(r['key']+' '+r['content']) and (not chat_query or (
             r['scope']=='owner' or r['conversation_id']==conversation_id
-            or r['kind'] in {'decision','constraint'} and r['scope'].startswith('project:'))]
+            or r['kind'] in {'decision','constraint'} and r['scope'].startswith('project:')))]
         ranked = sorted(eligible_candidates, key=rank, reverse=True)
         # Choose one effective response preference per subject. Lower scope
         # copies must not win through lexical similarity or crowd out facts.

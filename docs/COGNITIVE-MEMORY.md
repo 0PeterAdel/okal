@@ -281,3 +281,39 @@ See the [rollout and recovery runbook](COGNITIVE-MEMORY-ROLLOUT.md) for exact
 provider configuration, isolated environments, owner-history ingestion, optional
 Obsidian launch, index replacement and backup rollback. No Production rollout
 has been performed.
+
+Security review added non-bypassable credential-category exclusions, including
+manual saves with sensitive-data consent and project notes. Obvious natural
+credential declarations are rejected before new Chat archival. The conservative
+category gate can also exclude benign credential-related technical text; it is
+not a universal secret/PII classifier.
+
+Legacy credential-related memory values are quarantined from active retrieval,
+FTS projections, vectors, curated notes and model context. Owner memory views
+withhold their values and expose an unverified/quarantine indicator. Existing
+private archive/ledger data is preserved for owner review/deletion, rather than
+silently destroying it during migration. Explicit forgetting still removes the
+memory and its source spans. Backups remain independently retained.
+
+Legacy completed conversations receive a conservative chronological dependency
+chain because Stage 1 did not retain full transitive provenance. Forgetting a
+legacy fact may invalidate later assistant answers; unrelated owner messages
+remain. The 100-turn real-old-code rehearsal verified this fence, credential
+quarantine, correction ordering, integrity and restoration of the original backup.
+
+The actual isolated extraction parent was SIGKILLed while its durable job was
+running. A replacement respected the live lease, recovered after real wall-clock
+expiry, and produced exactly one memory on attempt two, with current index/vault,
+idempotent backfill and intact SQLite. This complements the full benchmark's
+separate adapter interruption test.
+
+The Mem0 process now uses only `cognitive/adapter`, with its own Qdrant, manifest
+and derived history. The private vault and Obsidian profile are siblings outside
+its file audit scope. Real RPC startup/insert/semantic-search/delete and Arabic
+extraction passed under the narrowed scope. Unreleased earlier development
+indexes are preserved; they require an explicit rebuild when changing this
+layout, never automatic deletion or migration of private files.
+
+A distinctive decision query uses rare project terms, avoiding false ambiguity
+from generic words such as “we chose”. It can retrieve a project decision without
+changing the conversation association. Competing projects remain separate.

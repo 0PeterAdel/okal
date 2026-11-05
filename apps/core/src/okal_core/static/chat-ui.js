@@ -323,6 +323,7 @@ function clearChatUI() {
     get("chat-memory-health").textContent=(health.configured ? "تعلم محلي · "+health.worker : "محرك التعلم غير مهيأ؛ السجل والذاكرة اليدوية متاحين")+
       " | التعلم: "+count(health.jobs)+" | الفهرسة: "+count(health.index)+" | الخزنة: "+count(health.vault);
     get("chat-memory-health").textContent+=" | ملاحظات المشروعات: "+count(health.project_vault);
+    if(health.quarantined)get("chat-memory-health").textContent+=" | معلومات قديمة مستبعدة لحماية بيانات الدخول: "+health.quarantined;
     projectRecords=projects.items;
     const project=get("chat-memory-project"), prior=project.value || state?.project_id || "";
     project.replaceChildren();

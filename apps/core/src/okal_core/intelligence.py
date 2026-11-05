@@ -12,6 +12,8 @@ from .store import Conflict
 
 LEASE_SECONDS = 180
 SECRET = re.compile(
+    r"\b(?:my|our)\s+(?:password|passwd|passphrase|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|client[_ -]?secret)\s+is\s+\S+|"
+    r"كلمة\s*(?:السر|المرور)\s+(?:بتاعتي\s+)?(?:هي|هو)\s+\S+|"
     r"-----BEGIN .*PRIVATE KEY|\b(?:Bearer\s+\S+|sk-[A-Za-z0-9_-]{12,}|"
     r"gh[pousr]_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{20,}|ya29\.[\w.-]+)|"
     r"(?:password|passwd|access[_ -]?token|refresh[_ -]?token|api[_ -]?key|"
@@ -42,7 +44,8 @@ def text(value, maximum):
 def safe_context(value):
     """Drop credential-like cached fields before model input, including nested data."""
     if isinstance(value, str):
-        return '[sensitive text omitted]' if SECRET.search(value) else value
+        from .cognitive.ledger import CREDENTIAL_CATEGORY
+        return '[sensitive text omitted]' if SECRET.search(value) or CREDENTIAL_CATEGORY.search(value) else value
     if isinstance(value, list):
         return [safe_context(v) for v in value]
     if isinstance(value, dict):
@@ -260,7 +263,8 @@ class Intelligence:
                               "JOIN memory_meta x ON x.memory_id=m.id WHERE scope='owner' OR conversation_id=? "
                               'OR (? IS NOT NULL AND x.project_id=?) ORDER BY updated_at DESC,id LIMIT 500',
                               (conversation_id, project_id, project_id)).fetchall()
-            return {'items': [dict(r, status='remembered' if r['assertion']=='remembered' else r['assertion']) for r in rows]}
+            from .cognitive.ledger import owner_view
+            return {'items': [owner_view(dict(r, status='remembered' if r['assertion']=='remembered' else r['assertion'])) for r in rows]}
 
     def save_memory(self, key, content, kind='semantic', conversation_id=None,
                     source_turn=None, revision=0, days=0, project_id=None, sensitive_confirmed=False):
@@ -311,8 +315,8 @@ class Intelligence:
                     SELECT ?,id FROM chat_memories WHERE source_turn=?''', (turn_id, r['id']))
         recent = []
         for r in reversed(rows[:4]):
-            recent.extend([{'role': 'user', 'content': r['user_text']},
-                           {'role': 'assistant', 'content': json.loads(r['response'])['answer'][:900]}])
+            recent.extend([{'role': 'user', 'content': safe_context(r['user_text'])},
+                           {'role': 'assistant', 'content': safe_context(json.loads(r['response'])['answer'][:900])}])
         # Deterministic extractive compaction; never promotes assistant guesses.
         # Rebuilt from source on every call, no independent summary accumulation.
         older = [{'turn_id': r['id'], 'owner_excerpt': r['user_text'][:150]}
