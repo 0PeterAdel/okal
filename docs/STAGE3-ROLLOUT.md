@@ -67,3 +67,5 @@ exclusions. Run full Core Python/Node regressions and governance checks. Then
 validate actual home writes, unchanged private/code read-only mounts, browser
 sandbox and desktop session through the Production service. Release evidence is
 recorded separately after live execution; this document is not proof of it.
+
+Observed owner-device outcomes are in [Stage 3 release evidence](STAGE3-RELEASE.md).
