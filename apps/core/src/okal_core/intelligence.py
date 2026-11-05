@@ -70,7 +70,7 @@ class Intelligence:
             db.execute('PRAGMA secure_delete=ON')
             db.execute('CREATE TABLE IF NOT EXISTS chat_schema (version INTEGER NOT NULL)')
             version = db.execute('SELECT version FROM chat_schema').fetchone()
-            if version is not None and version[0] != 1:
+            if version is not None and version[0] not in (1, 2):
                 raise ValueError('unsupported_chat_schema_do_not_downgrade')
             if version is None:
                 db.execute('INSERT INTO chat_schema VALUES(1)')
@@ -103,41 +103,31 @@ class Intelligence:
                 PRIMARY KEY(turn_id,memory_id))''')
             db.execute('''CREATE TABLE IF NOT EXISTS chat_settings (
                 id INTEGER PRIMARY KEY CHECK(id=1), retention_days INTEGER NOT NULL)''')
-            db.execute('INSERT OR IGNORE INTO chat_settings VALUES(1,90)')
+            db.execute('INSERT OR IGNORE INTO chat_settings VALUES(1,0)')
+        from .cognitive.ledger import Ledger
+        self.cognitive = Ledger(self)
 
     @property
     def now(self):
         return int(self.store.clock())
 
     def _forget(self, db, memory_id):
-        # Remove source text AND responses that used this memory. Otherwise a
-        # forgotten fact could immediately re-enter context through history.
-        source = db.execute('SELECT source_turn FROM chat_memories WHERE id=?',
-                            (memory_id,)).fetchone()
-        affected = db.execute('SELECT turn_id FROM chat_sources WHERE memory_id=?',
-                              (memory_id,)).fetchall()
-        ids = {r[0] for r in affected}
-        if source and source[0]:
-            ids.add(source[0])
-        for turn_id in ids:
-            db.execute("UPDATE chat_conversations SET title='Conversation (redacted)' WHERE id IN "
-                       "(SELECT conversation_id FROM chat_turns WHERE id=?)", (turn_id,))
-            db.execute("UPDATE chat_turns SET user_text='[forgotten]',response=NULL,"
-                       "status='failed',lease=NULL,lease_until=NULL WHERE id=?", (turn_id,))
-        db.execute('DELETE FROM chat_memories WHERE id=?', (memory_id,))
+        self.cognitive.forget(db, memory_id)
 
     def _prune(self, db):
         db.execute('PRAGMA secure_delete=ON')
-        for row in db.execute('SELECT id FROM chat_memories WHERE expires_at<=?',
+        for row in db.execute('SELECT id FROM chat_memories WHERE expires_at>0 AND expires_at<=?',
                               (self.now,)).fetchall():
             self._forget(db, row[0])
         retention = db.execute('SELECT retention_days FROM chat_settings WHERE id=1').fetchone()[0]
+        if retention == 0:
+            return
         for row in db.execute('SELECT id FROM chat_conversations WHERE updated_at<?',
                               (self.now - retention * 86400,)).fetchall():
             self._delete(db, row[0])
 
     def settings(self, days=None):
-        if days is not None and (type(days) is not int or not 1 <= days <= 365):
+        if days is not None and (type(days) is not int or not 0 <= days <= 365):
             raise ValueError('invalid_retention')
         with self.store.connect() as db, db:
             db.execute('BEGIN IMMEDIATE')
@@ -270,50 +260,9 @@ class Intelligence:
             return {'items': [dict(r, status='active', assertion='owner_statement') for r in rows]}
 
     def save_memory(self, key, content, kind='semantic', conversation_id=None,
-                    source_turn=None, revision=0, days=365):
-        key, content = text(key, 80).casefold(), text(content, 600)
-        if kind not in {'semantic', 'episodic', 'task'}:
-            raise ValueError('invalid_memory_kind')
-        if type(revision) is not int or revision < 0 or type(days) is not int or not 1 <= days <= 365:
-            raise ValueError('invalid_memory_revision_or_expiry')
-        if conversation_id is not None:
-            identifier(conversation_id)
-        if source_turn is not None:
-            identifier(source_turn)
-        scope = conversation_id or 'owner'
-        with self.store.connect() as db, db:
-            db.execute('BEGIN IMMEDIATE')
-            self._prune(db)
-            if conversation_id and not db.execute('SELECT 1 FROM chat_conversations WHERE id=?',
-                                                  (conversation_id,)).fetchone():
-                raise Missing('conversation_not_found')
-            if source_turn:
-                source = db.execute('SELECT user_text FROM chat_turns WHERE id=?', (source_turn,)).fetchone()
-                if not source or content not in source[0] or source[0] == '[forgotten]':
-                    raise ValueError('memory_must_quote_owner_source')
-            old = db.execute('SELECT * FROM chat_memories WHERE scope=? AND key=?', (scope, key)).fetchone()
-            if old and old['content'] == content and old['kind'] == kind:
-                if revision in (0, old['revision'] - 1):
-                    return dict(old)  # exact create/update replay
-                if revision != old['revision']:
-                    raise Conflict('memory_revision_conflict')
-                # Retention-only edits do not forget otherwise unchanged facts.
-                db.execute('UPDATE chat_memories SET revision=revision+1,updated_at=?,expires_at=? WHERE id=?',
-                           (self.now, self.now + days * 86400, old['id']))
-                return dict(db.execute('SELECT * FROM chat_memories WHERE id=?', (old['id'],)).fetchone())
-            if (old and revision != old['revision']) or (not old and revision != 0):
-                raise Conflict('memory_revision_conflict')
-            if not old and db.execute('SELECT COUNT(*) FROM chat_memories').fetchone()[0] >= MAX_MEMORIES:
-                raise ValueError('memory_limit_delete_old_entries')
-            memory_id = old['id'] if old else uuid.uuid4().hex
-            if old:
-                self._forget(db, memory_id)
-            db.execute('INSERT INTO chat_memories VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                       (memory_id, kind, key, content, scope, conversation_id, source_turn,
-                        'owner_message' if source_turn else 'owner_editor', 1,
-                        revision + 1, old['created_at'] if old else self.now, self.now,
-                        self.now + days * 86400))
-            return dict(db.execute('SELECT * FROM chat_memories WHERE id=?', (memory_id,)).fetchone())
+                    source_turn=None, revision=0, days=0):
+        return self.cognitive.save(key, content, kind, conversation_id,
+                                   source_turn, revision, days)
 
     def forget(self, memory_id):
         identifier(memory_id)
@@ -383,6 +332,7 @@ class Intelligence:
                                   turn_id, lease, self.now)).rowcount
             if not changed:
                 raise Conflict('turn_expired_deleted_or_forgotten')
+            self.cognitive.enqueue(db, turn_id)
         return response
 
 

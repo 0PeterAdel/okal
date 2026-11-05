@@ -49,10 +49,10 @@ class Memories(Payload):
 class SaveMemory(Memories):
     key: str = Field(min_length=1, max_length=80)
     content: str = Field(min_length=1, max_length=600)
-    kind: Literal['semantic', 'episodic', 'task'] = 'semantic'
+    kind: Literal['semantic', 'episodic', 'task', 'instruction', 'decision', 'goal', 'constraint', 'lesson'] = 'semantic'
     source_turn: str | None = None
     revision: int = Field(default=0, ge=0)
-    days: int = Field(default=365, ge=1, le=365)
+    days: int = Field(default=0, ge=0, le=365)
 
 
 class Forget(Payload):
@@ -60,7 +60,7 @@ class Forget(Payload):
 
 
 class Settings(Payload):
-    days: int | None = Field(default=None, ge=1, le=365)
+    days: int | None = Field(default=None, ge=0, le=365)
 
 
 def register(app, store, authorized):
