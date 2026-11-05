@@ -136,6 +136,9 @@ def create_app(
                 "/api/v1/calendar/day-plan/confirm"
             }
             and request.method == "POST"
+            # Read-device authorization must never become owner authority, even
+            # in local auto-unlock mode with a caller-supplied matching Origin.
+            and not request.headers.get("authorization")
             and request.headers.get("origin") == browser_origin(
                 request.headers.get("host", "")
             )
