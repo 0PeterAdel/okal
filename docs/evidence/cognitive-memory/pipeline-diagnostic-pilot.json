@@ -1,0 +1,77 @@
+{
+  "complete_corpus": false,
+  "source_conversations": 10,
+  "source_turns": 50,
+  "archive_turns_including_queries": 82,
+  "archive_assistant_mode": "fixture_archive; scripted dialogue is never scored as model output",
+  "actual_scored_answers": 32,
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 15,
+      "recall": 0.75
+    },
+    "project": {
+      "answered": 2,
+      "passed": 2,
+      "recall": 1.0
+    },
+    "conversation": {
+      "answered": 10,
+      "passed": 6,
+      "recall": 0.6
+    }
+  },
+  "extraction_precision": 0.5294117647058824,
+  "extraction_recall": 0.5294117647058824,
+  "false_candidates_on_negative_sources": 0,
+  "ingestion_seconds": 260.63596333500027,
+  "ingestion_turns_per_second": 0.1918384529909791,
+  "retrieval_seconds_p50": 1.3706505574991752,
+  "retrieval_seconds_p95": 1.5286911389994202,
+  "answer_seconds_p50": 7.589147978498659,
+  "answer_seconds_p95": 10.579209609997633,
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "duplicate_current_keys": 0,
+  "forbidden_python_network_attempts": 0,
+  "health": {
+    "schema": 1,
+    "jobs": {
+      "done": 50,
+      "pending": 32
+    },
+    "projections": {
+      "current": 17
+    },
+    "index": {
+      "current": 17
+    },
+    "vault": {
+      "current": 5,
+      "not_curated": 12
+    },
+    "worker": "idle",
+    "configured": true,
+    "rebuild": {
+      "generation": 1,
+      "status": "current",
+      "attempts": 0
+    },
+    "active": 17,
+    "deleted": 0
+  },
+  "interruption_injected": true,
+  "elapsed_monotonic_seconds": 559.0286039590064,
+  "disk_bytes": 819884,
+  "resources": {
+    "samples": 541,
+    "min_available_ram_bytes": 4818993152,
+    "peak_total_used_ram_bytes": 11620061184,
+    "baseline_gpu_used_mib": 1453,
+    "peak_total_gpu_used_mib": 5579,
+    "parent_peak_rss_bytes": 51449856,
+    "scope": "Observed whole-device RAM/VRAM peaks include existing desktop/services; sampled, not exclusive attribution."
+  },
+  "evidence_scope": "Development diagnostic pilot, not a release gate; code changed during development. Preserved failed outcomes."
+}

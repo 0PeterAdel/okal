@@ -1,0 +1,353 @@
+{
+  "llm": "qwen3.5:4b",
+  "llm_digest": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+  "cases": [
+    {
+      "id": "en-style",
+      "actual": [
+        {
+          "key": "communication.style",
+          "quote": "I prefer concise answers with the practical solution first.",
+          "kind": "instruction",
+          "scope": "owner"
+        }
+      ],
+      "expected": [
+        {
+          "key": "communication.style",
+          "scope": "owner",
+          "terms": [
+            "concise",
+            "practical"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.200701317000494,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "communication.style",
+              "quote": "I prefer concise answers with the practical solution first.",
+              "kind": "instruction",
+              "scope": "owner"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "eg-correction",
+      "actual": [
+        {
+          "key": "communication.style",
+          "quote": "لا، أنا عايز ردودك مختصرة وتدخل في الموضوع على طول.",
+          "kind": "instruction",
+          "scope": "owner"
+        }
+      ],
+      "expected": [
+        {
+          "key": "communication.style",
+          "scope": "owner",
+          "terms": [
+            "مختصرة",
+            "الموضوع"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.211395646998426,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "communication.style",
+              "quote": "لا، أنا عايز ردودك مختصرة وتدخل في الموضوع على طول.",
+              "kind": "instruction",
+              "scope": "owner"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "en-language",
+      "actual": [
+        {
+          "key": "communication.language",
+          "quote": "Always answer me in Egyptian Arabic unless I explicitly ask for English.",
+          "kind": "instruction",
+          "scope": "owner"
+        }
+      ],
+      "expected": [
+        {
+          "key": "communication.language",
+          "scope": "owner",
+          "terms": [
+            "Egyptian Arabic",
+            "English"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.0540251819984405,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "communication.language",
+              "quote": "Always answer me in Egyptian Arabic unless I explicitly ask for English.",
+              "kind": "instruction",
+              "scope": "owner"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "ar-language",
+      "actual": [
+        {
+          "key": "communication.language",
+          "quote": "أنا بفضل إنك تكلمني بالعربي المصري في كل المحادثات.",
+          "kind": "instruction",
+          "scope": "owner"
+        }
+      ],
+      "expected": [
+        {
+          "key": "communication.language",
+          "scope": "owner",
+          "terms": [
+            "المصري"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.073496411998349,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "communication.language",
+              "quote": "أنا بفضل إنك تكلمني بالعربي المصري في كل المحادثات.",
+              "kind": "instruction",
+              "scope": "owner"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "en-decision",
+      "actual": [
+        {
+          "key": "architecture.database",
+          "quote": "We chose SQLite for this project because offline access matters more than concurrent writers.",
+          "kind": "decision",
+          "scope": "project"
+        }
+      ],
+      "expected": [
+        {
+          "scope": "project",
+          "kind": "decision",
+          "terms": [
+            "SQLite",
+            "offline"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.130301049000991,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "architecture.database",
+              "quote": "We chose SQLite for this project because offline access matters more than concurrent writers.",
+              "kind": "decision",
+              "scope": "project"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "eg-pending",
+      "actual": [
+        {
+          "key": "conversation.pending_work",
+          "quote": "في المحادثة دي أنا عايز نختبر استرجاع البيانات بعد إعادة التشغيل كخطوة جاية.",
+          "kind": "task",
+          "scope": "conversation"
+        }
+      ],
+      "expected": [
+        {
+          "scope": "conversation",
+          "terms": [
+            "استرجاع",
+            "التشغيل"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.193709389001015,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "conversation.pending_work",
+              "quote": "في المحادثة دي أنا عايز نختبر استرجاع البيانات بعد إعادة التشغيل كخطوة جاية.",
+              "kind": "task",
+              "scope": "conversation"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "en-question",
+      "actual": [],
+      "expected": [],
+      "matched": 0,
+      "error": null,
+      "seconds": 3.54340252399561,
+      "raw_model_outputs": [
+        {
+          "candidates": []
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "injection",
+      "actual": [],
+      "expected": [],
+      "matched": 0,
+      "error": null,
+      "seconds": 9.820003469940275e-06,
+      "raw_model_outputs": [],
+      "model_called": false
+    },
+    {
+      "id": "sensitive",
+      "actual": [],
+      "expected": [],
+      "matched": 0,
+      "error": null,
+      "seconds": 2.586300252005458e-05,
+      "raw_model_outputs": [],
+      "model_called": false
+    },
+    {
+      "id": "hypothetical",
+      "actual": [],
+      "expected": [],
+      "matched": 0,
+      "error": null,
+      "seconds": 3.5195178790017962,
+      "raw_model_outputs": [
+        {
+          "candidates": []
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "owner-location",
+      "actual": [
+        {
+          "key": "profile.city",
+          "quote": "I live in Alexandria and want you to remember my city for local suggestions.",
+          "kind": "semantic",
+          "scope": "owner"
+        }
+      ],
+      "expected": [
+        {
+          "scope": "owner",
+          "kind": "semantic",
+          "terms": [
+            "Alexandria"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.125026226996852,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "profile.city",
+              "quote": "I live in Alexandria and want you to remember my city for local suggestions.",
+              "kind": "semantic",
+              "scope": "owner"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    },
+    {
+      "id": "mixed-decision",
+      "actual": [
+        {
+          "key": "architecture.database",
+          "quote": "في المشروع ده we chose SQLite عشان يشتغل offline من غير سيرفر.",
+          "kind": "decision",
+          "scope": "project"
+        }
+      ],
+      "expected": [
+        {
+          "scope": "project",
+          "kind": "decision",
+          "terms": [
+            "SQLite",
+            "offline"
+          ]
+        }
+      ],
+      "matched": 1,
+      "error": null,
+      "seconds": 4.199694590002764,
+      "raw_model_outputs": [
+        {
+          "candidates": [
+            {
+              "key": "architecture.database",
+              "quote": "في المشروع ده we chose SQLite عشان يشتغل offline من غير سيرفر.",
+              "kind": "decision",
+              "scope": "project"
+            }
+          ]
+        }
+      ],
+      "model_called": true
+    }
+  ],
+  "precision": 1.0,
+  "recall": 1.0,
+  "false_memories_in_negative_cases": 0,
+  "errors": 0,
+  "latency_seconds_p50": 4.127663637998921,
+  "evidence_scope": "Small synthetic real-device pilot; not the full acceptance benchmark."
+}

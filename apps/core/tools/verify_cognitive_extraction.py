@@ -8,7 +8,7 @@ import statistics
 import time
 
 from okal_core.cognitive.config import AdapterConfig
-from okal_core.cognitive.learning import extract, EXTERNAL
+from okal_core.cognitive.learning import extract, EXTERNAL, OWNER
 from okal_core.cognitive.ledger import SENSITIVE
 from okal_core.cognitive.providers import LocalRuntime, install_network_guard
 
@@ -50,7 +50,7 @@ def main():
             result = {'id': case['id'], 'actual': actual, 'expected': case['expected'],
                       'matched': matched, 'error': error, 'seconds': time.monotonic()-started,
                       'raw_model_outputs': raw_outputs,
-                      'model_called': not bool(EXTERNAL.search(case['message']) or SENSITIVE.search(case['message']))}
+                      'model_called': bool(OWNER.search(case['message'])) and not bool(EXTERNAL.search(case['message']) or SENSITIVE.search(case['message']))}
             results.append(result)
             print(json.dumps(result, ensure_ascii=False), flush=True)
     finally:
