@@ -65,8 +65,9 @@ def prepare(root):
 
 
 class Audit:
-    def __init__(self, root, output, cookie=""):
+    def __init__(self, root, output, cookie="", read_token=""):
         self.root, self.output, self.cookie = root, output, cookie
+        self.read_token = read_token
         self.receipts = []
         self.conversation = None
 
@@ -174,6 +175,13 @@ class Audit:
         self.post("capabilities", {}, headers={"Content-Type": "application/json"}, expected=401)
         self.post("capabilities", {}, headers={"Origin": "https://untrusted.invalid", "Content-Type": "application/json"}, expected=403)
         self.save("missing_origin_and_cross_origin_denied", {"missing_origin": 401, "cross_origin": 403})
+        if self.read_token:
+            headers = {"Authorization": "Bearer " + self.read_token,
+                       "Origin": BASE, "Content-Type": "application/json"}
+            self.request("/api/v1/summaries", headers=headers)
+            self.post("capabilities", {}, headers=headers, expected=401)
+            self.request("/api/v1/chat/conversations", {}, headers=headers, expected=401)
+            self.save("valid_read_bearer_cannot_borrow_owner_origin", {"summary": 200, "actions": 401, "chat": 401})
         self.run("untrusted_document", [self.step("files.read", path=self.path("injection.txt"))])
         assert self.post("capabilities", {})["policy"] == cap["policy"]
         self.run("local_document_report", [self.step("documents.report", paths=[self.path("report-a.txt"), self.path("report-b.txt")], output=self.path("comparison.md"))])
@@ -228,6 +236,7 @@ def main():
     parser.add_argument("--prepare", action="store_true", help="Create a NEW synthetic home workspace; refuse existing paths")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cookie-file", type=Path)
+    parser.add_argument("--read-token-file", type=Path, help="Private device-add JSON for matching-Origin negative test; revoke it afterward")
     args = parser.parse_args()
     root, output = args.workspace, args.output
     assert os.getuid() != 0, "never_run_as_root"
@@ -239,14 +248,16 @@ def main():
     assert not output.exists() and not output.is_symlink()
     assert output.parent.resolve() == output.parent and output.parent.is_dir()
     assert output.parent.stat().st_uid == os.getuid() and output.parent.stat().st_mode & 0o077 == 0
-    if args.cookie_file:
-        assert args.cookie_file.resolve() == args.cookie_file and args.cookie_file.is_file()
-        assert args.cookie_file.stat().st_uid == os.getuid() and args.cookie_file.stat().st_mode & 0o077 == 0
+    for credential in (args.cookie_file, args.read_token_file):
+        if credential:
+            assert credential.resolve() == credential and credential.is_file()
+            assert credential.stat().st_uid == os.getuid() and credential.stat().st_mode & 0o077 == 0
     cookie = args.cookie_file.read_text().strip() if args.cookie_file else ""
+    read_token = json.loads(args.read_token_file.read_text())["token"] if args.read_token_file else ""
     server = ThreadingHTTPServer(("127.0.0.1", 8798), SyntheticPage)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        Audit(root, output, cookie).execute()
+        Audit(root, output, cookie, read_token).execute()
     finally:
         server.shutdown()
         server.server_close()
