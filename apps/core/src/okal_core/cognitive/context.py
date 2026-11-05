@@ -25,16 +25,20 @@ def reply_language(message, memories):
     explicit = language_in(message)
     if explicit:
         return explicit
-    for memory in memories:
-        if memory.get('key') not in {'communication.language', 'language', 'preferred language'}:
-            continue
-        content = memory['content']
-        if (re.search(r'technical doc|documentation|التوثيق|توثيق', content, re.I)
-                and not re.search(r'document|docs?\b|توثيق|مستند', message, re.I)):
-            continue
-        language = language_in(content)
-        if language:
-            return language
+    language_keys={'communication.language','communication.language.technical_docs','language','preferred language'}
+    candidates=[m for m in memories if m.get('key') in language_keys]
+    # Retrieval orders scopes by authority. Within one scope, a matching
+    # conditional preference is more specific than its general default.
+    scopes=list(dict.fromkeys(m.get('scope','owner') for m in candidates))
+    technical=bool(re.search(r'document|docs?\b|توثيق|مستند',message,re.I))
+    for scope in scopes:
+        grouped=[m for m in candidates if m.get('scope','owner')==scope]
+        def conditional(m):
+            return m['key'].endswith('.technical_docs') or bool(re.search(r'technical doc|documentation|التوثيق|توثيق',m['content'],re.I))
+        for memory in sorted(grouped,key=lambda m:not conditional(m)):
+            if conditional(memory) and not technical:continue
+            language=language_in(memory['content'])
+            if language:return language
     return 'Egyptian Arabic' if re.search(r'[\u0600-\u06ff]', message) else 'English'
 
 

@@ -281,6 +281,8 @@ class EvidenceGateTests(unittest.TestCase):
         self.assertEqual(scoped[0]['scope'],'conversation')
         structured=extract(model,'I prefer numbered points in my answers.')
         self.assertEqual(structured[0]['key'],'communication.structure')
+        for unrelated in ['I prefer English literature.','I prefer long walks.','I prefer numbered folders.']:
+            self.assertEqual(extract(model,unrelated),[])
     def test_metadata_normalization_uses_each_exact_owner_quote(self):
         goal='في هذه المحادثة هدفي مراجعة خطة اختبار الاسترجاع.'
         task='في هذه المحادثة أريد تنفيذ اختبار إعادة التشغيل كخطوة تالية.'

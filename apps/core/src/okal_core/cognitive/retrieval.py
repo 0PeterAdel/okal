@@ -19,7 +19,7 @@ def compact(record):
 
 def behavioral(record):
     return record['key'] in {
-        'communication.language','communication.style','communication.structure','language','preferred language'}
+        'communication.language','communication.language.technical_docs','communication.style','communication.structure','language','preferred language'}
 
 
 class Retrieval:

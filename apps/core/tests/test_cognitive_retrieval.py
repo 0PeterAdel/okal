@@ -44,6 +44,20 @@ class RetrievalTests(unittest.TestCase):
         selected,_ = self.search.select(other,'Hello')
         self.assertEqual(reply_language('Hello',selected),'English')
 
+    def test_conditional_document_language_coexists_with_general_language(self):
+        from okal_core.cognitive.learning import validate_candidates
+        self.chat.save_memory('communication.language','Always answer in Egyptian Arabic.',kind='instruction')
+        quote='Use English for technical documentation in future conversations.'
+        approved=validate_candidates(quote,[{'key':'communication.language','kind':'instruction','scope':'owner','quote':quote}])
+        self.assertEqual(approved[0]['key'],'communication.language.technical_docs')
+        self.ledger.save(approved[0]['key'],quote,kind='instruction')
+        selected,_=self.search.select(self.con,'Hello')
+        self.assertEqual(reply_language('Hello',selected),'Egyptian Arabic')
+        self.assertEqual(reply_language('Write technical documentation.',selected),'English')
+        self.chat.save_memory('communication.language','Always answer in Arabic in this conversation.',kind='instruction',conversation_id=self.con)
+        selected,_=self.search.select(self.con,'Write technical documentation.')
+        self.assertEqual(reply_language('Write technical documentation.',selected),'Arabic')
+
     def test_current_chat_progress_never_receives_another_chats_pending_work(self):
         project=self.ledger.save_project('Orion garden')
         self.ledger.associate(self.con,project['id'])

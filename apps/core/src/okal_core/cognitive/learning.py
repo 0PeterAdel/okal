@@ -25,12 +25,13 @@ GOAL = re.compile(r'\b(?:my|our) (?:long.term )?goal\b|هدفي|هدفنا',re.I
 PENDING = re.compile(r'\b(?:next task|pending (?:task|work)|next step)\b|المهمة الجاية|خطوة تالية|الخطوة التالية|مهمة.*معلق',re.I)
 COMMUNICATION = re.compile(r'\b(?:answer|reply|respond|speak|talk|write|use)\b|تكلمني|كلمني|ردود|جاوب|بالعربي|بالمصري|باللغة|بالانجليزي|بالإنجليزي',re.I)
 ONE_REPLY = re.compile(r'this (?:reply|response|answer|time)|السؤال ده|الرد ده|المرة دي|المرادي',re.I)
-DURABLE_BEHAVIOR = re.compile(r'\b(?:prefer|always|never|from now|future|when explaining|technical documentation)\b|'
+DURABLE_BEHAVIOR = re.compile(r'\b(?:prefer|preferred|preference|always|never|from now|future|when explaining|technical documentation)\b|'
     r'بحب|بفضل|أفضل|أفضّل|دايما|دائم|كل المحادثات|من دلوقتي|ردودك|طريقة رد|التوثيق',re.I)
 STYLE_PREFERENCE = re.compile(
-    r'\b(?:brief|concise|short|detailed|direct|tone|introductions?|background explanations?|friendly|formal|casual)\b|'
+    r'\b(?:brief|concise|short(?:er)?|long(?:er)?|detailed|direct|tone|introductions?|background explanations?|friendly|formal|casual)\b|'
     r'مختصر|موجز|طويل|بالتفصيل|الموضوع على طول|مقدمات|مقدمة|رسمي|ودية',re.I)
 STRUCTURE_PREFERENCE = re.compile(r'\b(?:bullets?|numbered|cause.*solution|solution.*first)\b|نقاط|السبب.*الحل|الحل.*الأول',re.I)
+TECHNICAL_DOCS = re.compile(r'technical doc|documentation|التوثيق|توثيق',re.I)
 
 
 def ordinary_question(quote):
@@ -62,12 +63,13 @@ def normalize_candidate(key,kind,scope,quote,project_id):
     elif key=='communication.structure' and STRUCTURE_PREFERENCE.search(quote):
         kind='instruction'
         scope='conversation' if local else ('project' if re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) and project_id else 'owner')
-    elif (key=='communication.style' and STYLE.search(quote)) or (
-            not LANGUAGE.search(quote) and STYLE.search(quote) and COMMUNICATION.search(quote)):
+    elif (key=='communication.style' and STYLE_PREFERENCE.search(quote)) or (
+            not LANGUAGE.search(quote) and STYLE_PREFERENCE.search(quote) and COMMUNICATION.search(quote)):
         kind,key='instruction','communication.style'
         scope='conversation' if local else ('project' if re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) and project_id else 'owner')
     elif LANGUAGE.search(quote) and COMMUNICATION.search(quote):
-        kind,key='instruction','communication.language'
+        kind='instruction'
+        key='communication.language.technical_docs' if TECHNICAL_DOCS.search(quote) else 'communication.language'
         scope='conversation' if local else ('project' if re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) and project_id else 'owner')
     return key,kind,scope
 
@@ -85,14 +87,19 @@ def explicit_candidates(quotes, project_id=None):
             proposed.append({'key':'profile.name','kind':'semantic','scope':'owner','quote':quote})
         if not DURABLE_BEHAVIOR.search(quote) or ONE_REPLY.search(quote):continue
         categories=[]
-        if LANGUAGE.search(quote) and (COMMUNICATION.search(quote) or re.search(r'prefer|بفضل|أفضل|أفضّل',quote,re.I)):
+        language_statement=bool(re.search(r'(?:preferred|default|reply|communication) language|اللغة المفضلة|لهجتي|بالعربي|بالمصري|بالإنجليزي|باللغة',quote,re.I))
+        if LANGUAGE.search(quote) and (COMMUNICATION.search(quote) or language_statement):
             categories.append('language')
-        if STYLE_PREFERENCE.search(quote):categories.append('style')
-        if STRUCTURE_PREFERENCE.search(quote):categories.append('structure')
+        response_context=STYLE.search(quote) or COMMUNICATION.search(quote)
+        if STYLE_PREFERENCE.search(quote) and response_context:categories.append('style')
+        if STRUCTURE_PREFERENCE.search(quote) and response_context and 'style' not in categories:
+            categories.append('structure')
         for category in categories:
             scope='conversation' if THIS_CHAT.search(quote) else ('project' if project_id and
                 re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) else 'owner')
-            proposed.append({'key':'communication.'+category,'kind':'instruction','scope':scope,'quote':quote})
+            key='communication.'+category
+            if category=='language' and TECHNICAL_DOCS.search(quote):key+='.technical_docs'
+            proposed.append({'key':key,'kind':'instruction','scope':scope,'quote':quote})
     # Validate separately so the public max-four model contract remains strict.
     return [v for item in proposed for v in validate_candidates(item['quote'],[item],project_id)]
 
@@ -178,9 +185,9 @@ def validate_candidates(message: str, candidates: list, project_id=None) -> list
             continue
         if key.startswith('communication.'):
             if kind != 'instruction' or key not in {
-                    'communication.language', 'communication.style', 'communication.structure'}:
+                    'communication.language', 'communication.language.technical_docs', 'communication.style', 'communication.structure'}:
                 continue
-            required=LANGUAGE if key.endswith('.language') else STRUCTURE_PREFERENCE if key.endswith('.structure') else STYLE
+            required=LANGUAGE if key.startswith('communication.language') else STRUCTURE_PREFERENCE if key.endswith('.structure') else STYLE_PREFERENCE
             if not required.search(quote):
                 continue
         slot = (scope, key)
