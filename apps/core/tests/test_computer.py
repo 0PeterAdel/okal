@@ -626,3 +626,19 @@ class ComputerTests(unittest.TestCase):
             stale = client.post("/api/v1/actions/policy", json={"policy": policy,
                                 "revision": before["revision"]}, headers=headers)
             self.assertEqual(stale.status_code, 409)
+
+    def test_read_bearer_cannot_borrow_owner_origin_in_auto_unlock(self):
+        device = self.store.issue_device("synthetic read device")
+        with TestClient(create_app(self.store, require_read_key=False),
+                        base_url="http://127.0.0.1:8766", client=("127.0.0.1", 12345)) as client:
+            owner = {"Origin": "http://127.0.0.1:8766", "Sec-Fetch-Site": "same-origin"}
+            self.assertEqual(client.post("/api/v1/actions/capabilities", json={}, headers=owner).status_code, 200)
+            bearer = {**owner, "Authorization": "Bearer " + device["token"]}
+            self.assertEqual(client.get("/api/v1/summaries", headers=bearer).status_code, 200)
+            before = self.engine.policy()
+            for path, payload in (("/api/v1/actions/capabilities", {}),
+                                  ("/api/v1/actions/policy", {"policy": before["policy"], "revision": before["revision"]}),
+                                  ("/api/v1/chat/create", {"title": "Must not create"})):
+                self.assertIn(client.post(path, json=payload, headers=bearer).status_code, (401, 403))
+            self.assertEqual(self.engine.policy(), before)
+            self.assertEqual(client.post("/api/v1/actions/capabilities", json={}, headers=owner).status_code, 200)

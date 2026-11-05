@@ -67,3 +67,11 @@ exclusions. Run full Core Python/Node regressions and governance checks. Then
 validate actual home writes, unchanged private/code read-only mounts, browser
 sandbox and desktop session through the Production service. Release evidence is
 recorded separately after live execution; this document is not proof of it.
+
+## Read-device transport boundary
+
+Live acceptance also tests a read bearer combined with a matching Origin. Owner
+POST authorization explicitly rejects any Authorization header, including local
+auto-unlock mode; a paired read device cannot borrow the browser-owner path.
+Normal UI requests use the configured owner session/origin path without bearer
+headers. Read-only GET behavior and remote Access requirements are unchanged.
