@@ -285,7 +285,7 @@ function clearChatUI() {
       });
       const forget = document.createElement("button"); forget.type="button"; forget.textContent="نسيان";
       forget.addEventListener("click", () => guarded(async () => {
-        if (!confirm("نسيان المعلومة وحذف نصها وإبطال الردود المعتمدة عليها؟ باقي كلامك هيفضل محفوظ.")) return;
+        if (!confirm("نسيان المعلومة وحذف نصها وإبطال الردود المعتمدة عليها؟ أي معلومة بتكرر نفس النص أو فقدت مصدرها هتتنسى كمان. باقي كلامك هيفضل محفوظ.")) return;
         await post("memory-delete", {memory_id:item.id}); resetMemoryEditor();
         get("chat-archive-query").value="";
         chatSequence+=1;if(chatAbort)chatAbort.abort();chatAbort=null;chatPending=false;send.disabled=false;chatRetry=null;

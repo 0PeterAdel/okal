@@ -317,16 +317,32 @@ class Ledger:
             return record
 
     def forget(self, db, memory_id):
+        """Forget shared text/support iteratively; no surviving facet may replay it."""
+        pending=[memory_id];seen=set()
+        while pending:
+            current=pending.pop()
+            if current in seen:continue
+            seen.add(current)
+            pending.extend(self._forget_one(db,current))
+
+    def _forget_one(self, db, memory_id):
         from ..intelligence import identifier
         identifier(memory_id)
         row = db.execute('SELECT revision,content,scope,key FROM chat_memories WHERE id=?', (memory_id,)).fetchone()
         if row is None:
-            return
+            return []
         evidence = db.execute('SELECT turn_id,quote FROM memory_evidence WHERE memory_id=?',
                               (memory_id,)).fetchall()
         affected = {r[0] for r in db.execute('SELECT turn_id FROM chat_sources WHERE memory_id=?', (memory_id,))}
         quotes = {r['quote'] for r in evidence} | {row['content']}
+        # Preserve independent facts, but remember which current facts had
+        # source support before redaction. Losing that last support cannot
+        # leave another active memory of an erased passage behind.
+        supported={r['memory_id'] for r in db.execute('''SELECT DISTINCT e.memory_id
+            FROM memory_evidence e JOIN chat_memories m ON m.id=e.memory_id AND m.revision=e.revision
+            JOIN chat_turns t ON t.id=e.turn_id WHERE instr(t.user_text,e.quote)>0''')}
         invalidated = set(affected)
+        redacted=set()
         # Exact source spans are removed throughout the archive. Other owner
         # sentences survive; dependent assistant responses are invalidated.
         for turn in db.execute('SELECT id,user_text,conversation_id FROM chat_turns').fetchall():
@@ -335,6 +351,7 @@ class Ledger:
                 cleaned = cleaned.replace(quote, '[forgotten]')
             changed = cleaned != turn['user_text']
             if changed or turn['id'] in affected:
+                if changed:redacted.add(turn['id'])
                 invalidated.add(turn['id'])
                 db.execute("UPDATE chat_turns SET user_text=?,response=NULL,status='failed',"
                            'lease=NULL,lease_until=NULL,digest=? WHERE id=?', (
@@ -347,6 +364,33 @@ class Ledger:
                 db.execute("UPDATE memory_conversations SET state='{}',revision=revision+1 WHERE conversation_id=?",
                            (turn['conversation_id'],))
         self.invalidate_sources(db, invalidated)
+        surviving={r['memory_id'] for r in db.execute('''SELECT DISTINCT e.memory_id
+            FROM memory_evidence e JOIN chat_memories m ON m.id=e.memory_id AND m.revision=e.revision
+            JOIN chat_turns t ON t.id=e.turn_id WHERE instr(t.user_text,e.quote)>0''')}
+        related=[r['id'] for r in db.execute('SELECT id,content FROM chat_memories WHERE id<>?',(memory_id,))
+                 if r['id'] in supported-surviving or any(quote in r['content'] for quote in quotes)]
+        removed=db.execute('''SELECT DISTINCT e.memory_id,e.revision FROM memory_evidence e
+            JOIN chat_turns t ON t.id=e.turn_id WHERE e.turn_id IN (SELECT value FROM json_each(?))
+            AND instr(t.user_text,e.quote)=0''',(json.dumps(list(redacted)),)).fetchall()
+        db.execute('''DELETE FROM memory_evidence WHERE turn_id IN (SELECT value FROM json_each(?))
+            AND NOT EXISTS(SELECT 1 FROM chat_turns t WHERE t.id=turn_id AND instr(t.user_text,quote)>0)''',
+            (json.dumps(list(redacted)),))
+        for version in db.execute('SELECT memory_id,revision,snapshot FROM memory_versions WHERE snapshot IS NOT NULL').fetchall():
+            content=json.loads(version['snapshot'])['content']
+            lost_support=any(r['memory_id']==version['memory_id'] and r['revision']==version['revision'] for r in removed) and not db.execute(
+                'SELECT 1 FROM memory_evidence WHERE memory_id=? AND revision=? LIMIT 1',
+                (version['memory_id'],version['revision'])).fetchone()
+            if lost_support or any(quote in content for quote in quotes):
+                db.execute("UPDATE memory_versions SET snapshot=NULL,status='deleted' WHERE memory_id=? AND revision=?",
+                           (version['memory_id'],version['revision']))
+        for other in db.execute('''SELECT m.* FROM chat_memories m JOIN chat_turns t ON t.id=m.source_turn
+            WHERE m.source_turn IN (SELECT value FROM json_each(?)) AND instr(t.user_text,m.content)=0''',
+            (json.dumps(list(redacted)),)).fetchall():
+            if other['id']==memory_id or other['id'] in related:continue
+            alternative=db.execute('''SELECT e.turn_id FROM memory_evidence e JOIN chat_turns t ON t.id=e.turn_id
+                WHERE e.memory_id=? AND e.revision=? AND instr(t.user_text,e.quote)>0 ORDER BY t.seq DESC LIMIT 1''',
+                (other['id'],other['revision'])).fetchone()
+            if alternative:self._revise_source(db,other,alternative['turn_id'])
         db.execute('UPDATE memory_versions SET snapshot=NULL,status=\'deleted\' WHERE memory_id=?', (memory_id,))
         db.execute('DELETE FROM memory_evidence WHERE memory_id=?', (memory_id,))
         db.execute('DELETE FROM memory_fts WHERE memory_id=?', (memory_id,))
@@ -360,6 +404,7 @@ class Ledger:
         subject_hash = hashlib.sha256((row['scope'] + '\0' + row['key']).encode()).hexdigest()
         db.execute('INSERT OR REPLACE INTO memory_subject_tombstones VALUES(?,?)', (subject_hash,self._next_seq(db)))
         self._outbox(db, memory_id, revision, 'delete')
+        return related
 
     def invalidate_sources(self, db, turn_ids):
         """Fence transitive archive/history consumers without erasing owner text."""
@@ -404,7 +449,12 @@ class Ledger:
             (memory_id,row['revision'],deleted_conversation)).fetchone()
         if alternative is None:
             return False
-        record=dict(row,source_turn=alternative[0],revision=row['revision']+1,updated_at=self.now)
+        self._revise_source(db,row,alternative[0])
+        return True
+
+    def _revise_source(self, db, row, source_turn):
+        memory_id=row['id']
+        record=dict(row,source_turn=source_turn,revision=row['revision']+1,updated_at=self.now)
         db.execute('UPDATE chat_memories SET source_turn=?,revision=?,updated_at=? WHERE id=?',
                    (record['source_turn'],record['revision'],self.now,memory_id))
         db.execute('UPDATE memory_meta SET write_seq=? WHERE memory_id=?',(self._next_seq(db),memory_id))
@@ -412,7 +462,6 @@ class Ledger:
         db.execute('INSERT INTO memory_evidence VALUES(?,?,?,?)',
                    (memory_id,record['revision'],record['source_turn'],record['content']))
         self._outbox(db,memory_id,record['revision'],'upsert')
-        return True
 
     def _backfill(self, db, limit=100):
         rows = db.execute("SELECT t.id,t.digest,t.seq FROM chat_turns t LEFT JOIN memory_jobs j "

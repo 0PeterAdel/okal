@@ -86,6 +86,46 @@ class CognitiveLedgerTests(unittest.TestCase):
         self.assertEqual([v['status'] for v in versions], ['current', 'superseded'])
         self.assertEqual(self.ledger.active([{'id': memory['id'], 'revision': 1}]), [])
 
+    def test_forgetting_shared_sentence_fences_other_facets_and_manual_duplicates(self):
+        quote='Always answer in Egyptian Arabic and keep replies concise.'
+        source=self.say(quote+' This unrelated owner text remains.')
+        style=self.chat.save_memory('communication.style',quote,kind='instruction',source_turn=source['turn_id'])
+        language=self.chat.save_memory('communication.language',quote,kind='instruction',source_turn=source['turn_id'])
+        duplicate=self.chat.save_memory('copied preference',quote)
+        independent=self.chat.save_memory('independent','I prefer offline research.')
+        self.chat.forget(style['id'])
+        self.assertEqual({r['id'] for r in self.chat.memories()['items']},{independent['id']})
+        self.assertEqual(self.ledger.active([{'id':r['id'],'revision':1} for r in (style,language,duplicate)]),[])
+        self.assertIn('This unrelated owner text remains.',json.dumps(self.chat.get(self.conversation)))
+        with self.store.connect() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM memory_tombstones').fetchone()[0],3)
+
+    def test_redaction_removes_last_source_support_but_preserves_independent_evidence(self):
+        first=self.say('I prefer offline research. I prefer concise replies.')
+        compound=self.chat.save_memory('compound','I prefer offline research. I prefer concise replies.',source_turn=first['turn_id'])
+        research=self.chat.save_memory('research','I prefer offline research.',source_turn=first['turn_id'])
+        style=self.chat.save_memory('communication.style','I prefer concise replies.',source_turn=first['turn_id'])
+        other=self.chat.create()['id']
+        second=respond(self.store,other,uid(),'I prefer offline research.',infer=answer)
+        self.chat.save_memory('research','I prefer offline research.',source_turn=second['turn_id'])
+        self.chat.forget(compound['id'])
+        self.assertEqual({r['id'] for r in self.chat.memories()['items']},{research['id']})
+        self.assertEqual(self.chat.memories()['items'][0]['source_turn'],second['turn_id'])
+        self.assertEqual(self.ledger.active([{'id':style['id'],'revision':1}]),[])
+        self.assertIn('I prefer offline research.',json.dumps(self.chat.get(other)))
+
+    def test_forgetting_shared_old_quote_redacts_other_memory_history_not_its_independent_correction(self):
+        quote='Always answer in Egyptian Arabic and keep replies concise.'
+        source=self.say(quote)
+        style=self.chat.save_memory('communication.style',quote,kind='instruction',source_turn=source['turn_id'])
+        language=self.chat.save_memory('communication.language',quote,kind='instruction',source_turn=source['turn_id'])
+        self.chat.save_memory('communication.language','Always answer in Egyptian Arabic.',kind='instruction',revision=1)
+        self.chat.forget(style['id'])
+        self.assertEqual({r['id'] for r in self.chat.memories()['items']},{language['id']})
+        history=self.ledger.versions(language['id'])
+        self.assertNotIn('concise',json.dumps(history))
+        self.assertIsNone(history['items'][1]['snapshot'])
+
     def test_forgetting_removes_all_versions_and_preserves_unrelated_source_span(self):
         turn = self.say('I prefer detailed answers. My project is a garden.')
         memory = self.chat.save_memory('communication.style', 'I prefer detailed answers.',
