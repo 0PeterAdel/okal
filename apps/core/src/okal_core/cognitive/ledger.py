@@ -41,7 +41,36 @@ def uid():
 
 
 class CandidateConflict(ValueError):
-    """Automatic extraction tried to replace a different type of subject."""
+    """Automatic extraction could not establish a matching owner subject."""
+
+
+def subject_anchor(content: str, kind: str) -> str | None:
+    """Narrow, literal single-value preferences; never infer arbitrary topics.
+
+    Model-generated keys are not evidence of subject identity. These anchored
+    owner statements identify a field independently of its changing value.
+    Other ambiguous updates require the owner editor rather than a model guess.
+    """
+    if kind != 'semantic':
+        return None
+    match = re.match(r'^(my|our)\s+((?:preferred|favorite|favourite|default|current)\s+'
+                     r'[\w -]{1,70}?)\s+is\s+\S', content.strip(), re.I)
+    return re.sub(r'\s+', ' ', ' '.join(match.groups()).casefold()) if match else None
+
+
+def anchor_key(anchor: str) -> str:
+    label = re.sub(r'[^\w]+', '_', anchor).strip('_')[:45]
+    return 'preference.' + label + '.' + hashlib.sha256(anchor.encode()).hexdigest()[:16]
+
+
+def governed_subject(key: str, old: str, new: str) -> bool:
+    if key in {'communication.language','communication.language.technical_docs',
+               'communication.style','communication.structure','profile.name',
+               'conversation.goal','project.goal','conversation.pending_work','project.pending_work'}:
+        return True  # Core's exact-source validator governs these slots.
+    database = r'\b(?:database|SQLite|PostgreSQL|MySQL|MariaDB|MongoDB|DuckDB)\b|قاعدة (?:ال)?بيانات'
+    return key == 'architecture.database' and bool(re.search(database, old, re.I)
+                                                   and re.search(database, new, re.I))
 
 
 class Ledger:
@@ -169,6 +198,10 @@ class Ledger:
                     if column not in columns:
                         db.execute('ALTER TABLE ' + table + ' ADD COLUMN ' + column +
                                    ' INTEGER NOT NULL DEFAULT ' + str(default))
+            anchors_new = 'subject_anchor' not in {r['name'] for r in db.execute('PRAGMA table_info(memory_meta)')}
+            if anchors_new:
+                db.execute('ALTER TABLE memory_meta ADD COLUMN subject_anchor TEXT')
+            db.execute('CREATE INDEX IF NOT EXISTS memory_subject_anchor ON memory_meta(subject_anchor)')
             columns = {r['name'] for r in db.execute('PRAGMA table_info(memory_jobs)')}
             if 'scope_project_id' not in columns:
                 db.execute('ALTER TABLE memory_jobs ADD COLUMN scope_project_id TEXT')
@@ -218,6 +251,10 @@ class Ledger:
                         db.execute('INSERT OR IGNORE INTO memory_evidence VALUES(?,?,?,?)',
                                    (row['id'], row['revision'], row['source_turn'], row['content']))
                 self._backfill(db, limit=500)
+            if anchors_new:
+                for row in db.execute('SELECT id,content,kind FROM chat_memories').fetchall():
+                    db.execute('UPDATE memory_meta SET subject_anchor=? WHERE memory_id=?',
+                               (subject_anchor(row['content'],row['kind']),row['id']))
             # Old Core must refuse to run against an upgraded lifecycle.
             db.execute('UPDATE chat_schema SET version=2')
 
@@ -305,13 +342,13 @@ class Ledger:
                        ','.join(':' + k for k in record) + ') ON CONFLICT(id) DO UPDATE SET ' +
                        ','.join(k + '=excluded.' + k for k in record if k != 'id'), record)
             write_seq = self._next_seq(db)
-            db.execute('''INSERT INTO memory_meta(memory_id,project_id,assertion,category,extractor,write_seq,effective_seq)
-                VALUES(?,?,?,?,?,?,?)
+            db.execute('''INSERT INTO memory_meta(memory_id,project_id,assertion,category,extractor,write_seq,effective_seq,subject_anchor)
+                VALUES(?,?,?,?,?,?,?,?)
                 ON CONFLICT(memory_id) DO UPDATE SET project_id=excluded.project_id,
                 assertion=excluded.assertion,category=excluded.category,extractor=excluded.extractor,
-                write_seq=excluded.write_seq,effective_seq=excluded.effective_seq''',
+                write_seq=excluded.write_seq,effective_seq=excluded.effective_seq,subject_anchor=excluded.subject_anchor''',
                        (record['id'], project_id, assertion, kind, extractor, write_seq,
-                        _source_seq if _source_seq is not None else write_seq))
+                        _source_seq if _source_seq is not None else write_seq,subject_anchor(content,kind)))
             self._snapshot(db, record)
             if source_turn:
                 db.execute('INSERT OR IGNORE INTO memory_evidence VALUES(?,?,?,?)',
@@ -339,6 +376,8 @@ class Ledger:
                               (memory_id,)).fetchall()
         affected = {r[0] for r in db.execute('SELECT turn_id FROM chat_sources WHERE memory_id=?', (memory_id,))}
         quotes = {r['quote'] for r in evidence} | {row['content']}
+        quotes.update(json.loads(r[0])['content'] for r in db.execute(
+            'SELECT snapshot FROM memory_versions WHERE memory_id=? AND snapshot IS NOT NULL',(memory_id,)))
         # Preserve independent facts, but remember which current facts had
         # source support before redaction. Losing that last support cannot
         # leave another active memory of an erased passage behind.
@@ -405,8 +444,12 @@ class Ledger:
         db.execute('DELETE FROM chat_memories WHERE id=?', (memory_id,))
         revision = row['revision'] + 1
         db.execute('INSERT OR REPLACE INTO memory_tombstones VALUES(?,?,?)', (memory_id, revision, self.now))
-        subject_hash = hashlib.sha256((row['scope'] + '\0' + row['key']).encode()).hexdigest()
-        db.execute('INSERT OR REPLACE INTO memory_subject_tombstones VALUES(?,?)', (subject_hash,self._next_seq(db)))
+        subjects = {row['key']} | {anchor_key(anchor) for quote in quotes
+                                   if (anchor := subject_anchor(quote,'semantic')) is not None}
+        cutoff = self._next_seq(db)
+        for subject in subjects:
+            subject_hash = hashlib.sha256((row['scope'] + '\0' + subject).encode()).hexdigest()
+            db.execute('INSERT OR REPLACE INTO memory_subject_tombstones VALUES(?,?)', (subject_hash,cutoff))
         self._outbox(db, memory_id, revision, 'delete')
         return related
 
@@ -544,7 +587,9 @@ class Ledger:
                     'rebuild': dict(db.execute('SELECT generation,status,attempts FROM memory_index_state WHERE id=1').fetchone()),
                     'active': db.execute("SELECT COUNT(*) FROM memory_meta WHERE category<>'credential_quarantined'").fetchone()[0],
                     'quarantined':db.execute("SELECT COUNT(*) FROM memory_meta WHERE category='credential_quarantined'").fetchone()[0],
-                    'deleted': db.execute('SELECT COUNT(*) FROM memory_tombstones').fetchone()[0]}
+                    'deleted': db.execute('SELECT COUNT(*) FROM memory_tombstones').fetchone()[0],
+                    'deferred_subjects': db.execute("SELECT COUNT(*) FROM memory_jobs WHERE "
+                        "error='candidate_subject_conflict' AND status IN ('pending','failed')").fetchone()[0]}
 
     def browse(self, status='current', offset=0):
         if status not in {'current','superseded','deleted','inferred','unverified'} or type(offset) is not int or not 0 <= offset <= 1_000_000:
@@ -713,9 +758,17 @@ class Ledger:
             for candidate in approved:
                 scope = job['conversation_id'] if candidate['scope'] == 'conversation' else (
                     'project:' + project_id if candidate['scope'] == 'project' else 'owner')
-                subject_hash = hashlib.sha256((scope + '\0' + candidate['key']).encode()).hexdigest()
-                if db.execute('SELECT 1 FROM memory_subject_tombstones WHERE subject_hash=? AND cutoff_seq>=?',
-                              (subject_hash,job['source_seq'])).fetchone():
+                anchor = subject_anchor(candidate['quote'],candidate['kind'])
+                if anchor:
+                    matches = db.execute('''SELECT m.key FROM chat_memories m JOIN memory_meta x ON x.memory_id=m.id
+                        WHERE m.scope=? AND x.subject_anchor=? LIMIT 2''',(scope,anchor)).fetchall()
+                    if len(matches)>1:
+                        raise CandidateConflict('ambiguous_owner_subject')
+                    candidate = dict(candidate,key=matches[0]['key'] if matches else anchor_key(anchor))
+                subjects = {candidate['key']} | ({anchor_key(anchor)} if anchor else set())
+                if any(db.execute('SELECT 1 FROM memory_subject_tombstones WHERE subject_hash=? AND cutoff_seq>=?',
+                       (hashlib.sha256((scope+'\0'+subject).encode()).hexdigest(),job['source_seq'])).fetchone()
+                       for subject in subjects):
                     continue
                 old = db.execute('SELECT m.*,x.write_seq,x.effective_seq FROM chat_memories m '
                                  'JOIN memory_meta x ON x.memory_id=m.id WHERE m.scope=? AND m.key=?',
@@ -728,6 +781,9 @@ class Ledger:
                     raise Conflict('memory_changed_during_extraction')
                 if old and old['effective_seq'] > job['source_seq']:
                     continue  # Backfill must not overwrite a later owner correction.
+                if old and not (anchor and subject_anchor(old['content'],old['kind'])==anchor) and not governed_subject(
+                        candidate['key'],old['content'],candidate['quote']):
+                    raise CandidateConflict('candidate_subject_identity_unproven')
                 if old and old['kind'] != candidate['kind'] and candidate['key'] not in {
                         'communication.language','communication.language.technical_docs',
                         'communication.style','communication.structure'}:

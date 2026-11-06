@@ -204,6 +204,71 @@ class CognitiveLedgerTests(unittest.TestCase):
         changed=self.chat.save_memory('architecture.database',constraint,kind='constraint',revision=1)
         self.assertEqual(changed['revision'],2)
 
+    def test_distinct_preferences_survive_model_reuse_of_same_semantic_key(self):
+        first='My preferred release test phrase is cedar ibis 126.'
+        second='My preferred synthetic review label is jade finch 126.'
+        for quote in (first,second):
+            self.say(quote);job=self.ledger.claim_job()
+            self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(quote,'readiness.phrase','semantic')])
+        records=self.chat.memories()['items']
+        self.assertEqual({r['content'] for r in records},{first,second})
+        self.assertEqual(len(records),2)
+        # Same field, different model key: a genuine current-value correction.
+        changed='My preferred release test phrase is cedar ibis 127.'
+        self.say(changed);job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(changed,'different.model.label','semantic')])
+        current=self.chat.memories()['items']
+        self.assertEqual({r['content'] for r in current},{changed,second})
+        revised=next(r for r in current if r['content']==changed)
+        self.assertEqual(revised['revision'],2)
+        self.assertEqual(revised['id'],next(r['id'] for r in records if r['content']==first))
+
+    def test_ambiguous_same_kind_collision_is_visible_and_preserves_existing_fact(self):
+        from okal_core.cognitive.ledger import CandidateConflict
+        saved=self.chat.save_memory('architecture.component','We selected Mem0 for personalization.',kind='decision')
+        quote='We selected a weekly meeting schedule.'
+        self.say(quote);job=self.ledger.claim_job()
+        with self.assertRaises(CandidateConflict):
+            self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(quote,'architecture.component','decision')])
+        self.ledger.fail_job(job['turn_id'],job['lease'],'candidate_subject_conflict')
+        self.assertEqual(self.ledger.health()['deferred_subjects'],1)
+        self.assertEqual(self.ledger.active([{'id':saved['id'],'revision':1}])[0]['content'],saved['content'])
+
+    def test_pre_anchor_schema_and_owner_editor_key_preserve_identity(self):
+        original=self.chat.save_memory('owner chosen label','My preferred editor is Vim.')
+        with self.store.connect() as db, db:
+            db.execute('DROP INDEX memory_subject_anchor')
+            db.execute('ALTER TABLE memory_meta DROP COLUMN subject_anchor')
+        self.ledger=Intelligence(self.store).cognitive
+        quote='My preferred editor is Neovim.'
+        self.say(quote);job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(quote,'unreliable.model.label','semantic')])
+        revised=self.chat.memories()['items'][0]
+        self.assertEqual((revised['id'],revised['key'],revised['revision']),(original['id'],'owner chosen label',2))
+
+    def test_anchor_tombstone_fences_old_jobs_using_another_model_key(self):
+        old='My preferred editor is Vim.'
+        newer='My preferred editor is Neovim.'
+        self.say(old)
+        current=self.chat.save_memory('owner editor key',newer)
+        self.chat.forget(current['id'])
+        # The older source uses another value and key; neither may resurrect
+        # the forgotten preference through delayed backfill.
+        job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(old,'different.model.key','semantic')])
+        self.assertEqual(self.chat.memories()['items'],[])
+
+    def test_conversation_only_identity_does_not_change_global_profile(self):
+        quote='In this conversation, my name is Local Canary.'
+        proposed=validate_candidates(quote,[candidate(quote,'profile.name','semantic','owner')])
+        self.assertEqual(proposed[0]['scope'],'conversation')
+
+    def test_reserved_slots_require_owner_evidence_not_a_model_label(self):
+        quote='My preferred review label is jade finch.'
+        for key,kind in [('profile.name','semantic'),('project.goal','goal'),('conversation.pending_work','task')]:
+            with self.subTest(key=key):
+                self.assertEqual(validate_candidates(quote,[candidate(quote,key,kind)],'1'*32),[])
+
     def test_learning_correction_same_slot(self):
         for quote in ['I prefer detailed answers.', 'لا، أنا عايز ردودك مختصرة وتدخل في الموضوع على طول.']:
             self.say(quote)
