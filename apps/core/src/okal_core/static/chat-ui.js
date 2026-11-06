@@ -230,7 +230,7 @@ function clearChatUI() {
   };
   let older = null, moreConversations = null, memoryRevision = 0;
   let editingProject = null, associationRevision = 0, browseOffset = null, archiveBefore = null, vaultPreview = null;
-  let projectRecords=[], projectEdit=null, projectVaultPreview=null;
+  let projectRecords=[], projectEdit=null, projectVaultPreview=null, projectOffset=null;
   const selectedProject = () => get("chat-memory-project").value || null;
   const labels = {remembered:"Remembered · من كلامك", current:"Remembered · الحالي",
     inferred:"Inferred · مستنتج", unverified:"Unverified · غير مؤكد",
@@ -242,7 +242,8 @@ function clearChatUI() {
   function resetMemoryEditor() {
     memoryRevision = 0;
     editingProject = null; vaultPreview = null;
-    projectEdit=null;projectVaultPreview=null;projectRecords=[];
+    projectEdit=null;projectVaultPreview=null;projectRecords=[];projectOffset=null;
+    get("chat-project-more").hidden=true;
     get("chat-project-name").value="";get("chat-project-description").value="";
     get("chat-vault-project-import").hidden=true;get("chat-vault-project-text").replaceChildren();
     get("chat-memory-key").value = ""; get("chat-memory-key").disabled = false;
@@ -316,7 +317,7 @@ function clearChatUI() {
   }
   async function memoryDashboard() {
     const seq=chatSequence;
-    const [health,projects,state]=await Promise.all([post("memory-health"),post("projects"),
+    const [health,projects,state]=await Promise.all([post("memory-health"),post("projects",{conversation_id:chatConversation}),
       chatConversation ? post("conversation-state",{conversation_id:chatConversation}) : Promise.resolve(null)]);
     if(seq!==chatSequence)return;
     const count = value => Object.entries(value || {}).map(([k,v])=>k+": "+v).join(" · ") || "0";
@@ -325,6 +326,7 @@ function clearChatUI() {
     get("chat-memory-health").textContent+=" | ملاحظات المشروعات: "+count(health.project_vault);
     if(health.quarantined)get("chat-memory-health").textContent+=" | معلومات قديمة مستبعدة لحماية بيانات الدخول: "+health.quarantined;
     projectRecords=projects.items;
+    projectOffset=projects.next_offset ?? null;get("chat-project-more").hidden=projectOffset===null;
     const project=get("chat-memory-project"), prior=project.value || state?.project_id || "";
     project.replaceChildren();
     const empty=document.createElement("option");empty.value="";empty.textContent="بدون مشروع";project.append(empty);
@@ -539,6 +541,18 @@ function clearChatUI() {
   });
   get("chat-memory-health-refresh").addEventListener("click",()=>guarded(memoryDashboard));
   get("chat-memory-project").addEventListener("change",()=>guarded(refreshMemories));
+  get("chat-project-more").addEventListener("click",()=>guarded(async()=>{
+    if(projectOffset===null)return;
+    const seq=chatSequence,data=await post("projects",{offset:projectOffset});
+    if(seq!==chatSequence)return;
+    const project=get("chat-memory-project");
+    for(const item of data.items) {
+      if(projectRecords.some(p=>p.id===item.id))continue;
+      projectRecords.push(item);
+      const option=document.createElement("option");option.value=item.id;option.textContent=item.name;project.append(option);
+    }
+    projectOffset=data.next_offset ?? null;get("chat-project-more").hidden=projectOffset===null;
+  }));
   get("chat-memory-browse").addEventListener("click",()=>guarded(()=>browseMemories()));
   get("chat-memory-browse-more").addEventListener("click",()=>guarded(()=>browseMemories(true)));
   get("chat-memory-retry").addEventListener("click",()=>guarded(async()=>{

@@ -67,6 +67,22 @@ function harness(reply, fixtures={}) {
 
 async function flush(){await new Promise(resolve=>setTimeout(resolve,0));}
 
+test("project selector pages older projects while preserving selection and inert names",async()=>{
+  const first={id:"b".repeat(32),name:"Recent project"};
+  const old={id:"c".repeat(32),name:"<img src=x> Old project"};
+  const h=harness({}, {routes:{"/api/v1/chat/projects":body=>body.offset===200
+    ? {items:[first,old],next_offset:null} : {items:[first],next_offset:200}}});
+  h.get("chat-memory-manager").open=true;h.get("chat-memory-manager").handlers.toggle();await flush();
+  h.get("chat-memory-project").value=first.id;
+  assert.equal(h.get("chat-project-more").hidden,false);
+  h.get("chat-project-more").handlers.click();await flush();
+  const options=h.get("chat-memory-project").children;
+  assert.equal(options.filter(o=>o.value===first.id).length,1);
+  assert.equal(options.find(o=>o.value===old.id).textContent,old.name);
+  assert.equal(h.get("chat-memory-project").value,first.id);
+  assert.equal(h.get("chat-project-more").hidden,true);
+});
+
 test("forget clears displayed sources and fences an older source response",async()=>{
   const memory={id:"b".repeat(32),revision:1,key:"communication.style",kind:"instruction",
     content:"I prefer brief answers.",scope:"owner",source:"owner_message",assertion:"remembered",expires_at:0};

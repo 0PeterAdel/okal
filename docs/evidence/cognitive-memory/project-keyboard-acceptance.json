@@ -1,0 +1,11 @@
+{
+  "synthetic_only": true,
+  "real_private_process_and_chromium": true,
+  "projects": 201,
+  "older_project_reachable_after_paging": true,
+  "keyboard_disclosure_and_paging": true,
+  "labelled_input_keyboard_edit_and_visible_focus": true,
+  "mobile_and_tablet_no_overflow": true,
+  "page_exceptions": [],
+  "external_requests": []
+}

@@ -30,21 +30,27 @@ class Retrieval:
 
     def resolve_project(self, conversation_id, message):
         state = self.ledger.conversation_state(conversation_id)
-        projects = self.ledger.projects()['items']
         # Full explicit names only. Similar words never create associations.
-        exact = [p for p in projects if re.search(
-            r'(?<!\w)' + re.escape(p['name']) + r'(?!\w)', message, re.I)]
+        words = set(re.findall(r'\w+', message.casefold()))
+        exact=[];overlaps=[];prior='Current project'
+        with self.store.connect() as db:
+            # Stream the name catalog independently of the paged UI. An old
+            # project cannot disappear from recall after 200 newer projects.
+            for row in db.execute('SELECT id,name,name_key FROM memory_projects'):
+                project=dict(row)
+                if project['id']==state['project_id']:prior=project['name']
+                if len(exact)<10 and re.search(r'(?<!\w)'+re.escape(project['name'])+r'(?!\w)',message,re.I):
+                    exact.append(project)
+                if len(overlaps)<10 and words & set(re.findall(r'\w+',project['name_key'])):
+                    overlaps.append(project)
         if len(exact) > 1:
             return None, [p['name'] for p in exact]
         if exact:
             if state['project_id'] and exact[0]['id']!=state['project_id']:
-                prior=next((p['name'] for p in projects if p['id']==state['project_id']), 'Current project')
                 return None,[prior,exact[0]['name']]
             return exact[0]['id'], []
         if state['project_id']:
             return state['project_id'], []
-        words = set(re.findall(r'\w+', message.casefold()))
-        overlaps = [p for p in projects if words & set(re.findall(r'\w+', p['name_key']))]
         continuation = re.search(r'\bproject|\bcontinue|\bresume|نكمل|مشروع', message, re.I)
         return None, [p['name'] for p in overlaps] if len(overlaps) > 1 and continuation else []
 
@@ -196,7 +202,9 @@ class Retrieval:
             or (name_query and r['key'] in {'profile.name','name','owner.name'})
             or r['id'] in lexical_ids or vector_scores.get(r['id'], 0) >= .4)][:8]
         state = self.ledger.conversation_state(conversation_id)
-        project = next((p for p in self.ledger.projects()['items'] if p['id'] == project_id), None)
+        with self.store.connect() as db:
+            row=db.execute('SELECT * FROM memory_projects WHERE id=?',(project_id,)).fetchone()
+            project=dict(row) if row else None
         checkpoint = [{**v, 'key': k} for k,v in state['state'].items()][-6:]
         # Project and conversation state are source quotes, never verification
         # that an action actually ran. Computer receipts stay a separate field.

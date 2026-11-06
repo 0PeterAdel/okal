@@ -75,6 +75,11 @@ class ProjectSave(Payload):
     revision: int = Field(default=0,ge=0)
 
 
+class Projects(Payload):
+    offset: int = Field(default=0,ge=0,le=1_000_000)
+    conversation_id: str | None = None
+
+
 class Association(Conversation):
     project_id: str | None = None
     revision: int = Field(default=0,ge=0)
@@ -125,7 +130,7 @@ def register(app, store, authorized):
         'memory-versions': (Forget, state.cognitive.versions),
         'memory-browse': (MemoryBrowse, state.cognitive.browse),
         'memory-search': (Archive, Retrieval(state.cognitive).archive),
-        'projects': (Payload, state.cognitive.projects),
+        'projects': (Projects, state.cognitive.projects),
         'project-save': (ProjectSave, state.cognitive.save_project),
         'project-associate': (Association, state.cognitive.associate),
         'conversation-state': (Conversation, state.cognitive.conversation_state),

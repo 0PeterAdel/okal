@@ -34,6 +34,26 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(reply_language('Hello', selected), 'Egyptian Arabic')
         self.assertEqual(reply_language('Please reply in English.', selected), 'English')
 
+    def test_old_project_remains_retrievable_and_browsable_after_two_hundred_new_projects(self):
+        old=self.ledger.save_project('Legacy project','A long-running synthetic project.')
+        saved=self.ledger.save('architecture.database','We chose SQLite for offline operation.',
+                               kind='decision',project_id=old['id'])
+        for i in range(200):self.ledger.save_project('Recent project '+str(i))
+        with self.store.connect() as db,db:
+            db.execute('UPDATE memory_projects SET updated_at=0 WHERE id=?',(old['id'],))
+        page=self.ledger.projects()
+        self.assertEqual(len(page['items']),200)
+        self.assertEqual(page['next_offset'],200)
+        more=self.ledger.projects(page['next_offset'])
+        self.assertEqual(more['items'][0]['id'],old['id'])
+        self.assertIsNone(more['next_offset'])
+        selected,context=self.search.select(self.con,'Continue Legacy project.')
+        self.assertIn(saved['id'],{r['id'] for r in selected})
+        self.assertEqual(context['project']['id'],old['id'])
+        self.ledger.associate(self.con,old['id'])
+        active_page=self.ledger.projects(conversation_id=self.con)
+        self.assertIn(old['id'],{r['id'] for r in active_page['items']})
+
     def test_conversation_instruction_precedes_global(self):
         self.chat.save_memory('communication.language', 'Always answer in English.',kind='instruction')
         self.chat.save_memory('communication.language', 'Always answer in Egyptian Arabic.',

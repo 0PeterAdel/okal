@@ -389,8 +389,9 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
                                (conversation_id,turn_id)).fetchone()
         choices = (json.loads(prior[0]).get('project_choices',[]) if prior and prior[0] else [])
         choice_text = re.sub(r'^(?:i mean|اقصد|أقصد|قصدي)\s*[:،,]?\s*','',message.strip(),flags=re.I).strip(' .؟?')
-        chosen = next((p for p in state.cognitive.projects()['items']
-                       if p['name'] in choices and p['name_key']==choice_text.casefold()),None)
+        with store.connect() as db:
+            choice=db.execute('SELECT * FROM memory_projects WHERE name_key=?',(choice_text.casefold(),)).fetchone()
+            chosen=dict(choice) if choice and choice['name'] in choices else None
         if chosen:
             association = state.cognitive.conversation_state(conversation_id)
             state.cognitive.associate(conversation_id,chosen['id'],association['revision'])

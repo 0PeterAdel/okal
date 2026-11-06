@@ -508,10 +508,20 @@ class Ledger:
                 items = [dict(r,snapshot=owner_view(json.loads(r['snapshot'])) if r['snapshot'] else None) for r in rows[:50]]
             return {'items':items, 'next_offset':offset+50 if len(rows)>50 else None}
 
-    def projects(self):
+    def projects(self, offset=0, conversation_id=None):
+        from ..intelligence import identifier
+        if type(offset) is not int or not 0<=offset<=1_000_000:
+            raise ValueError('invalid_project_cursor')
+        if conversation_id is not None:identifier(conversation_id)
         with self.store.connect() as db:
-            return {'items': [dict(r) for r in db.execute(
-                'SELECT * FROM memory_projects ORDER BY updated_at DESC,id LIMIT 200')]}
+            rows=db.execute('SELECT * FROM memory_projects ORDER BY updated_at DESC,id LIMIT 201 OFFSET ?',
+                            (offset,)).fetchall()
+            items=[dict(r) for r in rows[:200]]
+            if conversation_id is not None and offset==0:
+                active=db.execute('''SELECT p.* FROM memory_projects p JOIN memory_conversations c
+                    ON c.project_id=p.id WHERE c.conversation_id=?''',(conversation_id,)).fetchone()
+                if active and active['id'] not in {r['id'] for r in items}:items.append(dict(active))
+            return {'items':items,'next_offset':offset+200 if len(rows)>200 else None}
 
     def save_project(self, name, description='', project_id=None, revision=0):
         from ..intelligence import text, identifier
