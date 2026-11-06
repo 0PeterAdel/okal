@@ -1,0 +1,44 @@
+{
+  "synthetic_only": true,
+  "source_head": "c7fb4cff723a761ce69d90664f788ef52e52d45f",
+  "source_clean": true,
+  "scope": "Real SDK/index/vault lifecycle; fixture archive, no model-answer scoring.",
+  "shared_facets_and_manual_duplicate_forgotten": true,
+  "cached_response_fenced": true,
+  "stale_vectors_rejected": true,
+  "physical_vectors_and_notes_removed": true,
+  "stale_note_imports_rejected": true,
+  "absent_after_rebuild": true,
+  "unrelated_owner_text_preserved": true,
+  "partial_quote_without_support_forgotten": true,
+  "independently_supported_memory_revised_and_reprojected": true,
+  "integrity_check": "ok",
+  "foreign_key_violations": 0,
+  "health": {
+    "schema": 1,
+    "jobs": {
+      "done": 1,
+      "forgotten": 2
+    },
+    "projections": {
+      "current": 7
+    },
+    "index": {
+      "current": 7
+    },
+    "vault": {
+      "current": 7
+    },
+    "project_vault": {},
+    "worker": "idle",
+    "configured": true,
+    "rebuild": {
+      "generation": 2,
+      "status": "current",
+      "attempts": 0
+    },
+    "active": 2,
+    "quarantined": 0,
+    "deleted": 5
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "synthetic_only": true,
+  "source_assistant_mode": "fixture_archive; never scored as model output",
+  "real_extraction_and_projection": true,
+  "source_turns": 8,
+  "actual_answers": [
+    {
+      "case": "profile-08",
+      "question": "What is my latest preference about introductions? Please reply in English.",
+      "actual_answer": "Your latest preference regarding introductions is not explicitly stated in MEMORY_CONTEXT. While you have specified communication language and style preferences, no specific instruction about how to introduce yourself was recorded.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "584ff77a3cc249168fb53aa0eeca498f",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "b6e6fc610bab4893b2a0724cf71dda95",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "17018d9f71d24e0e88102709ddd83938",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "edc903ecc88b455f861757449fd232d9",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "be8ec17d84394f6aa6a00fd54d68eafc",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": false
+    }
+  ],
+  "correction_same_id_revision_2": true,
+  "integrity_check": "ok",
+  "all_passed": false,
+  "answered": 26,
+  "passed": 25,
+  "report_scope": "Condensed failure evidence; complete synthetic journal remains in private evaluation state."
+}

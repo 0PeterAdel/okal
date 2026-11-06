@@ -1,0 +1,51 @@
+{
+  "source_head": "e22119ee3b253afd6303137555bf00466aac3780",
+  "source_clean": true,
+  "raw_report_sha256": "022e66772f09e664dc5ac42333d885da3fcb94aae2aaf8042bce5816ed802b2f",
+  "scoring": "Raw answer concepts plus support in actual sent ledger revisions or archive excerpts. HISTORY/checkpoints are deliberately not credited because their trimmed contents were not journalled.",
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 19,
+      "recall": 0.95,
+      "threshold": 0.9,
+      "gate_passed": true
+    },
+    "project": {
+      "answered": 20,
+      "passed": 20,
+      "recall": 1.0,
+      "threshold": 0.85,
+      "gate_passed": true
+    },
+    "conversation": {
+      "answered": 200,
+      "passed": 200,
+      "recall": 1.0,
+      "threshold": 0.9,
+      "gate_passed": true
+    }
+  },
+  "answer_count": 240,
+  "unsupported_raw_passes": [],
+  "missing_persisted_responses": [],
+  "reply_language_adherence": {
+    "scored": 238,
+    "passed": 238,
+    "ratio": 1.0
+  },
+  "final_disk_bytes_excluding_this_audit": 10458753,
+  "disk_components": {
+    "core.sqlite3": 4448256,
+    "cognitive.json": 387,
+    "manifest.json": 51530,
+    "answers.jsonl": 350167,
+    "computer-execution.lock": 0,
+    "unknown-answer.json": 836,
+    "resources.json": 1176425,
+    "report.json": 1943,
+    "mail": 296,
+    "cognitive": 4428913
+  },
+  "quality_gates_passed": true
+}

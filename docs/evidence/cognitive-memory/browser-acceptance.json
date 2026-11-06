@@ -1,0 +1,15 @@
+{
+  "synthetic_only": true,
+  "origin": "http://127.0.0.1:8878",
+  "checks": {
+    "saved_real_model_cross_chat_recall": true,
+    "mobile_and_tablet_fit": true,
+    "memory_edit_correction_sources": true,
+    "archive_search_and_source_resume": true,
+    "forget_removes_sources_archive_and_active_memory": true,
+    "indefinite_retention_control": true,
+    "no_page_errors_or_external_requests": true
+  },
+  "page_errors": [],
+  "external_requests_denied": []
+}

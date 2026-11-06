@@ -1,0 +1,565 @@
+# Cognitive Memory V2
+
+Implementation task: [#124](https://github.com/0PeterAdel/okal/issues/124).
+This document tracks implementation and verified evidence. It is not a release
+or deployment claim. Production remains on the Stage 3 release during development.
+
+## Delivery evidence
+
+PR [#125](https://github.com/0PeterAdel/okal/pull/125) contains the implementation,
+the AI-assisted [review](COGNITIVE-MEMORY-REVIEW.md) and separate
+[rollout/recovery runbook](COGNITIVE-MEMORY-ROLLOUT.md). The sections below retain
+earlier failed milestones chronologically; the latest measured gates are:
+
+| Gate | Observed outcome |
+| --- | --- |
+| Real extraction over 200 synthetic conversations / 1,000 owner turns | Precision 100%; recall 99.8344%; negative-source candidates 0 |
+| Final real-answer replay, 240 held-out questions | Preferences 19/20 (95%); projects 20/20; per-chat progress 200/200 |
+| Source-support audit | No unsupported passing answers or missing persisted responses |
+| Tested explicit corrections and forgetting probes | All passed, including stale vectors, cached replies, old notes and rebuild |
+| Regression suites | 546 Python, 83 Node UI, 5 real Mem0/Qdrant fixture tests passed |
+| Real-device scenarios | Chromium UI/keyboard/mobile, Obsidian controlled import, governed action receipt, Tasks/Calendar context, SIGKILL recovery, migration/rollback passed |
+| Production | Original checkout/service/database untouched; rollout remains separate |
+
+The exact delivery-head CI and AI-assisted merge verification belong on the PR;
+local results do not substitute for that gate. This is a bounded synthetic
+benchmark, not proprietary ChatGPT parity or perfect general model recall.
+The final replay still mis-transliterated one owner-name answer; that failure
+is included in the evidence and is not counted as correct.
+
+## Authority and isolation
+
+SQLite remains the only authoritative conversation and memory ledger.
+`chat_turns` stores committed owner messages and assistant answers;
+`chat_memories` remains the current memory view. Cognitive tables add revisions,
+exact source quotes, project associations, extractive conversation checkpoints,
+durable ingestion leases, deletion tombstones and a reconciliation outbox.
+Neither vector results nor Markdown can create authority on their own.
+
+Mem0 OSS runs in a separate Python process and environment. Its Qdrant index and
+internal history are disposable projections. Retrieval returns ledger IDs and
+revisions; Core validates those against the active SQLite records. Mem0's own
+change history is erased after reconciliation, rather than becoming an
+independent personal archive. An exclusive filesystem lock gives the embedded
+index one process owner. Core must remain usable when this adapter is unavailable.
+
+## Reviewed dependencies and local inference
+
+The dedicated [input](../apps/core/requirements-memory.in) and
+[hash lock](../apps/core/requirements-memory.lock) pin Mem0 2.2.1,
+qdrant-client 1.20.0 and Ollama's Python client 0.6.3. The Core dependency lock is
+unchanged: Mem0 requires protobuf below 7 while Core pins protobuf 7.36.2.
+Combining those environments is unsupported.
+
+The adapter explicitly configures both providers, a private persistent Qdrant
+path, collection ownership and a model/dimension fingerprint. It sets
+`MEM0_TELEMETRY=False` before importing Mem0. Importing with an already-active
+telemetry singleton is rejected. The stock Ollama embedder can automatically
+pull missing models; the reviewed provider implementation instead verifies
+explicit GGUF digests and fails closed. It never pulls or downloads models.
+Mem0's process-local Ollama factory entries select those reviewed providers;
+installed third-party source is not patched.
+
+Inference permits only literal `127.0.0.1:11434`, disables environment proxies
+and redirects, bounds input/output and execution time, and denies model tool
+calls. A process audit hook additionally rejects external DNS/connections,
+listeners and subprocess creation. This is defense in depth, not a claim of an
+operating-system sandbox against malicious native dependency code. The adapter
+receives no credentials and does not open the authoritative database. Its additional
+file audit guard limits Python-level reads to reviewed runtime/code/system paths
+and its projection directory, and writes to the projection directory. Core state
+and credential reads, code writes and subprocesses are denied. Native compromise
+remains outside the guarantees of Python audit hooks.
+
+BGE-M3 on CPU is selected from the real-device pilot. These small-sample
+results are diagnostic evidence, not the complete acceptance benchmark:
+
+| Embedding | Dimensions | Top-1 recall | Top-3 recall | CPU query p50 / p95 |
+| --- | --- | --- | --- | --- |
+| BGE-M3 | 1024 | 85% | 100% | 1.344 / 1.350 seconds |
+| Nomic Embed v2 MoE | 768 | 75% | 95% | 1.890 / 1.904 seconds |
+
+Both tested 20 English/Arabic questions over 12 synthetic facts. Both passed
+actual Mem0 insert/update/search/delete, persistent reopen, exclusive ownership
+and network-denial scenarios. Raw rankings and tested digests are recorded in
+[evidence](evidence/cognitive-memory/). The conversational Qwen pin was unchanged.
+BGE-M3 leaves the GPU available to the pinned conversational model.
+
+A changed embedding fingerprint requires a fresh private index followed by
+reconciliation from current approved records. Never reuse incompatible vectors.
+Before a model upgrade, stop the worker, preserve a verified private backup,
+archive the old derived index/manifest/history under the repository preflight
+rules, keep the vault and authoritative SQLite, configure approved new pins,
+verify actual dimensions, and request a ledger rebuild. Retired index archives
+have independent retention and must not be silently reactivated.
+
+[Mem0](https://github.com/mem0ai/mem0) uses Apache-2.0. Its transitive cloud
+clients are installed by the upstream distribution but are never configured as
+providers. Network denials must be exercised in acceptance tests.
+
+[Basic Memory](https://github.com/basicmachines-co/basic-memory) uses AGPL-3.0.
+Its current distribution introduces an extensive web/MCP/database dependency
+stack. No Basic Memory code is copied or linked into OKAL. The owner directive
+expressly permits a clean Obsidian-compatible vault adapter when the direct
+integration cannot meet licensing/privacy/reliability boundaries. That clean
+adapter is the selected direction; Basic Memory's own server, graph, MCP and
+cloud synchronization remain unsupported. The Markdown vault must stay optional.
+
+## Lifecycle and migration
+
+The additive migration upgrades `chat_schema` from 1 to 2 and adds
+`cognitive_schema=1`. Old Core refuses the newer chat schema. Migration does
+not recover previously purged history or import external ChatGPT conversations.
+Backfill uses existing committed turns and persistent, idempotent jobs.
+
+The requested default is now `retention_days=0` and memory `expires_at=0`, meaning
+keep until explicitly deleted. Optional 1–365 day policies remain supported.
+On first migration, the former 90-day chat policy becomes keep-until-deleted.
+Stage 1 stored no setting provenance, so an explicit owner choice of exactly 90
+days cannot be distinguished from its old default. The former default 365-day memory lifetime also becomes indefinite, using
+its exact stored duration from the last update; Stage 1 likewise did not record
+whether 365 days was explicitly selected. Other finite chat/memory policies
+remain intact. The owner can select 90-day chat or 365-day memory expiry again
+after migration. Already-purged data cannot be recovered by this change.
+
+Corrections preserve source conversations and superseded snapshots, advance the
+revision, fence dependent in-flight answers and queue replacement projections.
+Forgetting removes exact quoted source spans, clears transitively dependent archive/history answers
+and checkpoints, erases revision contents and FTS entries, fences ingestion, and
+queues projection deletion. Unrelated owner sentences survive. Tombstones carry
+IDs, revisions and timestamps without the forgotten text. Cached/stale vectors
+cannot pass active-ledger revision validation.
+
+When several facets share the forgotten sentence, those duplicate facets and
+facts losing their last valid source are also forgotten. Unsupported historical
+snapshots/evidence are purged. An independently restated fact survives with a new
+revision and source, followed by index/vault reconciliation. The confirmation
+explains these semantics; it does not silently promise to preserve shared text.
+
+A hashed subject cutoff prevents older unrelated-chat backfill jobs from
+recreating a forgotten canonical subject. A genuinely new owner statement after
+forgetting is new evidence. Duplicate reaffirmations retain independent source
+references, so deleting one chat does not erase a fact independently restated in
+another. Deleting source history purges its old revision snapshots and fences
+answers that used archive excerpts.
+
+Project identity is captured per source turn. Switching the active chat project
+cannot relabel earlier source turns. Unique full owner project references may
+establish an association; shared keywords never merge projects. Conflicting
+references require one clarification, and unresolved messages wait for scope.
+Automatic association binds the current turn and future turns, never earlier
+unrelated history. Explicit owner association can bind previously unassigned
+history. Distinctive decision lookup can retrieve one project without writing
+an association; multiple matching projects require clarification.
+
+Private backups and independent filesystem snapshots have separate retention;
+forgetting live memory cannot erase previously exported offline copies.
+
+## Development verification
+
+The initial ledger milestone passed 496 Python tests. Later scope and privacy
+milestones increased that coverage; final current-head counts remain a release
+gate. Dedicated adapter CI uses actual Mem0 and persistent Qdrant with clearly
+labelled deterministic vector fixtures. It does not claim model-quality results.
+On-device tools use the real pinned Ollama models.
+
+The first 12-case local extraction pilot had precision 60%, recall 37.5% and one
+provider error. Constrained exact-sentence extraction then reached 100% on those
+12 cases. The larger 10-conversation/50-turn diagnostic pilot exposed additional
+classification and scope problems: preference recall 75%, project recall 100%
+(two queries), per-chat recall 60%, extraction precision/recall 52.94%. These
+failed results are preserved; none meets or replaces the full release gates.
+
+The interruption scenario exposed an empty initial manifest after a killed
+embedding probe. Creation is now atomic and recoverable only for a demonstrably
+empty initial index; a corrupt manifest on a populated index fails closed.
+The adapter lifecycle suite verifies both cases.
+
+The [corpus](../apps/core/evals/cognitive-corpus.json) contains 200 fictional
+conversations and 1,000 owner turns, with scripted synthetic assistant dialogue.
+Those scripted replies are archive fixtures, never scored as generated answers.
+The [evaluation harness](../apps/core/tools/evaluate_cognitive_memory.py) runs
+real local extraction, projections, retrieval and held-out model answers,
+retains actual output journals, and reports failed cases without substituting
+expected facts. Those gates were pending at the initial milestone; subsequent
+measured outcomes are recorded in the delivery table and chronological evidence.
+
+The optional clean vault curates durable owner/project facts and lessons rather
+than every conversational task. Stable IDs, revisions and base hashes govern
+owner-confirmed imports; stale/deleted notes cannot overwrite SQLite. Statements
+are rendered inside literal dynamically sized text fences, preventing automatic
+remote-image/HTML fetching from extracted Markdown. Note edits remain local and
+never authorize computer tools. Project overview notes provide controlled links
+to current knowledge and editable project descriptions. Separate revision and
+generation checks prevent lost project-note updates; owner-confirmed description
+imports use the same project CAS as the UI. Inert unquoted identifier properties
+from Obsidian are supported without evaluating general YAML.
+
+## Rollout boundary
+
+Merging is not deployment. Before Production rollout, stop writers for a verified
+private SQLite backup, rehearse the migration on a copy, check integrity and
+conversation counts, verify local provider pins, install the separate locked
+adapter environment, and run resumable backfill with visible health. Do not
+replace the live database with a synthetic evaluation database. Downgrade requires
+the pre-migration backup and the corresponding old code; do not run old code
+against schema 2. A detailed measured rollout/runbook is required before release.
+
+The frozen 50-turn pilot at `72b3192` recovered interruption, reached 100% per-chat
+recall and 97.06% extraction recall, but omitted the explicitly stated name. Its
+original strict scores were preference 65%, project 50% (two questions). Two
+correct paraphrases also exposed scorer vocabulary gaps; the original report is
+preserved. Explicit first-person name sentences now supplement model proposals
+through the same exact-source gate. The scorer recognizes equivalent concurrent
+writing and direct-response phrases; numerical acceptance thresholds are unchanged.
+
+The next 50-turn pilot at `19f67a0` met numerical recall thresholds: preference
+90%, project 100% (two queries), per-chat 100%; extraction precision/recall 100%.
+Both remaining wrong name answers mistransliterated a correctly retrieved name.
+The prompt now requires exact source spelling for names and identifiers.
+All seven real forgetting/cache/vault/rebuild checks passed. This pilot remains
+smaller than the required release corpus. Its relevance-at-8 definition counts
+unrelated always-present personalization against precision (31.51%), while
+recall-at-8 was 100%; it is not equivalent to answer accuracy.
+
+## Private Obsidian desktop
+
+The optional [offline launcher](../apps/core/tools/open_memory_vault.py) requires
+Arch Obsidian/Electron 43, Wayland and unprivileged bubblewrap. It mounts only
+system runtime/fonts, the curated vault, a separate private profile and the
+owner's Wayland socket. Networking, home data, the Core database, credentials
+and D-Bus are absent. Chromium's inner sandbox is disabled inside the enclosing
+OS namespace; normal Wayland compositor interaction remains possible. This is
+not a VM for hostile GUI applications. No remote-debugging listener is enabled.
+
+The dedicated profile disables updates. The curated vault permits only reviewed
+built-in navigation/editor plugins, with no community plugins, Sync or File
+Recovery. Existing unsupported plugin settings cause an explicit refusal rather
+than silently enabling them. Opening the vault with another unmanaged Obsidian
+profile has that profile's independent privacy and backup behavior.
+
+Actual on-device Obsidian 1.14.5 / Electron 43.8.6 acceptance opened the synthetic
+vault, edited Arabic with the app editor/keyboard, and confirmed that OKAL's
+browser import preview showed the change while SQLite remained at revision 1.
+Only browser confirmation produced revision 2. Both legacy notes and the new
+literal-fence format rendered in the real app. Community plugins, Sync and File
+Recovery were disabled; a few standard built-in panels remained enabled.
+
+The [migration rehearsal](../apps/core/tools/verify_cognitive_migration.py)
+preserved 100 synthetic bilingual archived turns, checked DB integrity and
+foreign keys, preserved explicit legacy expiry, changed the old default retention
+to keep-until-deleted, and verified idempotent backfill. Old Core rejected schema
+2 and successfully reopened the restored unchanged schema-1 backup. No Production
+state was copied or migrated.
+
+Automatic extraction excludes common sensitive health/financial categories.
+This conservative pattern gate is not a universal sensitive-data classifier.
+The Memory editor requires a separate explicit checkbox and confirmation for
+such facts; secrets/credentials remain rejected even with that confirmation.
+Controlled Obsidian revision import also requires owner preview and confirmation.
+
+Installed adapter dependency metadata was inventoried (35 distributions), with
+no AGPL dependency in the runtime. The [review](evidence/cognitive-memory/dependency-review.json)
+records declared licenses and a live OSV package-version query with no advisory
+matches. Only public package names/versions were sent. This is not a proof of
+absence of vulnerabilities or a substitute for license notices on distribution.
+
+The first complete 200-conversation / 1,000-turn run at `c26075f` generated and
+scored 240 real local-model answers. It **failed** the personal-preference gate
+(75% against 90%), while project and per-chat recall were 100%. The extractor
+omitted the explicit durable language sentence in a multi-fact message. The
+failed report and all five failed answers are preserved in the evidence folder.
+No completion or merge is authorized by those results.
+
+Explicit identity and durable communication sentences now supplement Mem0's
+semantic proposals through lossless source rules. They retain owner wording,
+conditions and scope and pass the same sensitive-data, external-content,
+question and permission gates. One-off reply overrides remain transient. This
+is a hybrid extraction pipeline; reported precision/recall describes approved
+pipeline outputs, not raw unfiltered model proposals.
+
+The real governed file acceptance required the exact runtime approval digest
+before writing a disposable synthetic file. A stored assertion that approvals
+could be skipped did not authorize execution. After approval, the existing
+computer engine verified the file postcondition, and a different conversation
+in the same explicit project received the verified execution receipt. No live
+policy, files or accounts were changed.
+
+The follow-up migration rehearsal also verified that a later archived language
+correction supersedes an older Stage 1 source under the same memory ID. Migrated
+source ordering uses source turn sequence (or the manual edit's historical
+checkpoint), not a fictitious new preference timestamp. New V2 editor revisions
+remain newer than historical backfill. Common legacy language keys normalize to
+the canonical key when that does not collide with an existing saved key.
+
+Conditional English-for-technical-documentation preferences occupy a distinct
+subject from the general reply language. Matching conditional preferences take
+precedence within their scope; a higher-priority conversation instruction still
+wins. Owner-edited combined language/brevity statements also affect reply style.
+
+Actual Chromium acceptance used a separate local session after detecting
+unreliable viewport emulation in the integrated browser. Verified 390×844 and
+768×1024 viewports fit with no horizontal overflow and a visible composer.
+The desktop and narrow-view screenshots were inspected. Saved real-model
+cross-chat recall, memory correction/source versions, archive search/source
+resume, forgetting, deleted-state browsing and indefinite-retention controls
+passed, with zero page exceptions or external requests. The optional FullCalendar
+404 is the existing Stage 3 fallback condition, not a memory regression.
+
+See the [rollout and recovery runbook](COGNITIVE-MEMORY-ROLLOUT.md) for exact
+provider configuration, isolated environments, owner-history ingestion, optional
+Obsidian launch, index replacement and backup rollback. No Production rollout
+has been performed.
+
+Security review added non-bypassable credential-category exclusions, including
+manual saves with sensitive-data consent and project notes. Obvious natural
+credential declarations are rejected before new Chat archival. The conservative
+category gate can also exclude benign credential-related technical text; it is
+not a universal secret/PII classifier.
+
+Legacy credential-related memory values are quarantined from active retrieval,
+FTS projections, vectors, curated notes and model context. Owner memory views
+withhold their values and expose an unverified/quarantine indicator. Existing
+private archive/ledger data is preserved for owner review/deletion, rather than
+silently destroying it during migration. Explicit forgetting still removes the
+memory and its source spans. Backups remain independently retained.
+
+Legacy completed conversations receive a conservative chronological dependency
+chain because Stage 1 did not retain full transitive provenance. Forgetting a
+legacy fact may invalidate later assistant answers; unrelated owner messages
+remain. The 100-turn real-old-code rehearsal verified this fence, credential
+quarantine, correction ordering, integrity and restoration of the original backup.
+
+The actual isolated extraction parent was SIGKILLed while its durable job was
+running. A replacement respected the live lease, recovered after real wall-clock
+expiry, and produced exactly one memory on attempt two, with current index/vault,
+idempotent backfill and intact SQLite. This complements the full benchmark's
+separate adapter interruption test.
+
+The Mem0 process now uses only `cognitive/adapter`, with its own Qdrant, manifest
+and derived history. The private vault and Obsidian profile are siblings outside
+its file audit scope. Real RPC startup/insert/semantic-search/delete and Arabic
+extraction passed under the narrowed scope. Unreleased earlier development
+indexes are preserved; they require an explicit rebuild when changing this
+layout, never automatic deletion or migration of private files.
+
+A distinctive decision query uses rare project terms, avoiding false ambiguity
+from generic words such as “we chose”. It can retrieve a project decision without
+changing the conversation association. Competing projects remain separate.
+
+
+### Exact preview imports and stricter scoring
+
+Vault imports bind the confirmation to both the authoritative revision and the
+SHA-256 of the displayed owner statement. An intervening file edit requires a
+fresh preview; it cannot silently replace the text the owner confirmed. Memory
+kind changes reconcile one stable note across folders and preserve independent
+owner edits as visible conflicts. Filesystem, API and frontend tests exercise
+these cases.
+
+The separate read-only `audit_cognitive_answers.py` preserves the raw benchmark
+report and credits an answer only when the expected concepts also occur in a
+relevant ledger revision actually sent to the model, or an actually sent archive
+excerpt. Unjournalled trimmed HISTORY/checkpoints are conservatively not credited.
+On the first failed full run, two apparently correct language answers had no
+supporting memory: audited preference recall is **13/20 (65%)**, compared with the
+original keyword score 15/20 (75%). Project and per-chat recall remain 20/20 and
+200/200. This does not turn the failed run into a pass. The replacement run and
+its own audit must meet the original thresholds before merge.
+
+
+Actual Chromium acceptance verified the exact-preview protocol for memory and
+project notes: an intervening file edit returned HTTP 409 without changing the
+ledger, then a fresh browser preview and confirmation committed revision two.
+No browser exceptions or external requests occurred. The first script attempt
+stopped because it had not opened the separate vault disclosure; the corrected
+script exercised the visible controls and passed. Production was not involved.
+
+
+Six supplemental real-model cases tested Arabic residence → English paraphrase,
+unassociated “Why Mem0?” recall with a competing SQLite project, the exact Arabic
+style correction from the directive, conditional English documentation, ordinary
+Arabic chat, and current English override. The first run passed five but omitted
+the saved dialect in the broad communication question and spoke as the owner.
+Trusted question-specific guidance now asks for both remembered facets and owner
+attribution. The unchanged six checks then passed with real extraction, index,
+Qwen answers and SQLite integrity. The model can still over-qualify general
+explanations; this benchmark does not establish human-level conversational quality.
+
+The full source corpus is ingested on frozen commit c1f3910. Later credential
+quarantine, the narrower adapter path, exact-preview imports and recall guidance
+are separately tested. A current-code answer replay clones only the 1,000 source
+fixture turns, removes previous generated answers, rebuilds a fresh index from
+SQLite, and reruns all 240 held-out questions plus deletion/rebuild and unknown-fact
+probes. It records its own reviewed source SHA and resource measurements; it does
+not claim to be a second extraction run or silently relabel the frozen run.
+
+
+The privacy review expanded conservative Arabic/English sensitive-category guards
+for common medical conditions/medication and financial/identity identifiers.
+Automatic extraction rejects the tested canaries even if a model proposes them;
+manual saving requires the explicit sensitive-memory confirmation. Project notes
+reject these categories and direct the owner to that controlled editor. These
+heuristics are not a universal multilingual DLP classifier. The complete private
+conversation archive follows the selected retention policy, separately from
+selective semantic learning. Credential categories remain forbidden even with
+sensitive consent.
+
+Network evidence is bounded: benchmark counters observe the parent runner's
+Python socket attempts; the adapter independently denies non-Ollama Python
+connections before importing Mem0. Neither counter is a native-code packet
+capture. Explicit local providers, disabled telemetry/proxies/redirects and the
+reviewed dependency boundary prevent routine cloud-provider use. The audit hooks
+are defense in depth, not a claim of an OS sandbox against compromised native
+code. The optional Obsidian launcher does use a separate network namespace.
+
+
+A long-lived project no longer disappears from name lookup after 200 newer
+projects. Catalog matching streams names independently of paged UI results;
+association and project descriptions resolve by stable ID. The selector pages
+older projects and includes the active conversation's project. A real isolated
+Chromium/HTTP process with 201 synthetic projects verified older-project selection,
+Enter-operated disclosures/paging, labelled keyboard input, a visible 3px focus
+indicator, and no horizontal overflow at 390/768px. Its initial harness attempts
+used an empty-chat status assumption and then encountered socket TIME_WAIT; the
+corrected fixture and safe reusable-port preflight passed. No existing service
+was killed or reused. This is focused keyboard/responsiveness evidence, not a
+complete screen-reader or WCAG certification.
+
+The vault overview links only curated note kinds. A kind correction preserves
+independent edits before moving/removing an old note. The editor now explains
+that optional memory expiry uses forgetting semantics, including source-span
+redaction and invalidation of dependent replies, while other owner text remains.
+
+A machine-readable policy comparison checked all 1,000 corpus source messages
+against the frozen and later sensitive/credential prescreens: zero acceptance
+outcomes changed. Runtime privacy changes are still covered by targeted negative
+and on-device tests; this comparison does not substitute for real extraction.
+
+
+The expanded personalization check added all 20 held-out profile questions to the
+six transfer/conditional-language cases. Two intermediate runs each passed
+25/26: one confused dialect with length, then another interpreted “introductions”
+as personal introductions. Query-specific guidance now distinguishes remembered
+names, language/dialect, and response style without supplying expected facts or
+changing source authority. The unchanged **26/26 real-model checks passed** on
+the revised implementation, including all six owner-name spellings and the exact
+Arabic correction. This focused result does not replace the 200-chat benchmark
+or its final-code answer replay. Historical failures remain recorded.
+
+
+The Tasks/Calendar integration check created a real isolated local task and
+calendar event, then combined their project-qualified saved context with a stable
+project memory in two new chats. Code-only scoring initially missed an incorrect
+Arabic date; that outcome was rejected on review, not accepted as calendar
+correctness. Generic mid-prompt date guidance still failed the stricter check.
+Early task-specific bilingual citation guidance then passed both unchanged
+Arabic/English questions, including the exact saved date/time and both fixture
+codes. Full task/event snapshots were unchanged by Chat, SQLite integrity passed,
+and no external account was connected or mutated. This uses existing saved-context
+integration, not automatic provider-side project tagging. These two tests do not
+guarantee perfect dates in every free-form model answer.
+
+
+### Frozen 200-chat run two — complete, below preference gate
+
+Commit `c1f391092e66634b8c93b61f52c9ef4f6a5a18af` ingested all **200
+conversations / 1,000 owner turns**, then generated all 240 real held-out answers.
+The raw and stricter source-supported scores agree: preferences **17/20 (85%)**,
+projects **20/20**, per-chat progress **200/200**. Two name transliterations and
+one broad dialect answer failed; this run **does not pass** the 90% preference
+gate. All scored answers followed the expected reply language by the disclosed
+script metric; language compliance does not establish fact correctness.
+
+Extraction precision was **100%**, recall **99.8344%**; no candidate was created
+from the corpus's negative sources. No duplicate current keys or foreign-key
+violations occurred; integrity was `ok`. Explicit correction questions were all
+consistent, held-out questions left the profile unchanged, the unknown-editor
+probe declined to invent a preference, and all seven tested forgetting/cache/
+vault/index-rebuild fences passed. Adapter interruption/reopen and idempotent
+backfill also passed. There were zero denied parent-runner Python network
+attempts; network instrumentation limits are described above.
+
+Direct-drain ingestion took **4,417.55 s** (**0.2264 turns/s**); a real full index
+rebuild took **573.08 s** (**0.7381 current records/s**). This harness does not
+include the production worker's 10-second pause between ticks or time waiting
+for active Chat/mail. Initial history backfill can therefore take hours and
+remains visible as pending work; automatic learning is asynchronous.
+
+Retrieval p50/p95 was **1.695 / 3.032 s**; complete answer p50/p95 was
+**6.360 / 10.749 s**. Precision@8 mean was **0.2132**, recall@8 mean **1.0**
+under the narrow expected-subject definition (always-present personalization
+counts against precision). Maximum observed prompt usage was **1,608 tokens**.
+The run took **7,820.67 s** in total. Sampled whole-device used RAM peaked at
+**14,331,613,184 bytes**, minimum available RAM **2,107,441,152 bytes**; GPU memory
+peaked at **6,517 MiB** against a **1,297 MiB** initial baseline. Parent peak RSS
+was **46,604,288 bytes**. Existing services/desktop and supplemental test inference
+were active, so these are not exclusive attribution or uncontended latency.
+
+The post-journal state audit measured **11,640,891 bytes**, excluding the audit
+itself and model caches (the earlier in-run size predates the resource journal).
+There were **43 curated Markdown notes**, rather than one note per raw turn.
+The current-code replay uses a fresh private adapter index and only the 1,000
+source fixture turns; previous generated answers are removed before scoring.
+Its independent results remain required for the release decision.
+
+### Final answer replay — measured recall gates passed
+
+The [replay](evidence/cognitive-memory/final-answer-replay.json) ran clean source
+`e22119ee3b253afd6303137555bf00466aac3780`. It copied only the 1,000 synthetic
+source fixture turns from the completed ingestion, removed previous generated
+answers and rebuilt a fresh private Mem0/Qdrant index. It generated **240 new
+real Qwen answers**, not another extraction run. The later shared-source deletion
+fix does not change recall or extraction; its clean-head real lifecycle scenario
+is recorded [separately](evidence/cognitive-memory/shared-forgetting-acceptance.json).
+The privacy-prescreen comparison changed zero acceptance outcomes across all
+1,000 source messages; no final-SHA full extraction rerun is claimed.
+
+The [source-supported audit](evidence/cognitive-memory/final-answer-audit.json)
+passed the unchanged thresholds: preferences **19/20 (95%)**, projects **20/20
+(100%)**, per-chat progress **200/200 (100%)**. All tested style/project corrections
+were consistent. No unsupported passing answer, missing persisted response,
+duplicate current key, foreign-key violation or DB-integrity failure occurred.
+The unknown-editor probe declined to invent a preference, question ingestion
+left the profile unchanged, and all seven forgetting/cache/vault/rebuild checks
+passed. The [remaining failure](evidence/cognitive-memory/final-answer-failures.json)
+rendered Mira as “ميّا” in one answer. The separate 26-case personalization pilot
+passed all six name questions, demonstrating variability rather than eliminating
+this known small-model limitation. Some Arabic answers also reverse pronouns or
+mix registers; this benchmark scores remembered facts, not full linguistic quality.
+
+Retrieval p50/p95 was **2.301 / 3.033 s**, complete-answer p50/p95 **8.234 /
+11.232 s**. Precision@8 mean was **0.2132**, recall@8 **1.0**, under the narrow
+expected-subject definition described above. Maximum actual prompt usage was
+**1,616 tokens**, within the bounded context budget. The script-based language
+metric passed **238/238 scorable answers**; two very short answers were unscored.
+
+The replay took **4,947.33 s**, including initial and final index rebuilding and
+asynchronous question processing. Sampled whole-device used RAM peaked at
+**14,395,359,232 bytes**, minimum available **2,043,695,104 bytes**; GPU memory
+peaked at **6,140 MiB**, initial baseline **1,772 MiB**. Parent peak RSS was
+**51,367,936 bytes**. These observations include existing services and desktop
+activity, not exclusive memory-engine attribution. Final synthetic state occupied
+**10,458,753 bytes**, excluding its audit and installed model caches. The earlier
+full-ingestion report supplies extraction throughput and larger observed GPU
+peak; the replay does not replace those measurements.
+
+Manual answer inspection covered all 20 preference answers, representative
+overlapping-project decisions and per-chat checkpoints across all corpus phases.
+It confirmed the known name failure, current PostgreSQL decisions and pending
+restart work; no claim that pending work had actually executed was accepted.
+The automated audit covers all 240 answers against their actual sent sources.
+
+### Shared-source forgetting regression
+
+Clean source `c7fb4cff723a761ce69d90664f788ef52e52d45f` passed the actual local
+Mem0/Qdrant and filesystem [scenario](evidence/cognitive-memory/shared-forgetting-acceptance.json).
+Language/style facets and an explicit duplicate sharing a forgotten sentence
+were removed physically from vectors and notes. Stale hits, in-flight cached
+answers, rediscovered notes and a full rebuild could not restore them. Unrelated
+owner text survived. A partial fact that lost its sole source was forgotten,
+while an independently restated fact advanced revision, source and projections.
+SQLite integrity/FK checks passed. This uses fixture archive acknowledgements
+and explicit ledger records to isolate lifecycle behavior; it is not an LLM
+quality score. The corresponding full regression suite passed 546 Python tests,
+83 Node UI tests and five real SDK fixture tests.

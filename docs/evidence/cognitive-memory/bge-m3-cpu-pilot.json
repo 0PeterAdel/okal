@@ -1,0 +1,199 @@
+{
+  "embedding": "bge-m3:latest",
+  "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+  "dimensions": 1024,
+  "embedding_gpu": false,
+  "corpus": 12,
+  "queries": 20,
+  "rankings": [
+    {
+      "query": "How do I prefer you to speak to me?",
+      "expected": 0,
+      "actual": [
+        0,
+        5,
+        9
+      ]
+    },
+    {
+      "query": "Do I want long introductions?",
+      "expected": 0,
+      "actual": [
+        5,
+        0,
+        6
+      ]
+    },
+    {
+      "query": "إيه سبب اختيار قاعدة البيانات للحديقة؟",
+      "expected": 1,
+      "actual": [
+        1,
+        7,
+        3
+      ]
+    },
+    {
+      "query": "Why did the garden use a local database?",
+      "expected": 1,
+      "actual": [
+        1,
+        3,
+        7
+      ]
+    },
+    {
+      "query": "Which database stores satellite telemetry?",
+      "expected": 2,
+      "actual": [
+        2,
+        8,
+        1
+      ]
+    },
+    {
+      "query": "قاعدة بيانات القمر الصناعي إيه؟",
+      "expected": 2,
+      "actual": [
+        2,
+        4,
+        1
+      ]
+    },
+    {
+      "query": "What is pending for the garden?",
+      "expected": 3,
+      "actual": [
+        3,
+        7,
+        1
+      ]
+    },
+    {
+      "query": "هنعمل إيه بعد كده في مشروع الحديقة؟",
+      "expected": 3,
+      "actual": [
+        3,
+        7,
+        10
+      ]
+    },
+    {
+      "query": "What is pending for the satellite?",
+      "expected": 4,
+      "actual": [
+        8,
+        4,
+        2
+      ]
+    },
+    {
+      "query": "المهمة الجاية للقمر الصناعي إيه؟",
+      "expected": 4,
+      "actual": [
+        4,
+        6,
+        3
+      ]
+    },
+    {
+      "query": "Which language should technical docs use?",
+      "expected": 5,
+      "actual": [
+        5,
+        2,
+        9
+      ]
+    },
+    {
+      "query": "لغة التوثيق التقني اللي بفضلها إيه؟",
+      "expected": 5,
+      "actual": [
+        5,
+        2,
+        9
+      ]
+    },
+    {
+      "query": "What art do I want to study?",
+      "expected": 6,
+      "actual": [
+        6,
+        9,
+        5
+      ]
+    },
+    {
+      "query": "أنا عايز أتعلم إيه على المدى الطويل؟",
+      "expected": 6,
+      "actual": [
+        6,
+        0,
+        5
+      ]
+    },
+    {
+      "query": "What irrigation method did we decide on?",
+      "expected": 7,
+      "actual": [
+        7,
+        3,
+        1
+      ]
+    },
+    {
+      "query": "Why are we using drip irrigation?",
+      "expected": 7,
+      "actual": [
+        3,
+        7,
+        1
+      ]
+    },
+    {
+      "query": "When was the satellite launch moved to?",
+      "expected": 8,
+      "actual": [
+        8,
+        4,
+        2
+      ]
+    },
+    {
+      "query": "أي محرر نصوص بفضله وليه؟",
+      "expected": 9,
+      "actual": [
+        9,
+        0,
+        11
+      ]
+    },
+    {
+      "query": "What remains unfinished in this conversation?",
+      "expected": 10,
+      "actual": [
+        10,
+        8,
+        0
+      ]
+    },
+    {
+      "query": "What evening does the reading club meet?",
+      "expected": 11,
+      "actual": [
+        11,
+        6,
+        3
+      ]
+    }
+  ],
+  "index_seconds": 1.6527914199978113,
+  "recall_at_1": 0.85,
+  "recall_at_3": 1.0,
+  "query_seconds_p50": 1.3441131109975686,
+  "query_seconds_p95": 1.3502637060009874,
+  "crud_before_reopen": "passed",
+  "reopen_delete": "passed",
+  "forbidden_network": "passed",
+  "evidence_scope": "Small synthetic real-device pilot; not the full acceptance benchmark."
+}

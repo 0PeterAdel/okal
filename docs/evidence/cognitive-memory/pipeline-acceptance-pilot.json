@@ -1,0 +1,106 @@
+{
+  "complete_corpus": false,
+  "source_conversations": 10,
+  "source_turns": 50,
+  "archive_turns_including_queries": 83,
+  "archive_assistant_mode": "fixture_archive; scripted dialogue is never scored as model output",
+  "actual_scored_answers": 32,
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 18,
+      "recall": 0.9
+    },
+    "project": {
+      "answered": 2,
+      "passed": 2,
+      "recall": 1.0
+    },
+    "conversation": {
+      "answered": 10,
+      "passed": 10,
+      "recall": 1.0
+    }
+  },
+  "extraction_precision": 1.0,
+  "extraction_recall": 1.0,
+  "false_candidates_on_negative_sources": 0,
+  "ingestion_seconds": 267.5767213959916,
+  "ingestion_turns_per_second": 0.18686229407080632,
+  "retrieval_seconds_p50": 1.444055344501976,
+  "retrieval_seconds_p95": 1.7146004869864555,
+  "retrieval_precision_at_8_mean": 0.3151041666666667,
+  "retrieval_recall_at_8_mean": 1.0,
+  "retrieval_relevance_definition": "Current ledger records containing expected concepts in the queried scope; always-present personalization counts against precision.",
+  "answer_seconds_p50": 6.884420528498595,
+  "answer_seconds_p95": 9.666548301000148,
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "duplicate_current_keys": 0,
+  "forbidden_python_network_attempts": 0,
+  "health": {
+    "schema": 1,
+    "jobs": {
+      "done": 82,
+      "forgotten": 1
+    },
+    "projections": {
+      "current": 26
+    },
+    "index": {
+      "current": 26
+    },
+    "vault": {
+      "current": 6,
+      "not_curated": 20
+    },
+    "project_vault": {
+      "current": 20
+    },
+    "worker": "idle",
+    "configured": true,
+    "rebuild": {
+      "generation": 2,
+      "status": "current",
+      "attempts": 0
+    },
+    "active": 25,
+    "deleted": 1
+  },
+  "profile_unchanged_by_recall_questions": true,
+  "lifecycle_probe": {
+    "stale_vector_rejected": true,
+    "cached_context_fenced": true,
+    "stale_vault_rejected": true,
+    "active_context_absent": true,
+    "physical_vector_deleted": true,
+    "rediscovered_note_rejected": true,
+    "forgotten_absent_after_rebuild": true
+  },
+  "actual_prompt_tokens_max": 1573,
+  "interruption_injected": true,
+  "elapsed_monotonic_seconds": 713.5647266150045,
+  "disk_bytes": 979888,
+  "resources": {
+    "samples": 693,
+    "min_available_ram_bytes": 3247280128,
+    "peak_total_used_ram_bytes": 13191774208,
+    "baseline_gpu_used_mib": 1812,
+    "peak_total_gpu_used_mib": 5800,
+    "parent_peak_rss_bytes": 49639424,
+    "scope": "Observed whole-device RAM/VRAM peaks include existing desktop/services; sampled, not exclusive attribution."
+  },
+  "quality_gates": {
+    "preference": true,
+    "project": true,
+    "conversation": true
+  },
+  "consistency_gates": {
+    "profile_stable": true,
+    "no_false_negative_source_candidates": true,
+    "no_duplicates": true,
+    "integrity": true,
+    "no_external_attempts": true,
+    "lifecycle": true
+  }
+}

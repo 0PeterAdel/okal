@@ -132,8 +132,12 @@ class IntelligenceTests(unittest.TestCase):
         m=self.state.memories()['items'][0]; self.state.forget(m['id'])
         self.assertEqual(self.state.memories()['items'],[])
         self.assertNotIn('Zephyr',json.dumps(self.state.get(self.con)))
-        for turn in self.state.get(self.con)['turns']:
-            self.assertEqual(turn['message'],'[forgotten]'); self.assertIsNone(turn['response'])
+        turns=self.state.get(self.con)['turns']
+        self.assertEqual(turns[0]['message'],'remember project: [forgotten]')
+        self.assertEqual(turns[1]['message'],'What project?')
+        self.assertEqual(turns[2]['message'],'Continue please')
+        for turn in turns:
+            self.assertIsNone(turn['response'])
         with self.assertRaises(Conflict):
             self.state.begin(self.con,self.state.get(self.con)['turns'][0]['request_id'],'remember project: Zephyr')
 
@@ -151,6 +155,7 @@ class IntelligenceTests(unittest.TestCase):
             self.state.save_memory('guess','Synthetic verified response',source_turn=turn['turn_id'])
 
     def test_retention_deletion_and_expiry_remove_sourced_memories(self):
+        self.state.settings(days=90)
         self.ask('remember project: Zephyr'); self.now+=91*86400
         self.assertEqual(self.state.conversations()['items'],[])
         self.assertEqual(self.state.memories()['items'],[])

@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function harness(reply) {
+function harness(reply, fixtures={}) {
   const nodes = new Map(), calls = [];
   const node = tag => ({
     tag, textContent:"",value:"",hidden:false,disabled:false,children:[],
@@ -35,10 +35,12 @@ function harness(reply) {
       querySelectorAll:s=>s==="[data-chat-prompt]"?prompts:[],
     },
     AbortController, Date,Intl,
+    confirm:message=>fixtures.confirm ? fixtures.confirm(message) : true,
     crypto:{randomUUID:()=>"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"},
     load:async()=>{reloads++;},
     fetch:async(url,options)=>{
       calls.push({url,options});
+      if(fixtures.routes?.[url])return response(await fixtures.routes[url](JSON.parse(options.body)));
       if(url==="/api/v1/chat/create") return response({id:cid});
       if(url==="/api/v1/chat/turn") {
         const payload=JSON.parse(options.body);
@@ -48,6 +50,9 @@ function harness(reply) {
       if(url==="/api/v1/chat/get") return response({id:cid,turns,next_before:null});
       if(url==="/api/v1/chat/conversations") return response({items:[{id:cid,title:"Saved"}],next_before:null});
       if(url==="/api/v1/chat/memories") return response({items:[]});
+      if(url==="/api/v1/chat/projects") return response({items:[]});
+      if(url==="/api/v1/chat/memory-health") return response({configured:false});
+      if(url==="/api/v1/chat/conversation-state") return response({project_id:null,revision:0,state:{}});
       if(url==="/api/v1/chat/settings") return response({retention_days:90});
       if(url==="/api/v1/calendar/local/save")return response({
         id:"aaaaaaaabbbbccccddddeeeeeeeeeeee",revision:1,replayed:false
@@ -61,6 +66,83 @@ function harness(reply) {
 }
 
 async function flush(){await new Promise(resolve=>setTimeout(resolve,0));}
+
+test("project selector pages older projects while preserving selection and inert names",async()=>{
+  const first={id:"b".repeat(32),name:"Recent project"};
+  const old={id:"c".repeat(32),name:"<img src=x> Old project"};
+  const h=harness({}, {routes:{"/api/v1/chat/projects":body=>body.offset===200
+    ? {items:[first,old],next_offset:null} : {items:[first],next_offset:200}}});
+  h.get("chat-memory-manager").open=true;h.get("chat-memory-manager").handlers.toggle();await flush();
+  h.get("chat-memory-project").value=first.id;
+  assert.equal(h.get("chat-project-more").hidden,false);
+  h.get("chat-project-more").handlers.click();await flush();
+  const options=h.get("chat-memory-project").children;
+  assert.equal(options.filter(o=>o.value===first.id).length,1);
+  assert.equal(options.find(o=>o.value===old.id).textContent,old.name);
+  assert.equal(h.get("chat-memory-project").value,first.id);
+  assert.equal(h.get("chat-project-more").hidden,true);
+});
+
+test("forget clears displayed sources and fences an older source response",async()=>{
+  const memory={id:"b".repeat(32),revision:1,key:"communication.style",kind:"instruction",
+    content:"I prefer brief answers.",scope:"owner",source:"owner_message",assertion:"remembered",expires_at:0};
+  let entries=[memory],release;
+  const delayed=new Promise(resolve=>{release=resolve;});
+  const h=harness({}, {routes:{
+    "/api/v1/chat/memory-health":()=>({configured:true,worker:"idle",jobs:{done:1},index:{current:1},vault:{current:1}}),
+    "/api/v1/chat/projects":()=>({items:[]}),
+    "/api/v1/chat/memories":()=>({items:entries}),
+    "/api/v1/chat/memory-versions":()=>delayed,
+    "/api/v1/chat/memory-delete":()=>{entries=[];return {deleted:true};},
+  }});
+  h.get("chat-memory-manager").open=true;h.get("chat-memory-manager").handlers.toggle();await flush();
+  const row=h.get("chat-memory-list").children[0];assert.ok(row);
+  h.get("chat-memory-source-list").append({textContent:"Old cached preference"});
+  h.get("chat-archive-query").value="Old cached preference";
+  row.children.find(n=>n.textContent==="المصدر والإصدارات").handlers.click();await flush();
+  row.children.find(n=>n.textContent==="نسيان").handlers.click();await flush();
+  release({items:[{status:"current",revision:1,snapshot:{content:memory.content}}],sources:[]});await flush();
+  assert.equal(h.get("chat-memory-source-list").children.length,0);
+  assert.equal(h.get("chat-memory-list").children.length,0);
+  assert.equal(h.get("chat-vault-import").hidden,true);
+  assert.equal(h.get("chat-archive-query").value,"");
+});
+
+test("archive excerpts remain inert and opening a source returns to fullscreen chat",async()=>{
+  const content="<img src=x onerror=alert(1)>";
+  const h=harness({}, {routes:{"/api/v1/chat/memory-search":()=>({items:[{
+    conversation_id:"a".repeat(32),title:"History",created_at:1800000000,
+    owner_excerpt:content,assistant_excerpt:"<script>untrusted</script>"}],next_before:null})}});
+  h.get("chat-archive-query").value="history";h.get("chat-archive-scope").value="all";
+  h.get("chat-memory-manager").open=true;
+  h.get("chat-archive-form").handlers.submit({preventDefault(){}});await flush();
+  const result=h.get("chat-archive-results").children[0];
+  assert.ok(result.children[0].textContent.includes(content));
+  assert.equal(result.children[0].innerHTML,undefined);
+  result.children.find(n=>n.tag==="button").handlers.click();await flush();
+  assert.equal(h.get("chat-memory-manager").open,false);
+  assert.equal(h.get("chat-archive-more").hidden,true);
+});
+
+test("vault edits require preview and explicit confirmation with its exact revision",async()=>{
+  let confirmed=false;
+  const h=harness({}, {confirm:()=>confirmed,routes:{
+    "/api/v1/chat/vault-preview":()=>({memory_id:"b".repeat(32),revision:7,content:"Edited preference",content_sha256:"c".repeat(64),changed:true}),
+    "/api/v1/chat/vault-import":()=>({changed:true,revision:8}),
+    "/api/v1/chat/memory-health":()=>({configured:true,worker:"idle"}),
+    "/api/v1/chat/projects":()=>({items:[]}),
+  }});
+  h.get("chat-vault-memory").value="b".repeat(32);
+  h.get("chat-vault-preview").handlers.click();await flush();
+  assert.equal(h.get("chat-vault-preview-text").textContent,"Edited preference");
+  h.get("chat-vault-import").handlers.click();await flush();
+  assert.equal(h.calls.filter(c=>c.url.endsWith("vault-import")).length,0);
+  confirmed=true;h.get("chat-vault-import").handlers.click();await flush();
+  const call=h.calls.find(c=>c.url.endsWith("vault-import"));
+  assert.equal(JSON.parse(call.options.body).revision,7);
+  assert.equal(JSON.parse(call.options.body).content_sha256,"c".repeat(64));
+  assert.equal(h.get("chat-vault-import").hidden,true);
+});
 
 test("prompt produces real local chat POST and displays text safely",async()=>{
   const h=harness({answer:"<img src=x onerror=alert(1)>",mode:"saved_fallback",proposal:null});

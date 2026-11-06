@@ -1,0 +1,197 @@
+[
+  {
+    "id": "profile-01",
+    "family": "preference",
+    "question": "فاكر أنا بحب تكلمني إزاي؟",
+    "expected_concepts": [
+      [
+        "مصري",
+        "مصرى",
+        "Egyptian"
+      ]
+    ],
+    "actual_answer": "أنا عايز الردود مختصرة وتدخل في الموضوع على طول، زي ما طلبت. هل فيه حاجة محددة عايز تتكلم فيها اليوم؟",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 5.137802919998649,
+    "selected_ids": [
+      "09d7521828ed4604bb5230e2e789ad1a"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "09d7521828ed4604bb5230e2e789ad1a",
+        "revision": 2,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 843,
+      "eval_count": 53,
+      "total_duration": 3771060451,
+      "load_duration": 2617650349
+    },
+    "subject": "language",
+    "retrieval_precision_at_8": 0.0,
+    "retrieval_recall_at_8": 0,
+    "relevant_ledger_ids": [],
+    "language_adherence": true
+  },
+  {
+    "id": "profile-04",
+    "family": "preference",
+    "question": "What language should you normally use when talking to me?",
+    "expected_concepts": [
+      [
+        "مصري",
+        "مصرى",
+        "Egyptian"
+      ]
+    ],
+    "actual_answer": "English.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 4.5845273089944385,
+    "selected_ids": [
+      "09d7521828ed4604bb5230e2e789ad1a"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "09d7521828ed4604bb5230e2e789ad1a",
+        "revision": 2,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 842,
+      "eval_count": 20,
+      "total_duration": 3217855564,
+      "load_duration": 2589362141
+    },
+    "subject": "language",
+    "retrieval_precision_at_8": 0.0,
+    "retrieval_recall_at_8": 0,
+    "relevant_ledger_ids": [],
+    "language_adherence": null
+  },
+  {
+    "id": "profile-07",
+    "family": "preference",
+    "question": "في الشات الجديد هتكلمني بأي لهجة؟",
+    "expected_concepts": [
+      [
+        "مصري",
+        "مصرى",
+        "Egyptian"
+      ]
+    ],
+    "actual_answer": "الردود مختصرة وتدخل في الموضوع على طول، زي ما طلبت.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 4.563746840009117,
+    "selected_ids": [
+      "09d7521828ed4604bb5230e2e789ad1a"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "09d7521828ed4604bb5230e2e789ad1a",
+        "revision": 2,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 844,
+      "eval_count": 35,
+      "total_duration": 3183425856,
+      "load_duration": 2324323017
+    },
+    "subject": "language",
+    "retrieval_precision_at_8": 0.0,
+    "retrieval_recall_at_8": 0,
+    "relevant_ledger_ids": [],
+    "language_adherence": true
+  },
+  {
+    "id": "profile-10",
+    "family": "preference",
+    "question": "Do I have a default dialect preference?",
+    "expected_concepts": [
+      [
+        "مصري",
+        "مصرى",
+        "Egyptian"
+      ]
+    ],
+    "actual_answer": "Yes. Your saved communication style preference is brief and direct (key: 'communication.style'). No specific dialect preference was recorded.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 4.780268832008005,
+    "selected_ids": [
+      "09d7521828ed4604bb5230e2e789ad1a"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "09d7521828ed4604bb5230e2e789ad1a",
+        "revision": 2,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 837,
+      "eval_count": 43,
+      "total_duration": 3404476472,
+      "load_duration": 2422240964
+    },
+    "subject": "language",
+    "retrieval_precision_at_8": 0.0,
+    "retrieval_recall_at_8": 0,
+    "relevant_ledger_ids": [],
+    "language_adherence": false
+  },
+  {
+    "id": "profile-16",
+    "family": "preference",
+    "question": "How should we speak across future conversations?",
+    "expected_concepts": [
+      [
+        "مصري",
+        "مصرى",
+        "Egyptian"
+      ]
+    ],
+    "actual_answer": "Based on your instruction (key: communication.style), I will keep my replies brief and get straight to the point in English. This applies to all future conversations.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 4.819410162002896,
+    "selected_ids": [
+      "09d7521828ed4604bb5230e2e789ad1a"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "09d7521828ed4604bb5230e2e789ad1a",
+        "revision": 2,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 839,
+      "eval_count": 50,
+      "total_duration": 3439499087,
+      "load_duration": 2358532771
+    },
+    "subject": "language",
+    "retrieval_precision_at_8": 0.0,
+    "retrieval_recall_at_8": 0,
+    "relevant_ledger_ids": [],
+    "language_adherence": false
+  }
+]

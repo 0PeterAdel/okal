@@ -1,0 +1,54 @@
+[
+  {
+    "id": "profile-06",
+    "family": "preference",
+    "subject": "name",
+    "question": "How should you address me?",
+    "expected_concepts": [
+      [
+        "Mira",
+        "ميرا"
+      ]
+    ],
+    "actual_answer": "اسمك هو ميّا، حسب ما قلته في ملفك الشخصي.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 8.42990355299844,
+    "selected_ids": [
+      "6fc686dca71c4b04af337568226b7422",
+      "81b9745d0a5e42e7972b1e1b82789214",
+      "d4a5b538476c4f21a33c82f46f88a2a4"
+    ],
+    "sources": [
+      {
+        "id": "6fc686dca71c4b04af337568226b7422",
+        "revision": 2,
+        "source": "owner_message"
+      },
+      {
+        "id": "81b9745d0a5e42e7972b1e1b82789214",
+        "revision": 1,
+        "source": "owner_message"
+      },
+      {
+        "id": "d4a5b538476c4f21a33c82f46f88a2a4",
+        "revision": 1,
+        "source": "owner_message"
+      }
+    ],
+    "semantic_index": "delayed_lexical_fallback",
+    "relevant_ledger_ids": [
+      "d4a5b538476c4f21a33c82f46f88a2a4"
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 1152,
+      "eval_count": 34,
+      "total_duration": 5364691161,
+      "load_duration": 4218019603
+    },
+    "language_adherence": true,
+    "retrieval_precision_at_8": 0.3333333333333333,
+    "retrieval_recall_at_8": 1.0
+  }
+]

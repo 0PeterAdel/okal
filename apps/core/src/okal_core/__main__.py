@@ -201,6 +201,9 @@ def main():
                 from .task_planner import ReminderWorker
                 reminders = ReminderWorker(store)
                 reminders.start()
+                from .cognitive.service import MemoryWorker
+                memory_worker = MemoryWorker(store)
+                memory_worker.start()
                 try:
                     if (store.directory / "mail" / "config.json").exists():
                         from .mail.scheduler import Worker
@@ -208,6 +211,7 @@ def main():
                         worker.start()
                     yield
                 finally:
+                    memory_worker.stop()
                     if worker:
                         worker.stop()
                     reminders.stop()

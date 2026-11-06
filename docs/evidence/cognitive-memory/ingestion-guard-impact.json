@@ -1,0 +1,7 @@
+{
+  "synthetic_only": true,
+  "ingestion_source_head": "c1f3910",
+  "turns_checked": 1000,
+  "changed_sensitive_or_credential_guard_outcomes": [],
+  "scope": "The later privacy prescreens do not change acceptance of any source message in the frozen corpus. This is a policy comparison, not a second extraction benchmark."
+}

@@ -1,0 +1,109 @@
+{
+  "complete_corpus": true,
+  "source_conversations": 200,
+  "source_turns": 1000,
+  "archive_turns_including_queries": 1241,
+  "archive_assistant_mode": "fixture_archive; scripted dialogue is never scored as model output",
+  "actual_scored_answers": 240,
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 15,
+      "recall": 0.75
+    },
+    "project": {
+      "answered": 20,
+      "passed": 20,
+      "recall": 1.0
+    },
+    "conversation": {
+      "answered": 200,
+      "passed": 200,
+      "recall": 1.0
+    }
+  },
+  "extraction_precision": 1.0,
+  "extraction_recall": 0.9966887417218543,
+  "false_candidates_on_negative_sources": 0,
+  "ingestion_seconds": 5174.615343341007,
+  "ingestion_turns_per_second": 0.19325107928782717,
+  "retrieval_seconds_p50": 1.4425413895005477,
+  "retrieval_seconds_p95": 1.7158170040056575,
+  "retrieval_precision_at_8_mean": 0.25833333333333336,
+  "retrieval_recall_at_8_mean": 0.9708333333333333,
+  "retrieval_relevance_definition": "Current ledger records containing expected concepts in the queried scope; always-present personalization counts against precision.",
+  "answer_seconds_p50": 5.2063061259977985,
+  "answer_seconds_p95": 5.944719647988677,
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "duplicate_current_keys": 0,
+  "forbidden_python_network_attempts": 0,
+  "health": {
+    "schema": 1,
+    "jobs": {
+      "done": 1240,
+      "forgotten": 1
+    },
+    "projections": {
+      "current": 423
+    },
+    "index": {
+      "current": 423
+    },
+    "vault": {
+      "current": 23,
+      "not_curated": 400
+    },
+    "project_vault": {
+      "current": 20
+    },
+    "worker": "idle",
+    "configured": true,
+    "rebuild": {
+      "generation": 2,
+      "status": "current",
+      "attempts": 0
+    },
+    "active": 422,
+    "deleted": 1
+  },
+  "profile_unchanged_by_recall_questions": true,
+  "lifecycle_probe": {
+    "stale_vector_rejected": true,
+    "cached_context_fenced": true,
+    "stale_vault_rejected": true,
+    "active_context_absent": true,
+    "physical_vector_deleted": true,
+    "rediscovered_note_rejected": true,
+    "forgotten_absent_after_rebuild": true
+  },
+  "actual_prompt_tokens_max": 1619,
+  "interruption_injected": true,
+  "elapsed_monotonic_seconds": 8013.5567031519895,
+  "disk_bytes": 9708867,
+  "resources": {
+    "samples": 7770,
+    "min_available_ram_bytes": 2530152448,
+    "peak_total_used_ram_bytes": 13908901888,
+    "baseline_gpu_used_mib": 1583,
+    "peak_total_gpu_used_mib": 5850,
+    "parent_peak_rss_bytes": 50348032,
+    "scope": "Observed whole-device RAM/VRAM peaks include existing desktop/services; sampled, not exclusive attribution."
+  },
+  "quality_gates": {
+    "preference": false,
+    "project": true,
+    "conversation": true
+  },
+  "consistency_gates": {
+    "profile_stable": true,
+    "no_false_negative_source_candidates": true,
+    "no_duplicates": true,
+    "integrity": true,
+    "no_external_attempts": true,
+    "lifecycle": true
+  },
+  "source_head": "c26075f",
+  "release_gate_passed": false,
+  "reason": "Preference recall 75% < required 90%; durable language instruction omitted during multi-fact extraction."
+}
