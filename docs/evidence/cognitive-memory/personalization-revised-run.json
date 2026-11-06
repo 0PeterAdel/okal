@@ -1,0 +1,170 @@
+{
+  "synthetic_only": true,
+  "source_assistant_mode": "fixture_archive; never scored as model output",
+  "real_extraction_and_projection": true,
+  "source_turns": 7,
+  "actual_answers": [
+    {
+      "case": "arabic_fact_english_query",
+      "question": "Which city did I tell you I live in? Please reply in English.",
+      "actual_answer": "You told me you live in طنطا (Tanta).",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0d415fcfc0a0405b8ce82d41803285f9",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "31bd2e3fab074d09a27d96ecec221e97",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "0d09d6ac07f249259b7546b4efc846c8",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "4d011a3ecb3e43c6a0bcf54cc02d3e54",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "distinctive_decision_without_project_assignment",
+      "question": "Why did we choose Mem0? Please reply in English.",
+      "actual_answer": "We chose Mem0 because we need multilingual memory consolidation.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0d415fcfc0a0405b8ce82d41803285f9",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "31bd2e3fab074d09a27d96ecec221e97",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "0d09d6ac07f249259b7546b4efc846c8",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "fde2e1d987cf466c9ff9e8d427b99e26",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "global_language_and_correction",
+      "question": "فاكر أنا بحب تكلمني إزاي؟",
+      "actual_answer": "أنت بتفضل الردود مختصرة ومباشرة، وتفضل اللغة العربية المصرية ما لم تطلب غير ده.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0d415fcfc0a0405b8ce82d41803285f9",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "31bd2e3fab074d09a27d96ecec221e97",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "0d09d6ac07f249259b7546b4efc846c8",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "4d011a3ecb3e43c6a0bcf54cc02d3e54",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "conditional_technical_documentation",
+      "question": "Write one sentence of technical documentation about a local memory ledger.",
+      "actual_answer": "The local memory ledger records owner communication preferences, including instructions to answer in Egyptian Arabic unless English is requested and to provide brief responses.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0d415fcfc0a0405b8ce82d41803285f9",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "31bd2e3fab074d09a27d96ecec221e97",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "0d09d6ac07f249259b7546b4efc846c8",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "ordinary_chat_keeps_global_language",
+      "question": "اكتبلي جملة عن معنى الذاكرة.",
+      "actual_answer": "الذاكرة هي مساحة في الجهاز أو الدماغ تُستخدم لحفظ المعلومات والبيانات لاسترجاعها لاحقاً، لكن بما أن بياناتك غير مؤكدة ولا توجد سجلات تنفيذ، فلا يمكنني تأكيد أي تفاصيل محددة عن حالتك الحالية.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0d415fcfc0a0405b8ce82d41803285f9",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "31bd2e3fab074d09a27d96ecec221e97",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "0d09d6ac07f249259b7546b4efc846c8",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "current_explicit_language_override",
+      "question": "Explain the ledger. Please reply in English.",
+      "actual_answer": "I cannot explain the ledger because no ledger data exists in my context. My memory contains only communication preferences and no financial records, project files, or transaction logs. I have no tools to access external accounts or browse for this information.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0d415fcfc0a0405b8ce82d41803285f9",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "31bd2e3fab074d09a27d96ecec221e97",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "0d09d6ac07f249259b7546b4efc846c8",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "correction_same_id_revision_2": true,
+  "integrity_check": "ok",
+  "all_passed": true
+}

@@ -56,3 +56,13 @@ def reply_style(message,memories):
             style=detect(memory['content'])
             if style:return style
     return 'default'
+
+
+def preference_question_focus(message):
+    """Trusted task guidance for broad recall questions, never memory authority."""
+    if re.search(r'how.*(?:communicat|talk|speak)|communication (?:style|preferences)|'
+                 r'(?:تكلمني|تكلّمني|تحدثني).*(?:إزاي|ازاي|كيف)|طريقة (?:الرد|الكلام)',message,re.I):
+        return ('This question asks about saved communication preferences. Explicitly mention BOTH '
+                'the remembered default language and the latest response style when available. '
+                'Attribute them to the owner: say "you prefer" or "أنت بتفضل", never "I want". ')
+    return ''

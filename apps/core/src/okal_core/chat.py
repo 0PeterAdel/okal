@@ -184,15 +184,18 @@ def ask(store, message, history, infer=None, memory_context=None):
         "voice_enabled": False, "external_writes_enabled": False,
     }
     snapshot = safe_context(snapshot)
-    from .cognitive.context import reply_language,reply_style
+    from .cognitive.context import reply_language,reply_style,preference_question_focus
     language = reply_language(message, (memory_context or {}).get('memories', []))
     style=reply_style(message,(memory_context or {}).get('memories', []))
     snapshot["reply_language"] = language
     snapshot['reply_style']=style
     snapshot["MEMORY_CONTEXT"] = safe_context(memory_context or {})
+    system = ('REQUIRED REPLY LANGUAGE: ' + language + '. ' +
+        ('Answer directly, without greetings, praise or long introductions. ' if style=='brief' else '') +
+        preference_question_focus(message) + CHAT_SYSTEM)
     # A conservative byte upper bound on input tokens includes schema/system.
     # Drop low-priority evidence before recent dialogue; never truncate owner input.
-    budget = 6000 - 256 - len(CHAT_SYSTEM.encode()) - len(json.dumps(ChatDecision.model_json_schema()).encode())
+    budget = 6000 - len(system.encode()) - len(json.dumps(ChatDecision.model_json_schema()).encode())
     def size():
         return len(json.dumps({"SAVED_CONTEXT": snapshot,
             "HISTORY": [t.model_dump() for t in turns], "OWNER_MESSAGE": message},
@@ -248,9 +251,7 @@ def ask(store, message, history, infer=None, memory_context=None):
                 cfg = config(store)
                 model = LocalModel(cfg)
                 try:
-                    decision = model.generate(ChatDecision,
-                        'REQUIRED REPLY LANGUAGE: ' + language + '. ' +
-                        ('Answer directly, without greetings, praise or long introductions. ' if style=='brief' else '') + CHAT_SYSTEM,
+                    decision = model.generate(ChatDecision, system,
                         {"SAVED_CONTEXT": snapshot,
                         "HISTORY": [t.model_dump() for t in turns],
                         "OWNER_MESSAGE": message})
