@@ -18,6 +18,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--state',type=Path,required=True)
     parser.add_argument('--config',type=Path,required=True)
+    parser.add_argument('--profile-queries',action='store_true')
     args=parser.parse_args()
     if not args.state.is_absolute() or args.state.exists() or 'okal-core' in args.state.parts:
         parser.error('fresh absolute synthetic state required')
@@ -43,6 +44,7 @@ def main():
         seed('أنا ساكن في مدينة طنطا.'),
         seed('We chose Mem0 because we need multilingual memory consolidation.',project['id']),
         seed('We chose SQLite because we need an offline conversation archive.',other['id'])]
+    if args.profile_queries:sources.append(seed('My name is Mira.'))
     started=time.monotonic();answers=[]
     try:
         for _ in range(50):
@@ -64,6 +66,11 @@ def main():
                 lambda a:len(re.findall(r'[\u0621-\u064a]',a))>len(re.findall(r'[a-z]',a,re.I))),
             ('current_explicit_language_override','Explain the ledger. Please reply in English.',
                 lambda a:len(re.findall(r'[a-z]',a,re.I))>len(re.findall(r'[\u0621-\u064a]',a)))]
+        if args.profile_queries:
+            from evaluate_cognitive_memory import has_concepts
+            corpus=json.loads((Path(__file__).parents[1]/'evals/cognitive-corpus.json').read_text())
+            cases.extend((query['id'],query['question'],lambda a,c=query['concepts']:has_concepts(a,c))
+                         for query in corpus['queries'] if query['family']=='preference')
         for name,question,check in cases:
             cid=chat.create('Synthetic held-out personalization')['id']
             actual=respond(store,cid,uuid.uuid4().hex,question)

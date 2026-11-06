@@ -1,0 +1,795 @@
+{
+  "synthetic_only": true,
+  "source_assistant_mode": "fixture_archive; never scored as model output",
+  "real_extraction_and_projection": true,
+  "source_turns": 8,
+  "actual_answers": [
+    {
+      "case": "arabic_fact_english_query",
+      "question": "Which city did I tell you I live in? Please reply in English.",
+      "actual_answer": "You told me you live in طنطا (Tanta).",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "distinctive_decision_without_project_assignment",
+      "question": "Why did we choose Mem0? Please reply in English.",
+      "actual_answer": "We chose Mem0 because we need multilingual memory consolidation.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "81dda052e3e8431e8aa9295adbbcbf34",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "global_language_and_correction",
+      "question": "فاكر أنا بحب تكلمني إزاي؟",
+      "actual_answer": "أنت بتفضل الردود مختصرة وتدخل في الموضوع على طول، وفي اللغة العربية المصرية ما طلبت غير الإنجليزية.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "conditional_technical_documentation",
+      "question": "Write one sentence of technical documentation about a local memory ledger.",
+      "actual_answer": "The local memory ledger is an unverified cache containing owner communication preferences, not independently verified data.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "ordinary_chat_keeps_global_language",
+      "question": "اكتبلي جملة عن معنى الذاكرة.",
+      "actual_answer": "الذاكرة هي مساحة في المخ أو جهاز الحاسوب بتخزن المعلومات والبيانات، وتعمل على استرجاعها عند الحاجة لتسهيل العمليات الذهنية أو الحسابية.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "current_explicit_language_override",
+      "question": "Explain the ledger. Please reply in English.",
+      "actual_answer": "I cannot explain the ledger because no ledger exists in my context, and I have no tools to access external accounts or verify financial records. My memory contains only your profile details (name: Mira, city: Tanta) and communication preferences (brief English responses for technical docs; Egyptian Arabic otherwise). No computer execution receipt confirms any ledger data.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-00",
+      "question": "What name did I tell you to remember?",
+      "actual_answer": "اسمك هو Mira.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-01",
+      "question": "فاكر أنا بحب تكلمني إزاي؟",
+      "actual_answer": "أنت بتفضل الردود مختصرة وتدخل في الموضوع على طول، وفي اللغة العربية المصرية ما طلبت غير الإنجليزية.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-02",
+      "question": "How much background introduction do I prefer in your answers? Please reply in English.",
+      "actual_answer": "You prefer brief introductions. Your instruction states: 'لا، أنا عايز ردودك مختصرة وتدخل في الموضوع على طول.' (No, I want your replies to be short and get straight to the point.)",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-03",
+      "question": "اسمي إيه؟",
+      "actual_answer": "اسمك هو ميرا، كما ذكرت في ملفك الشخصي.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-04",
+      "question": "What language should you normally use when talking to me?",
+      "actual_answer": "عادةً، أنا عايز أردك بالدارجة المصرية إلا ما طلبت إنجليزي. في حالات خاصة، مثل المصطلحات التقنية أو السجلات الرسمية، أستخدم الإنجليزية فقط.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-05",
+      "question": "أنا عايز الردود طويلة ولا مختصرة دلوقتي؟",
+      "actual_answer": "لا، ما عايزش ردود طويلة. عايزها مختصرة وتدخل في الموضوع على طول.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-06",
+      "question": "How should you address me?",
+      "actual_answer": "أنتِ ميرا، حسب ما ذكرته في ملفك الشخصي.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-07",
+      "question": "في الشات الجديد هتكلمني بأي لهجة؟",
+      "actual_answer": "أنا عايز الردود مختصرة وتدخل في الموضوع على طول، وفي اللغة المصرية إلا ما تطلب إنجليزي.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-08",
+      "question": "What is my latest preference about introductions? Please reply in English.",
+      "actual_answer": "Your latest preference regarding introductions is to keep replies brief and direct, with no greetings or long introductory text. This applies to all responses, including those containing background information.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-09",
+      "question": "هل تتذكر الاسم الذي أخبرتك به؟",
+      "actual_answer": "نعم، اسمك هو Mira كما ذكرت في ملفك الشخصي.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-10",
+      "question": "Do I have a default dialect preference?",
+      "actual_answer": "نعم، تفضيلك هو اللغة المصرية (Egyptian Arabic) مع أسلوب مختصر ومباشر. الاستثناء الوحيد: تستخدم الإنجليزية دائماً في الوثائق التقنية.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-11",
+      "question": "بحب تدخل في الموضوع على طول ولا تبدأ بمقدمة كبيرة؟",
+      "actual_answer": "نعم، عايز الردود مختصرة وتدخل في الموضوع مباشرة، بدون مقدمة طويلة.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-12",
+      "question": "Tell me the owner name you actually remember.",
+      "actual_answer": "اسمك هو Mira، كما ذكرت في ملفك الشخصي.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-13",
+      "question": "ما أسلوبي اللغوي المفضل للتواصل؟",
+      "actual_answer": "اللغة المفضلة للتواصل هي المصرية (Egyptian Arabic)، مع استثناء أن تكون اللغة الإنجليزية فقط في حال طلبك ذلك صراحةً، خاصةً للمستندات التقنية. الردود مختصرة وتدخل مباشرة في الموضوع.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-14",
+      "question": "Do I still want detailed background before the practical point? Please reply in English.",
+      "actual_answer": "No. You prefer brief replies that go straight to the point.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-15",
+      "question": "أنا قلت لك تناديني بإيه؟",
+      "actual_answer": "تناديني بميرا، كما قلته في ملفك الشخصي: \"My name is Mira.\"",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-16",
+      "question": "How should we speak across future conversations?",
+      "actual_answer": "أنت بتفضل الردود بالدارجة المصرية عشان تكون مختصرة وتدخل في الموضوع على طول، ولازم تطلب الإنجليزية لشيء تقني.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-17",
+      "question": "What response length did I last ask for? Please reply in English.",
+      "actual_answer": "You requested brief, direct replies with no introductory text. This applies to all responses.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "348ec415035a4ad0993ff9fac8f977cf",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8ebfb9df8e5f491db9974f11cf41b396",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-18",
+      "question": "هل أفضّل العربية المصرية في المحادثات؟",
+      "actual_answer": "نعم، أنا عايز الردود بالعربية المصرية حسب طلبك. ما زلت هادام على طول.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "profile-19",
+      "question": "فاكر آخر تصحيح قلته لك عن طريقة الرد؟",
+      "actual_answer": "نعم، الطريقة دي هي: ردود مختصرة ومباشرة، عايز تدخل في الموضوع على طول. ما أكتبش مقدمة طويلة ولا أقولش كلام غير ضروري.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "ab80d43c174f4d6ab186c61f49bb9861",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "103cfc6d26d147858d946097407c0d6f",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "5c62a47909ea4a1fa89f09b58c63e79e",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "correction_same_id_revision_2": true,
+  "integrity_check": "ok",
+  "all_passed": true
+}

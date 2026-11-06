@@ -1,0 +1,48 @@
+{
+  "synthetic_only": true,
+  "source_assistant_mode": "fixture_archive; never scored as model output",
+  "real_extraction_and_projection": true,
+  "source_turns": 8,
+  "actual_answers": [
+    {
+      "case": "profile-07",
+      "question": "في الشات الجديد هتكلمني بأي لهجة؟",
+      "actual_answer": "أنا عايز ردودك مختصرة وتدخل في الموضوع على طول، كما طلبت في الشات السابق.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "0fe930947c534144bd26150dfae890a4",
+          "revision": 2,
+          "source": "owner_message"
+        },
+        {
+          "id": "df5b5267efac47e9983e4b270cac675c",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "fa8ac8c46e744c1e974746e2b063f0ef",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "8c2ddf54e2ad446a8586f14ee1aacf15",
+          "revision": 1,
+          "source": "owner_message"
+        },
+        {
+          "id": "e5c39dd1d1f94f2c817a38d1231d92c3",
+          "revision": 1,
+          "source": "owner_message"
+        }
+      ],
+      "passed": false
+    }
+  ],
+  "correction_same_id_revision_2": true,
+  "integrity_check": "ok",
+  "all_passed": false,
+  "answered": 26,
+  "passed": 25,
+  "report_scope": "Condensed failure evidence; complete synthetic journal remains in private evaluation state."
+}
