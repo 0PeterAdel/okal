@@ -52,8 +52,9 @@ def normalize_candidate(key,kind,scope,quote,project_id):
     local=bool(THIS_CHAT.search(quote))
     if GOAL.search(quote) and key not in {'communication.language','communication.style','communication.structure'}:
         kind='goal'
-        scope='conversation' if local else scope
-        key='conversation.goal' if local else key
+        scope='conversation' if local else ('project' if project_id and
+            re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) else scope)
+        key='conversation.goal' if local else ('project.goal' if scope=='project' else key)
     elif PENDING.search(quote):
         kind='task'
         scope='conversation' if local else ('project' if scope=='project' and project_id else 'conversation')

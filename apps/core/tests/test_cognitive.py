@@ -168,6 +168,42 @@ class CognitiveLedgerTests(unittest.TestCase):
         self.assertEqual(len(self.chat.memories()['items']), 1)
         self.assertEqual(recovered.health()['jobs'], {'done': 1})
 
+    def test_project_goal_cannot_supersede_current_architecture_decision(self):
+        project=self.ledger.save_project('Synthetic typed subjects')
+        self.ledger.associate(self.conversation,project['id'])
+        choice='For this project, we use PostgreSQL because several devices write concurrently.'
+        self.say(choice);job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(choice,'architecture.database','decision','project')])
+        goal='For this project, our goal is a recoverable migration.'
+        self.say(goal);job=self.ledger.claim_job()
+        # Reproduces the actual local model reusing the last decision key.
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(goal,'architecture.database','decision','project')])
+        records={r['key']:r for r in self.chat.memories(project_id=project['id'])['items']}
+        self.assertEqual(records['architecture.database']['content'],choice)
+        self.assertEqual(records['architecture.database']['revision'],1)
+        self.assertEqual(records['project.goal']['content'],goal)
+        self.assertEqual(records['project.goal']['kind'],'goal')
+        normalized=validate_candidates(goal,[candidate(goal,'architecture.database','semantic','owner')],project['id'])
+        self.assertEqual((normalized[0]['scope'],normalized[0]['key']),('project','project.goal'))
+
+    def test_automatic_cross_kind_subject_collision_defers_without_overwriting(self):
+        from okal_core.cognitive.ledger import CandidateConflict
+        quote='We chose SQLite for offline use.'
+        old=self.chat.save_memory('architecture.database',quote,kind='decision')
+        constraint='We require a local-only workflow.'
+        self.say(constraint);job=self.ledger.claim_job()
+        with self.assertRaises(CandidateConflict):
+            self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(constraint,'architecture.database','constraint')])
+        self.ledger.fail_job(job['turn_id'],job['lease'],'candidate_subject_conflict')
+        self.assertEqual(self.chat.memories()['items'][0]['content'],quote)
+        self.assertEqual(self.ledger.active([{'id':old['id'],'revision':1}])[0]['content'],quote)
+        with self.store.connect() as db:
+            status,error=db.execute('SELECT status,error FROM memory_jobs WHERE turn_id=?',(job['turn_id'],)).fetchone()
+            self.assertEqual((status,error),('pending','candidate_subject_conflict'))
+        # Explicit owner editor correction remains available and authoritative.
+        changed=self.chat.save_memory('architecture.database',constraint,kind='constraint',revision=1)
+        self.assertEqual(changed['revision'],2)
+
     def test_learning_correction_same_slot(self):
         for quote in ['I prefer detailed answers.', 'لا، أنا عايز ردودك مختصرة وتدخل في الموضوع على طول.']:
             self.say(quote)

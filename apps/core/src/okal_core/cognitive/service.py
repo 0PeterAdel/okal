@@ -7,7 +7,7 @@ import threading
 from .process import AdapterClient, AdapterUnavailable
 from .vault import Vault
 from .learning import OWNER,EXTERNAL
-from .ledger import SENSITIVE, CREDENTIAL_CATEGORY
+from .ledger import SENSITIVE, CREDENTIAL_CATEGORY, CandidateConflict
 from ..store import Conflict
 
 
@@ -153,7 +153,7 @@ class MemoryWorker:
                         'project_id': project_id, 'existing': existing})
                     self.ledger.apply_job(job['turn_id'], job['lease'], candidates)
                 except Exception as exc:
-                    code='source_changed' if isinstance(exc,Conflict) else (
+                    code='candidate_subject_conflict' if isinstance(exc,CandidateConflict) else 'source_changed' if isinstance(exc,Conflict) else (
                         'local_adapter_unavailable' if isinstance(exc,AdapterUnavailable) else 'invalid_candidates')
                     self.ledger.fail_job(job['turn_id'], job['lease'],code)
                     self.status = 'delayed'

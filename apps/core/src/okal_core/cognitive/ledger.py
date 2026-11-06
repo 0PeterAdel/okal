@@ -40,6 +40,10 @@ def uid():
     return uuid.uuid4().hex
 
 
+class CandidateConflict(ValueError):
+    """Automatic extraction tried to replace a different type of subject."""
+
+
 class Ledger:
     def __init__(self, intelligence):
         self.state = intelligence
@@ -676,7 +680,7 @@ class Ledger:
             return dict(row, lease=lease, scope_project_id=association[0] if association else None)
 
     def fail_job(self, turn_id, lease, code='local_adapter_unavailable'):
-        if code not in {'local_adapter_unavailable', 'invalid_candidates', 'source_changed', 'projection_failed'}:
+        if code not in {'local_adapter_unavailable', 'invalid_candidates', 'candidate_subject_conflict', 'source_changed', 'projection_failed'}:
             code = 'local_adapter_unavailable'
         with self.store.connect() as db, db:
             db.execute("UPDATE memory_jobs SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'pending' END,"
@@ -724,6 +728,14 @@ class Ledger:
                     raise Conflict('memory_changed_during_extraction')
                 if old and old['effective_seq'] > job['source_seq']:
                     continue  # Backfill must not overwrite a later owner correction.
+                if old and old['kind'] != candidate['kind'] and candidate['key'] not in {
+                        'communication.language','communication.language.technical_docs',
+                        'communication.style','communication.structure'}:
+                    # A model's reuse of an existing key does not prove the
+                    # subjects match. Never erase a decision with a goal/task.
+                    # The complete source remains archived; defer visibly for
+                    # bounded retry or explicit owner correction instead.
+                    raise CandidateConflict('candidate_subject_kind_conflict')
                 record = self.save(candidate['key'], candidate['quote'], candidate['kind'],
                     conversation_id=job['conversation_id'] if candidate['scope'] == 'conversation' else None,
                     project_id=project_id if candidate['scope'] == 'project' else None,
