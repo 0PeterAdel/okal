@@ -167,10 +167,12 @@ class VaultTests(unittest.TestCase):
     def test_project_overview_links_and_controlled_description_import(self):
         project=self.chat.cognitive.save_project('Orion garden','Private offline planning.')
         memory=self.chat.cognitive.save('database','We chose SQLite.',kind='decision',project_id=project['id'])
+        task=self.chat.cognitive.save('pending','Our next task is a temporary check.',kind='task',project_id=project['id'])
         self.vault.export(memory)
         self.vault.export_project(project['id'])
         path=self.vault.root/'projects'/('project-'+project['id']+'.md')
         self.assertIn('[[memory-'+memory['id']+']]',path.read_text())
+        self.assertNotIn('[[memory-'+task['id']+']]',path.read_text())
         self.assertIn('[[project-'+project['id']+']]',self.vault._locate(memory['id'])[0].read_text())
         path.write_text(path.read_text().replace('Private offline planning.','Reviewed offline planning.'))
         preview=self.vault.preview_project(project['id'])

@@ -124,6 +124,8 @@ class Vault:
                     raise Conflict('vault_owner_edit_requires_import_or_discard')
             ids=[r[0] for r in db.execute('''SELECT m.id FROM chat_memories m
                 JOIN memory_meta x ON x.memory_id=m.id WHERE x.project_id=?
+                AND m.kind IN ('semantic','instruction','decision','goal','constraint','lesson')
+                AND x.category<>'credential_quarantined'
                 AND (m.expires_at=0 OR m.expires_at>?) ORDER BY m.updated_at DESC,m.id LIMIT 40''',
                 (project_id,self.ledger.now))]
             # Only ledger-controlled IDs occur in active links. Descriptions
