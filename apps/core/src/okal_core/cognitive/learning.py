@@ -52,8 +52,9 @@ def normalize_candidate(key,kind,scope,quote,project_id):
     local=bool(THIS_CHAT.search(quote))
     if GOAL.search(quote) and key not in {'communication.language','communication.style','communication.structure'}:
         kind='goal'
-        scope='conversation' if local else scope
-        key='conversation.goal' if local else key
+        scope='conversation' if local else ('project' if project_id and
+            re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) else scope)
+        key='conversation.goal' if local else ('project.goal' if scope=='project' else key)
     elif PENDING.search(quote):
         kind='task'
         scope='conversation' if local else ('project' if scope=='project' and project_id else 'conversation')
@@ -71,7 +72,7 @@ def normalize_candidate(key,kind,scope,quote,project_id):
         kind='instruction'
         key='communication.language.technical_docs' if TECHNICAL_DOCS.search(quote) else 'communication.language'
         scope='conversation' if local else ('project' if re.search(r'this project|المشروع ده|هذا المشروع',quote,re.I) and project_id else 'owner')
-    return key,kind,scope
+    return key,kind,'conversation' if local else scope
 
 
 def explicit_candidates(quotes, project_id=None):
@@ -175,6 +176,13 @@ def validate_candidates(message: str, candidates: list, project_id=None) -> list
         if re.search(r'\b(?:hypothetical|if i|if we|imagine|for example)\b|مثال افتراضي|لو فرضنا', quote, re.I):
             continue
         key,kind,scope=normalize_candidate(key,kind,scope,quote,project_id)
+        if key=='profile.name' and (kind!='semantic' or not re.search(
+                r'\bmy (?:full )?name is\b|\bcall me\b|اسمي',quote,re.I)):
+            continue
+        if key in {'conversation.goal','project.goal'} and (kind!='goal' or not GOAL.search(quote)):
+            continue
+        if key in {'conversation.pending_work','project.pending_work'} and (kind!='task' or not PENDING.search(quote)):
+            continue
         if scope=='project' and not project_id:
             continue
         if key.startswith('communication.') and (ONE_REPLY.search(quote) or (

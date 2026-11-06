@@ -8,6 +8,24 @@ import stat
 from .providers import ModelPin
 
 
+def trusted_executable(info: os.stat_result) -> bool:
+    """Accept ordinary owner/root files or the exact running interpreter.
+
+    Unprivileged systemd mount namespaces can show host root as overflow UID
+    65534. Do not trust that UID generally: only the already-running executable's
+    device/inode can substitute for a mapped owner. Write-bit checks still apply.
+    """
+    if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022:
+        return False
+    if info.st_uid in {0, os.getuid()}:
+        return True
+    try:
+        running = os.stat('/proc/self/exe')
+    except OSError:
+        return False
+    return (info.st_dev, info.st_ino) == (running.st_dev, running.st_ino)
+
+
 @dataclass(frozen=True)
 class AdapterConfig:
     python: Path
@@ -40,7 +58,7 @@ class AdapterConfig:
         if not python.is_absolute() or not python.is_file() or not os.access(python, os.X_OK):
             raise ValueError('memory_python_must_be_explicit_executable')
         executable = python.stat()
-        if executable.st_uid not in {0, os.getuid()} or executable.st_mode & 0o022:
+        if not trusted_executable(executable):
             raise ValueError('unsafe_memory_python_permissions')
         pins = []
         for value in (data['llm'], data['embedding']):

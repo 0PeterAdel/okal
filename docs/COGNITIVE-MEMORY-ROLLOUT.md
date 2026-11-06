@@ -12,6 +12,12 @@ AI-assisted verification, resolved findings and the owner-authorized merge gate.
 Inspect the [implementation/evidence](COGNITIVE-MEMORY.md) first. A successful
 merge does not mean any owner history has been migrated or indexed.
 
+The [Production-readiness findings](COGNITIVE-MEMORY-READINESS.md) in task #126
+must be included in the cutover revision. The initial Memory V2 merge alone
+does not include the hardened-systemd interpreter fix or subject-consolidation
+guards found by real-data rehearsal. Use the actual serving Python version for
+both staged environments, not an unverified shell `python` alias.
+
 The baseline rollback code is `08d51e8b81468fd82684b28ec5ab8434f22a31cc`.
 Never run that old Core against the upgraded schema. Never substitute a benchmark
 database, synthetic account config, development vault or vector index for owner data.

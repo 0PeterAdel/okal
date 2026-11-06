@@ -325,6 +325,7 @@ function clearChatUI() {
       " | التعلم: "+count(health.jobs)+" | الفهرسة: "+count(health.index)+" | الخزنة: "+count(health.vault);
     get("chat-memory-health").textContent+=" | ملاحظات المشروعات: "+count(health.project_vault);
     if(health.quarantined)get("chat-memory-health").textContent+=" | معلومات قديمة مستبعدة لحماية بيانات الدخول: "+health.quarantined;
+    if(health.deferred_subjects)get("chat-memory-health").textContent+=" | حقائق محتاجة مراجعة المالك لتجنب استبدال موضوع مختلف: "+health.deferred_subjects;
     projectRecords=projects.items;
     projectOffset=projects.next_offset ?? null;get("chat-project-more").hidden=projectOffset===null;
     const project=get("chat-memory-project"), prior=project.value || state?.project_id || "";
