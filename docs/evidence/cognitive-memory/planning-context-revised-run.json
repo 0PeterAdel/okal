@@ -1,0 +1,42 @@
+{
+  "synthetic_only": true,
+  "source_head": "e22119ee3b253afd6303137555bf00466aac3780",
+  "source_clean": true,
+  "expected_date_time": "2026-11-07 14:00",
+  "real_local_task_and_event_storage": true,
+  "actual_answers": [
+    {
+      "question": "Continue Cedar workshop. Which locally saved task and calendar event are available? Include both fixture codes. Please reply in English.",
+      "actual_answer": "Based on the locally saved context, here are the available items for the Cedar workshop project:\n\n**Calendar Event:**\n*   **Title:** Cedar workshop design review\n*   **When:** 2026-11-07 14:00\n*   **Fixture Code:** CE-551\n\n**Task:**\n*   **Title:** Cedar workshop: inspect gears\n*   **When:** 2026-11-07 14:00\n*   **Fixture Code:** TC-241",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "e01af43d756546289155647b3a8b87a4",
+          "revision": 1,
+          "source": "owner_editor"
+        }
+      ],
+      "date_time_correct": true,
+      "passed": true
+    },
+    {
+      "question": "نكمل Cedar workshop. فكرني بالمهمة والموعد المحفوظين محليا، واذكر كود كل واحد.",
+      "actual_answer": "أهلاً بك يا بطل. نكمل مشروع \"Cedar workshop\" معك.\n\nالمهمة المحفوظة محلياً:\n- عنوان: Cedar workshop: inspect gears\n- الكود: TC-241\n- الموعد: 2026-11-07 14:00\n\nالحدث (موعد) المحفوظ محلياً:\n- العنوان: Cedar workshop design review\n- الكود: CE-551\n- الموعد: 2026-11-07 14:00\n\nملاحظة: الهدف الحالي للمشروع هو صنع نموذج ساعة خشبية، حسب ما ذكرته أنت سابقاً.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "e01af43d756546289155647b3a8b87a4",
+          "revision": 1,
+          "source": "owner_editor"
+        }
+      ],
+      "date_time_correct": true,
+      "passed": true
+    }
+  ],
+  "project_memory_and_planning_snapshot_combined": true,
+  "task_and_calendar_unchanged_by_chat": true,
+  "external_provider_mutations": false,
+  "integrity_check": "ok",
+  "scope": "Project-qualified saved titles/notes plus stable project memory; no new automatic provider-side project tagging."
+}

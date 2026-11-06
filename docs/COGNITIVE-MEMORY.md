@@ -4,6 +4,29 @@ Implementation task: [#124](https://github.com/0PeterAdel/okal/issues/124).
 This document tracks implementation and verified evidence. It is not a release
 or deployment claim. Production remains on the Stage 3 release during development.
 
+## Delivery evidence
+
+PR [#125](https://github.com/0PeterAdel/okal/pull/125) contains the implementation,
+the AI-assisted [review](COGNITIVE-MEMORY-REVIEW.md) and separate
+[rollout/recovery runbook](COGNITIVE-MEMORY-ROLLOUT.md). The sections below retain
+earlier failed milestones chronologically; the latest measured gates are:
+
+| Gate | Observed outcome |
+| --- | --- |
+| Real extraction over 200 synthetic conversations / 1,000 owner turns | Precision 100%; recall 99.8344%; negative-source candidates 0 |
+| Final real-answer replay, 240 held-out questions | Preferences 19/20 (95%); projects 20/20; per-chat progress 200/200 |
+| Source-support audit | No unsupported passing answers or missing persisted responses |
+| Tested explicit corrections and forgetting probes | All passed, including stale vectors, cached replies, old notes and rebuild |
+| Regression suites | 546 Python, 83 Node UI, 5 real Mem0/Qdrant fixture tests passed |
+| Real-device scenarios | Chromium UI/keyboard/mobile, Obsidian controlled import, governed action receipt, Tasks/Calendar context, SIGKILL recovery, migration/rollback passed |
+| Production | Original checkout/service/database untouched; rollout remains separate |
+
+The exact delivery-head CI and AI-assisted merge verification belong on the PR;
+local results do not substitute for that gate. This is a bounded synthetic
+benchmark, not proprietary ChatGPT parity or perfect general model recall.
+The final replay still mis-transliterated one owner-name answer; that failure
+is included in the evidence and is not counted as correct.
+
 ## Authority and isolation
 
 SQLite remains the only authoritative conversation and memory ledger.
@@ -107,6 +130,12 @@ queues projection deletion. Unrelated owner sentences survive. Tombstones carry
 IDs, revisions and timestamps without the forgotten text. Cached/stale vectors
 cannot pass active-ledger revision validation.
 
+When several facets share the forgotten sentence, those duplicate facets and
+facts losing their last valid source are also forgotten. Unsupported historical
+snapshots/evidence are purged. An independently restated fact survives with a new
+revision and source, followed by index/vault reconciliation. The confirmation
+explains these semantics; it does not silently promise to preserve shared text.
+
 A hashed subject cutoff prevents older unrelated-chat backfill jobs from
 recreating a forgotten canonical subject. A genuinely new owner statement after
 forgetting is new evidence. Duplicate reaffirmations retain independent source
@@ -152,8 +181,8 @@ Those scripted replies are archive fixtures, never scored as generated answers.
 The [evaluation harness](../apps/core/tools/evaluate_cognitive_memory.py) runs
 real local extraction, projections, retrieval and held-out model answers,
 retains actual output journals, and reports failed cases without substituting
-expected facts. Full-corpus numerical gates, actual UI acceptance, fresh security
-review, migration/rollback rehearsal and current-head GitHub CI are still pending.
+expected facts. Those gates were pending at the initial milestone; subsequent
+measured outcomes are recorded in the delivery table and chronological evidence.
 
 The optional clean vault curates durable owner/project facts and lessons rather
 than every conversational task. Stable IDs, revisions and base hashes govern
@@ -417,3 +446,120 @@ changing source authority. The unchanged **26/26 real-model checks passed** on
 the revised implementation, including all six owner-name spellings and the exact
 Arabic correction. This focused result does not replace the 200-chat benchmark
 or its final-code answer replay. Historical failures remain recorded.
+
+
+The Tasks/Calendar integration check created a real isolated local task and
+calendar event, then combined their project-qualified saved context with a stable
+project memory in two new chats. Code-only scoring initially missed an incorrect
+Arabic date; that outcome was rejected on review, not accepted as calendar
+correctness. Generic mid-prompt date guidance still failed the stricter check.
+Early task-specific bilingual citation guidance then passed both unchanged
+Arabic/English questions, including the exact saved date/time and both fixture
+codes. Full task/event snapshots were unchanged by Chat, SQLite integrity passed,
+and no external account was connected or mutated. This uses existing saved-context
+integration, not automatic provider-side project tagging. These two tests do not
+guarantee perfect dates in every free-form model answer.
+
+
+### Frozen 200-chat run two — complete, below preference gate
+
+Commit `c1f391092e66634b8c93b61f52c9ef4f6a5a18af` ingested all **200
+conversations / 1,000 owner turns**, then generated all 240 real held-out answers.
+The raw and stricter source-supported scores agree: preferences **17/20 (85%)**,
+projects **20/20**, per-chat progress **200/200**. Two name transliterations and
+one broad dialect answer failed; this run **does not pass** the 90% preference
+gate. All scored answers followed the expected reply language by the disclosed
+script metric; language compliance does not establish fact correctness.
+
+Extraction precision was **100%**, recall **99.8344%**; no candidate was created
+from the corpus's negative sources. No duplicate current keys or foreign-key
+violations occurred; integrity was `ok`. Explicit correction questions were all
+consistent, held-out questions left the profile unchanged, the unknown-editor
+probe declined to invent a preference, and all seven tested forgetting/cache/
+vault/index-rebuild fences passed. Adapter interruption/reopen and idempotent
+backfill also passed. There were zero denied parent-runner Python network
+attempts; network instrumentation limits are described above.
+
+Direct-drain ingestion took **4,417.55 s** (**0.2264 turns/s**); a real full index
+rebuild took **573.08 s** (**0.7381 current records/s**). This harness does not
+include the production worker's 10-second pause between ticks or time waiting
+for active Chat/mail. Initial history backfill can therefore take hours and
+remains visible as pending work; automatic learning is asynchronous.
+
+Retrieval p50/p95 was **1.695 / 3.032 s**; complete answer p50/p95 was
+**6.360 / 10.749 s**. Precision@8 mean was **0.2132**, recall@8 mean **1.0**
+under the narrow expected-subject definition (always-present personalization
+counts against precision). Maximum observed prompt usage was **1,608 tokens**.
+The run took **7,820.67 s** in total. Sampled whole-device used RAM peaked at
+**14,331,613,184 bytes**, minimum available RAM **2,107,441,152 bytes**; GPU memory
+peaked at **6,517 MiB** against a **1,297 MiB** initial baseline. Parent peak RSS
+was **46,604,288 bytes**. Existing services/desktop and supplemental test inference
+were active, so these are not exclusive attribution or uncontended latency.
+
+The post-journal state audit measured **11,640,891 bytes**, excluding the audit
+itself and model caches (the earlier in-run size predates the resource journal).
+There were **43 curated Markdown notes**, rather than one note per raw turn.
+The current-code replay uses a fresh private adapter index and only the 1,000
+source fixture turns; previous generated answers are removed before scoring.
+Its independent results remain required for the release decision.
+
+### Final answer replay — measured recall gates passed
+
+The [replay](evidence/cognitive-memory/final-answer-replay.json) ran clean source
+`e22119ee3b253afd6303137555bf00466aac3780`. It copied only the 1,000 synthetic
+source fixture turns from the completed ingestion, removed previous generated
+answers and rebuilt a fresh private Mem0/Qdrant index. It generated **240 new
+real Qwen answers**, not another extraction run. The later shared-source deletion
+fix does not change recall or extraction; its clean-head real lifecycle scenario
+is recorded [separately](evidence/cognitive-memory/shared-forgetting-acceptance.json).
+The privacy-prescreen comparison changed zero acceptance outcomes across all
+1,000 source messages; no final-SHA full extraction rerun is claimed.
+
+The [source-supported audit](evidence/cognitive-memory/final-answer-audit.json)
+passed the unchanged thresholds: preferences **19/20 (95%)**, projects **20/20
+(100%)**, per-chat progress **200/200 (100%)**. All tested style/project corrections
+were consistent. No unsupported passing answer, missing persisted response,
+duplicate current key, foreign-key violation or DB-integrity failure occurred.
+The unknown-editor probe declined to invent a preference, question ingestion
+left the profile unchanged, and all seven forgetting/cache/vault/rebuild checks
+passed. The [remaining failure](evidence/cognitive-memory/final-answer-failures.json)
+rendered Mira as “ميّا” in one answer. The separate 26-case personalization pilot
+passed all six name questions, demonstrating variability rather than eliminating
+this known small-model limitation. Some Arabic answers also reverse pronouns or
+mix registers; this benchmark scores remembered facts, not full linguistic quality.
+
+Retrieval p50/p95 was **2.301 / 3.033 s**, complete-answer p50/p95 **8.234 /
+11.232 s**. Precision@8 mean was **0.2132**, recall@8 **1.0**, under the narrow
+expected-subject definition described above. Maximum actual prompt usage was
+**1,616 tokens**, within the bounded context budget. The script-based language
+metric passed **238/238 scorable answers**; two very short answers were unscored.
+
+The replay took **4,947.33 s**, including initial and final index rebuilding and
+asynchronous question processing. Sampled whole-device used RAM peaked at
+**14,395,359,232 bytes**, minimum available **2,043,695,104 bytes**; GPU memory
+peaked at **6,140 MiB**, initial baseline **1,772 MiB**. Parent peak RSS was
+**51,367,936 bytes**. These observations include existing services and desktop
+activity, not exclusive memory-engine attribution. Final synthetic state occupied
+**10,458,753 bytes**, excluding its audit and installed model caches. The earlier
+full-ingestion report supplies extraction throughput and larger observed GPU
+peak; the replay does not replace those measurements.
+
+Manual answer inspection covered all 20 preference answers, representative
+overlapping-project decisions and per-chat checkpoints across all corpus phases.
+It confirmed the known name failure, current PostgreSQL decisions and pending
+restart work; no claim that pending work had actually executed was accepted.
+The automated audit covers all 240 answers against their actual sent sources.
+
+### Shared-source forgetting regression
+
+Clean source `c7fb4cff723a761ce69d90664f788ef52e52d45f` passed the actual local
+Mem0/Qdrant and filesystem [scenario](evidence/cognitive-memory/shared-forgetting-acceptance.json).
+Language/style facets and an explicit duplicate sharing a forgotten sentence
+were removed physically from vectors and notes. Stale hits, in-flight cached
+answers, rediscovered notes and a full rebuild could not restore them. Unrelated
+owner text survived. A partial fact that lost its sole source was forgotten,
+while an independently restated fact advanced revision, source and projections.
+SQLite integrity/FK checks passed. This uses fixture archive acknowledgements
+and explicit ledger records to isolate lifecycle behavior; it is not an LLM
+quality score. The corresponding full regression suite passed 546 Python tests,
+83 Node UI tests and five real SDK fixture tests.

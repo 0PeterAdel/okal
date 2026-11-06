@@ -1,0 +1,153 @@
+[
+  {
+    "id": "profile-00",
+    "family": "preference",
+    "question": "What name did I tell you to remember?",
+    "expected_concepts": [
+      [
+        "Mira",
+        "ميرا"
+      ]
+    ],
+    "actual_answer": "اسمك هو ميّا، كما قالته في رسالة سابقة.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 8.103182185994228,
+    "selected_ids": [
+      "6fc686dca71c4b04af337568226b7422",
+      "81b9745d0a5e42e7972b1e1b82789214",
+      "d4a5b538476c4f21a33c82f46f88a2a4"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "6fc686dca71c4b04af337568226b7422",
+        "revision": 2,
+        "source": "owner_message"
+      },
+      {
+        "id": "81b9745d0a5e42e7972b1e1b82789214",
+        "revision": 1,
+        "source": "owner_message"
+      },
+      {
+        "id": "d4a5b538476c4f21a33c82f46f88a2a4",
+        "revision": 1,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 1108,
+      "eval_count": 26,
+      "total_duration": 6061631906,
+      "load_duration": 5198352040
+    },
+    "subject": "name",
+    "retrieval_precision_at_8": 0.3333333333333333,
+    "retrieval_recall_at_8": 1.0,
+    "relevant_ledger_ids": [
+      "d4a5b538476c4f21a33c82f46f88a2a4"
+    ],
+    "language_adherence": true
+  },
+  {
+    "id": "profile-01",
+    "family": "preference",
+    "question": "فاكر أنا بحب تكلمني إزاي؟",
+    "expected_concepts": [
+      [
+        "مصري",
+        "مصرى",
+        "Egyptian"
+      ]
+    ],
+    "actual_answer": "أنا عايز الردود مختصرة وتدخل في الموضوع على طول، ولا أكتب كلام طويل أو أقول كلمات تهنئة. كل رد يكون مباشر ومختصر.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 5.691142376002972,
+    "selected_ids": [
+      "6fc686dca71c4b04af337568226b7422",
+      "81b9745d0a5e42e7972b1e1b82789214"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "6fc686dca71c4b04af337568226b7422",
+        "revision": 2,
+        "source": "owner_message"
+      },
+      {
+        "id": "81b9745d0a5e42e7972b1e1b82789214",
+        "revision": 1,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 982,
+      "eval_count": 55,
+      "total_duration": 4315827084,
+      "load_duration": 3100363288
+    },
+    "subject": "language",
+    "retrieval_precision_at_8": 0.5,
+    "retrieval_recall_at_8": 1.0,
+    "relevant_ledger_ids": [
+      "81b9745d0a5e42e7972b1e1b82789214"
+    ],
+    "language_adherence": true
+  },
+  {
+    "id": "profile-12",
+    "family": "preference",
+    "question": "Tell me the owner name you actually remember.",
+    "expected_concepts": [
+      [
+        "Mira",
+        "ميرا"
+      ]
+    ],
+    "actual_answer": "اسمك هو ميّا، كما ذكرته في بيانات الذاكرة الخاصة بك.",
+    "mode": "pinned_local_ollama",
+    "passed": false,
+    "seconds": 7.682562376008718,
+    "selected_ids": [
+      "6fc686dca71c4b04af337568226b7422",
+      "81b9745d0a5e42e7972b1e1b82789214",
+      "d4a5b538476c4f21a33c82f46f88a2a4"
+    ],
+    "semantic_index": "current",
+    "sources": [
+      {
+        "id": "6fc686dca71c4b04af337568226b7422",
+        "revision": 2,
+        "source": "owner_message"
+      },
+      {
+        "id": "81b9745d0a5e42e7972b1e1b82789214",
+        "revision": 1,
+        "source": "owner_message"
+      },
+      {
+        "id": "d4a5b538476c4f21a33c82f46f88a2a4",
+        "revision": 1,
+        "source": "owner_message"
+      }
+    ],
+    "expected_reply_language": "Egyptian Arabic",
+    "inference_usage": {
+      "prompt_eval_count": 1108,
+      "eval_count": 29,
+      "total_duration": 7550331277,
+      "load_duration": 6674703682
+    },
+    "subject": "name",
+    "retrieval_precision_at_8": 0.3333333333333333,
+    "retrieval_recall_at_8": 1.0,
+    "relevant_ledger_ids": [
+      "d4a5b538476c4f21a33c82f46f88a2a4"
+    ],
+    "language_adherence": true
+  }
+]

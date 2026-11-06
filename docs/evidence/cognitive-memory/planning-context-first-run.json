@@ -1,0 +1,42 @@
+{
+  "synthetic_only": true,
+  "source_head": "e850a1e40bbe032eb22fa6bb3fb67a121abb53db",
+  "source_clean": true,
+  "expected_date_time": "2026-11-07 14:00",
+  "real_local_task_and_event_storage": true,
+  "actual_answers": [
+    {
+      "question": "Continue Cedar workshop. Which locally saved task and calendar event are available? Include both fixture codes. Please reply in English.",
+      "actual_answer": "Based on the locally saved context, here are the available items for the Cedar workshop project:\n\n**Calendar Event:**\n*   **Title:** Cedar workshop design review\n*   **When:** 2026-11-07 14:00 (relative to local_now_cairo)\n*   **Fixture Code:** CE-551\n*   **Notes:** Synthetic event code CE-551.\n\n**Task:**\n*   **Title:** Cedar workshop: inspect gears\n*   **When:** 2026-11-07 14:00 (relative to local_now_cairo)\n*   **Fixture Code:** TC-241\n*   **Notes:** Synthetic task code TC-241.\n\nPlease note that these details are derived from the saved context provided. No external verification or execution receipts confirm these items have been completed or updated.",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "2c3f5f1053a045a3bc203c1a804ccb01",
+          "revision": 1,
+          "source": "owner_editor"
+        }
+      ],
+      "date_time_correct": true,
+      "passed": true
+    },
+    {
+      "question": "نكمل Cedar workshop. فكرني بالمهمة والموعد المحفوظين محليا، واذكر كود كل واحد.",
+      "actual_answer": "أكيد، نكمل مشروع Cedar workshop.\n\nالمهمة المحفوظة محلياً:\n- العنوان: inspect gears\n- الكود: TC-241\n- الموعد: يوم الأحد 6 نوفمبر 2026 الساعة 14:00 (مقارنة مع الوقت الحالي في القاهرة)\n\nالحدث المحفوظ محلياً:\n- العنوان: Cedar workshop design review\n- الكود: CE-551\n- الموعد: يوم الأحد 6 نوفمبر 2026 الساعة 14:00 (مقارنة مع الوقت الحالي في القاهرة)",
+      "mode": "pinned_local_ollama",
+      "sources": [
+        {
+          "id": "2c3f5f1053a045a3bc203c1a804ccb01",
+          "revision": 1,
+          "source": "owner_editor"
+        }
+      ],
+      "date_time_correct": false,
+      "passed": false
+    }
+  ],
+  "project_memory_and_planning_snapshot_combined": false,
+  "task_and_calendar_unchanged_by_chat": true,
+  "external_provider_mutations": false,
+  "integrity_check": "ok",
+  "scope": "Project-qualified saved titles/notes plus stable project memory; no new automatic provider-side project tagging."
+}

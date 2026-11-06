@@ -1,0 +1,126 @@
+{
+  "complete_corpus": true,
+  "source_conversations": 200,
+  "source_head": "c1f391092e66634b8c93b61f52c9ef4f6a5a18af",
+  "source_clean": true,
+  "models": {
+    "llm": {
+      "name": "qwen3.5:4b",
+      "digest": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04"
+    },
+    "embedding": {
+      "name": "bge-m3:latest",
+      "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+    },
+    "dimensions": 1024,
+    "embedding_gpu": false
+  },
+  "source_turns": 1000,
+  "archive_turns_including_queries": 1242,
+  "archive_assistant_mode": "fixture_archive; scripted dialogue is never scored as model output",
+  "actual_scored_answers": 240,
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 17,
+      "recall": 0.85
+    },
+    "project": {
+      "answered": 20,
+      "passed": 20,
+      "recall": 1.0
+    },
+    "conversation": {
+      "answered": 200,
+      "passed": 200,
+      "recall": 1.0
+    }
+  },
+  "extraction_precision": 1.0,
+  "extraction_recall": 0.9983443708609272,
+  "false_candidates_on_negative_sources": 0,
+  "ingestion_seconds": 4417.547406760001,
+  "ingestion_turns_per_second": 0.22636995326178933,
+  "index_rebuild_seconds": 573.0770828420063,
+  "index_rebuild_records_per_second": 0.738120599592391,
+  "retrieval_seconds_p50": 1.6948395719955442,
+  "retrieval_seconds_p95": 3.0316581079969183,
+  "retrieval_precision_at_8_mean": 0.21319444444444446,
+  "retrieval_recall_at_8_mean": 1.0,
+  "retrieval_relevance_definition": "Current ledger records containing expected concepts in the queried scope; always-present personalization counts against precision.",
+  "answer_seconds_p50": 6.359961814494454,
+  "answer_seconds_p95": 10.748595413999283,
+  "integrity_check": "ok",
+  "foreign_key_violations": [],
+  "duplicate_current_keys": 0,
+  "forbidden_python_network_attempts": 0,
+  "health": {
+    "schema": 1,
+    "jobs": {
+      "done": 1241,
+      "forgotten": 1
+    },
+    "projections": {
+      "current": 424
+    },
+    "index": {
+      "current": 424
+    },
+    "vault": {
+      "current": 24,
+      "not_curated": 400
+    },
+    "project_vault": {
+      "current": 20
+    },
+    "worker": "idle",
+    "configured": true,
+    "rebuild": {
+      "generation": 2,
+      "status": "current",
+      "attempts": 0
+    },
+    "active": 423,
+    "deleted": 1
+  },
+  "profile_unchanged_by_recall_questions": true,
+  "lifecycle_probe": {
+    "stale_vector_rejected": true,
+    "cached_context_fenced": true,
+    "stale_vault_rejected": true,
+    "active_context_absent": true,
+    "physical_vector_deleted": true,
+    "rediscovered_note_rejected": true,
+    "forgotten_absent_after_rebuild": true
+  },
+  "unknown_fact_answer_passed": true,
+  "explicit_correction_answers_consistent": true,
+  "actual_prompt_tokens_max": 1608,
+  "interruption_injected": true,
+  "elapsed_monotonic_seconds": 7820.674068937005,
+  "disk_bytes": 9772899,
+  "resources": {
+    "samples": 7577,
+    "min_available_ram_bytes": 2107441152,
+    "peak_total_used_ram_bytes": 14331613184,
+    "baseline_gpu_used_mib": 1297,
+    "peak_total_gpu_used_mib": 6517,
+    "parent_peak_rss_bytes": 46604288,
+    "scope": "Observed whole-device RAM/VRAM peaks include existing desktop/services; sampled, not exclusive attribution."
+  },
+  "quality_gates": {
+    "preference": false,
+    "project": true,
+    "conversation": true
+  },
+  "consistency_gates": {
+    "profile_stable": true,
+    "no_false_negative_source_candidates": true,
+    "no_duplicates": true,
+    "integrity": true,
+    "no_external_attempts": true,
+    "lifecycle": true,
+    "unknown_fact": true,
+    "explicit_corrections": true
+  }
+}

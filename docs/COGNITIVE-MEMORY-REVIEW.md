@@ -61,12 +61,27 @@ archive assistant turns are labelled fixtures and never counted as model answers
   remain distinct. Trusted question guidance distinguishes owner-name spelling,
   dialect and reply length without injecting expected benchmark facts. The
   expanded real-model personalization scenario passed all 26 unchanged checks.
-  Full-corpus and final-code answer replay gates remain independently required.
+  The subsequent full-corpus ingestion and 240-answer replay are recorded
+  independently; the final source-supported replay passed 95%/100%/100% recall.
 - **Must change: older projects hidden by the recent-200 UI limit.** Name lookup
   now streams the catalog independently of UI paging and resolves descriptions
   and clarification choices by stable ID/name. Paging preserves the active
   project. SQLite and real Chromium checks reached project 201 using keyboard
   controls and verified mobile/tablet fit.
+
+- **Must change: inaccurate date rendering in planning context.** Manual answer
+  review rejected a code-only scorer's false pass. The stricter real-model
+  Arabic/English check now verifies saved date/time, both task/event codes,
+  project memory provenance and unchanged full planning records. Early bounded
+  citation guidance passed both cases; complete general date reasoning is not
+  claimed.
+- **Must change: shared-source forgetting left another facet active.** Forgetting
+  a compound preference now iteratively removes other facets containing that
+  exact text or losing their last valid source. Unsupported historical snapshots
+  and evidence are purged too. Independently restated facts survive with a new
+  revision and source. Real Mem0/Qdrant and vault tests verified physical cleanup,
+  stale-reference rejection, cached-response fencing, rebuild and unrelated-text
+  preservation. The UI explains this cascade before confirmation.
 
 ## Privacy and security boundaries
 
@@ -103,7 +118,10 @@ The 200 synthetic conversations/1,000 owner turns are not the owner's history.
 There is no claim of recovery of purged data, proprietary ChatGPT parity, or a
 complete screen-reader/WCAG certification. Sensitive-category heuristics are
 conservative and cannot recognize every possible secret or medical fact in every
-language. Small-model answers may still be awkward or excessively cautious.
+language. Small-model answers may still be awkward or excessively cautious. One
+final name transliteration failed despite correct source retrieval; it remains
+an explicit scored failure. Script-based reply-language checks do not measure
+pronoun correctness, register fluency or complete factual equivalence.
 
 The old exact 90-day chat / 365-day memory defaults become indefinite under the
 owner's directive; historical explicit selection of those exact values was not
@@ -113,8 +131,11 @@ independent backups and snapshots require their own retention handling.
 
 ## Delivery decision
 
-Keep the PR draft until full ingestion, source-supported answer thresholds,
-required negative/lifecycle/correction probes, final-code replay, complete CI and
-the exact-head owner-authorized merge gate pass. Never merge a failed run merely
-to finish the task. The [rollout runbook](COGNITIVE-MEMORY-ROLLOUT.md) requires a
+Full ingestion, the source-supported answer thresholds, required negative/
+lifecycle/correction probes, current-answer replay and targeted final runtime
+fixes have passed. The earlier failed runs remain published. The PR must still
+wait for passing exact-delivery-head CI, resolved threads, no conflicts and the
+documented AI-assisted verification comment before an expected-SHA squash merge.
+The exact head and GitHub outcomes are recorded on the PR. Never substitute a
+local pass for current-head CI. The [rollout runbook](COGNITIVE-MEMORY-ROLLOUT.md) requires a
 separate private owner-data backup/rehearsal and rollback check before deployment.

@@ -1,0 +1,103 @@
+{
+  "source_head": "c1f391092e66634b8c93b61f52c9ef4f6a5a18af",
+  "source_clean": true,
+  "raw_report_sha256": "69fc0c7626d61df81f199fa1c581d25582c81e120c404ff21f519df24108f2c8",
+  "scoring": "Raw answer concepts plus support in actual sent ledger revisions or archive excerpts. HISTORY/checkpoints are deliberately not credited because their trimmed contents were not journalled.",
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 17,
+      "recall": 0.85,
+      "threshold": 0.9,
+      "gate_passed": false
+    },
+    "project": {
+      "answered": 20,
+      "passed": 20,
+      "recall": 1.0,
+      "threshold": 0.85,
+      "gate_passed": true
+    },
+    "conversation": {
+      "answered": 200,
+      "passed": 200,
+      "recall": 1.0,
+      "threshold": 0.9,
+      "gate_passed": true
+    }
+  },
+  "answer_count": 240,
+  "unsupported_raw_passes": [],
+  "missing_persisted_responses": [],
+  "reply_language_adherence": {
+    "scored": 240,
+    "passed": 240,
+    "ratio": 1.0
+  },
+  "final_disk_bytes_excluding_this_audit": 11640891,
+  "disk_components": {
+    "benchmark.lock": 0,
+    "cognitive.json": 387,
+    "core.sqlite3": 4243456,
+    "manifest.json": 51318,
+    "extraction.jsonl": 338428,
+    "answers.jsonl": 341200,
+    "computer-execution.lock": 0,
+    "unknown-answer.json": 228,
+    "resources.json": 1864338,
+    "report.json": 3654,
+    "mail": 329,
+    "cognitive": 4797553
+  },
+  "quality_gates_passed": false,
+  "rows": [
+    {
+      "id": "profile-00",
+      "family": "preference",
+      "raw_passed": false,
+      "provenance_supported": true,
+      "audited_passed": false,
+      "ledger_support": [
+        {
+          "id": "d4a5b538476c4f21a33c82f46f88a2a4",
+          "revision": 1
+        }
+      ],
+      "archive_support": [],
+      "persisted_response_found": true,
+      "language_adherence": true
+    },
+    {
+      "id": "profile-01",
+      "family": "preference",
+      "raw_passed": false,
+      "provenance_supported": true,
+      "audited_passed": false,
+      "ledger_support": [
+        {
+          "id": "81b9745d0a5e42e7972b1e1b82789214",
+          "revision": 1
+        }
+      ],
+      "archive_support": [],
+      "persisted_response_found": true,
+      "language_adherence": true
+    },
+    {
+      "id": "profile-12",
+      "family": "preference",
+      "raw_passed": false,
+      "provenance_supported": true,
+      "audited_passed": false,
+      "ledger_support": [
+        {
+          "id": "d4a5b538476c4f21a33c82f46f88a2a4",
+          "revision": 1
+        }
+      ],
+      "archive_support": [],
+      "persisted_response_found": true,
+      "language_adherence": true
+    }
+  ]
+}

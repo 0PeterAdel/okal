@@ -1,0 +1,65 @@
+{
+  "source_head": "e22119ee3b253afd6303137555bf00466aac3780",
+  "source_clean": true,
+  "ingestion_source_head": "c1f391092e66634b8c93b61f52c9ef4f6a5a18af",
+  "source_turns": 1000,
+  "source_conversations": 200,
+  "actual_scored_answers": 240,
+  "prior_model_answers_removed": true,
+  "new_private_adapter_index_rebuilt": true,
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 19,
+      "recall": 0.95
+    },
+    "project": {
+      "answered": 20,
+      "passed": 20,
+      "recall": 1.0
+    },
+    "conversation": {
+      "answered": 200,
+      "passed": 200,
+      "recall": 1.0
+    }
+  },
+  "retrieval_seconds_p50": 2.301124460500432,
+  "retrieval_seconds_p95": 3.033063930008211,
+  "answer_seconds_p50": 8.233570019503532,
+  "answer_seconds_p95": 11.232487233006395,
+  "retrieval_precision_at_8_mean": 0.21319444444444446,
+  "retrieval_recall_at_8_mean": 1.0,
+  "actual_prompt_tokens_max": 1616,
+  "lifecycle_probe": {
+    "stale_vector_rejected": true,
+    "cached_context_fenced": true,
+    "stale_vault_rejected": true,
+    "active_context_absent": true,
+    "physical_vector_deleted": true,
+    "rediscovered_note_rejected": true,
+    "forgotten_absent_after_rebuild": true
+  },
+  "integrity_check": "ok",
+  "foreign_key_violations": 0,
+  "duplicate_current_keys": 0,
+  "elapsed_monotonic_seconds": 4947.325218288999,
+  "consistency_gates": {
+    "profile_stable": true,
+    "unknown_fact": true,
+    "explicit_corrections": true,
+    "lifecycle": true,
+    "integrity": true,
+    "no_duplicates": true,
+    "no_external_attempts": true
+  },
+  "resources": {
+    "samples": 4779,
+    "min_available_ram_bytes": 2043695104,
+    "peak_total_used_ram_bytes": 14395359232,
+    "baseline_gpu_used_mib": 1772,
+    "peak_total_gpu_used_mib": 6140,
+    "parent_peak_rss_bytes": 51367936,
+    "scope": "Observed whole-device RAM/VRAM peaks include existing desktop/services; sampled, not exclusive attribution."
+  }
+}
