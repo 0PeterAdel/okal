@@ -51,7 +51,7 @@ def subject_anchor(content: str, kind: str) -> str | None:
     owner statements identify a field independently of its changing value.
     Other ambiguous updates require the owner editor rather than a model guess.
     """
-    if kind != 'semantic':
+    if kind not in {'semantic', 'instruction'}:
         return None
     match = re.match(r'^(my|our)\s+((?:preferred|favorite|favourite|default|current)\s+'
                      r'[\w -]{1,70}?)\s+is\s+\S', content.strip(), re.I)
@@ -251,10 +251,16 @@ class Ledger:
                         db.execute('INSERT OR IGNORE INTO memory_evidence VALUES(?,?,?,?)',
                                    (row['id'], row['revision'], row['source_turn'], row['content']))
                 self._backfill(db, limit=500)
-            if anchors_new:
-                for row in db.execute('SELECT id,content,kind FROM chat_memories').fetchall():
+            # Older extractors sometimes labelled literal single-value fields
+            # as instructions. Repair only missing derived anchors, preserving
+            # content, IDs, keys, revisions and source/write ordering.
+            for row in db.execute('''SELECT m.id,m.content,m.kind FROM chat_memories m
+                    JOIN memory_meta x ON x.memory_id=m.id
+                    WHERE x.subject_anchor IS NULL AND m.kind IN ('semantic','instruction')''').fetchall():
+                anchor = subject_anchor(row['content'],row['kind'])
+                if anchor is not None:
                     db.execute('UPDATE memory_meta SET subject_anchor=? WHERE memory_id=?',
-                               (subject_anchor(row['content'],row['kind']),row['id']))
+                               (anchor,row['id']))
             # Old Core must refuse to run against an upgraded lifecycle.
             db.execute('UPDATE chat_schema SET version=2')
 
@@ -784,11 +790,14 @@ class Ledger:
                 if old and not (anchor and subject_anchor(old['content'],old['kind'])==anchor) and not governed_subject(
                         candidate['key'],old['content'],candidate['quote']):
                     raise CandidateConflict('candidate_subject_identity_unproven')
-                if old and old['kind'] != candidate['kind'] and candidate['key'] not in {
+                if old and old['kind'] != candidate['kind'] and not (
+                        anchor and subject_anchor(old['content'],old['kind'])==anchor) and candidate['key'] not in {
                         'communication.language','communication.language.technical_docs',
                         'communication.style','communication.structure'}:
                     # A model's reuse of an existing key does not prove the
-                    # subjects match. Never erase a decision with a goal/task.
+                    # subjects match. Only a separately grounded literal field
+                    # can bridge semantic/instruction labels; never erase a
+                    # decision with a goal/task.
                     # The complete source remains archived; defer visibly for
                     # bounded retry or explicit owner correction instead.
                     raise CandidateConflict('candidate_subject_kind_conflict')

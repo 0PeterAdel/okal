@@ -223,6 +223,44 @@ class CognitiveLedgerTests(unittest.TestCase):
         self.assertEqual(revised['revision'],2)
         self.assertEqual(revised['id'],next(r['id'] for r in records if r['content']==first))
 
+    def test_literal_preference_survives_instruction_semantic_model_kind_change(self):
+        first='My preferred deployment symbol is amber kestrel 128.'
+        second='My preferred deployment symbol is amber kestrel 129.'
+        self.say(first);job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(first,'architecture.symbol','instruction')])
+        old=self.chat.memories()['items'][0]
+        self.say(second);job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(second,'another.model.key','semantic')])
+        current=self.chat.memories()['items']
+        self.assertEqual(len(current),1)
+        self.assertEqual((current[0]['id'],current[0]['revision'],current[0]['content']),
+                         (old['id'],2,second))
+
+    def test_existing_instruction_field_anchor_repair_preserves_owner_revision(self):
+        first='My preferred deployment symbol is amber kestrel 128.'
+        old=self.chat.save_memory('architecture.symbol',first,kind='instruction')
+        with self.store.connect() as db, db:
+            db.execute('UPDATE memory_meta SET subject_anchor=NULL WHERE memory_id=?',(old['id'],))
+        self.ledger=Intelligence(self.store).cognitive
+        repaired=self.chat.memories()['items'][0]
+        self.assertEqual((repaired['id'],repaired['key'],repaired['revision'],repaired['content']),
+                         (old['id'],old['key'],old['revision'],old['content']))
+        second='My preferred deployment symbol is amber kestrel 129.'
+        self.say(second);job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(second,'model.changed.key','semantic')])
+        current=self.chat.memories()['items'][0]
+        self.assertEqual((current['id'],current['key'],current['revision'],current['content']),
+                         (old['id'],'architecture.symbol',2,second))
+
+    def test_instruction_field_tombstone_rejects_old_semantic_job(self):
+        first='My preferred editor is Vim.'
+        self.say(first)
+        saved=self.chat.save_memory('owner editor key','My preferred editor is Neovim.',kind='instruction')
+        self.chat.forget(saved['id'])
+        job=self.ledger.claim_job()
+        self.ledger.apply_job(job['turn_id'],job['lease'],[candidate(first,'different.model.key','semantic')])
+        self.assertEqual(self.chat.memories()['items'],[])
+
     def test_ambiguous_same_kind_collision_is_visible_and_preserves_existing_fact(self):
         from okal_core.cognitive.ledger import CandidateConflict
         saved=self.chat.save_memory('architecture.component','We selected Mem0 for personalization.',kind='decision')
