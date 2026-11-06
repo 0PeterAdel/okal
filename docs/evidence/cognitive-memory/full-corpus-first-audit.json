@@ -1,0 +1,79 @@
+{
+  "source_head": "c26075fd4734878a290cc73b3fe77463e119d405",
+  "source_clean": true,
+  "raw_report_sha256": "19fe6f453abbadc7c97e42f9916e5d10226c4e4076107728a5d484ff5054b631",
+  "scoring": "Raw answer concepts plus support in actual sent ledger revisions or archive excerpts. HISTORY/checkpoints are deliberately not credited because their trimmed contents were not journalled.",
+  "families": {
+    "preference": {
+      "answered": 20,
+      "passed": 13,
+      "recall": 0.65,
+      "threshold": 0.9,
+      "gate_passed": false
+    },
+    "project": {
+      "answered": 20,
+      "passed": 20,
+      "recall": 1.0,
+      "threshold": 0.85,
+      "gate_passed": true
+    },
+    "conversation": {
+      "answered": 200,
+      "passed": 200,
+      "recall": 1.0,
+      "threshold": 0.9,
+      "gate_passed": true
+    }
+  },
+  "answer_count": 240,
+  "unsupported_raw_passes": [
+    "profile-13",
+    "profile-18"
+  ],
+  "missing_persisted_responses": [],
+  "reply_language_adherence": {
+    "scored": 237,
+    "passed": 233,
+    "ratio": 0.9831223628691983
+  },
+  "final_disk_bytes_excluding_this_audit": 11623652,
+  "disk_components": {
+    "benchmark.lock": 0,
+    "cognitive.json": 387,
+    "core.sqlite3": 4210688,
+    "manifest.json": 50978,
+    "extraction.jsonl": 338038,
+    "answers.jsonl": 319469,
+    "computer-execution.lock": 0,
+    "resources.json": 1911792,
+    "report.json": 2993,
+    "mail": 329,
+    "cognitive": 4788978
+  },
+  "quality_gates_passed": false,
+  "rows": [
+    {
+      "id": "profile-13",
+      "family": "preference",
+      "raw_passed": true,
+      "provenance_supported": false,
+      "audited_passed": false,
+      "ledger_support": [],
+      "archive_support": [],
+      "persisted_response_found": true,
+      "language_adherence": true
+    },
+    {
+      "id": "profile-18",
+      "family": "preference",
+      "raw_passed": true,
+      "provenance_supported": false,
+      "audited_passed": false,
+      "ledger_support": [],
+      "archive_support": [],
+      "persisted_response_found": true,
+      "language_adherence": true
+    }
+  ]
+}

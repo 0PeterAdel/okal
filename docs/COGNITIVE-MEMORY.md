@@ -317,3 +317,103 @@ layout, never automatic deletion or migration of private files.
 A distinctive decision query uses rare project terms, avoiding false ambiguity
 from generic words such as “we chose”. It can retrieve a project decision without
 changing the conversation association. Competing projects remain separate.
+
+
+### Exact preview imports and stricter scoring
+
+Vault imports bind the confirmation to both the authoritative revision and the
+SHA-256 of the displayed owner statement. An intervening file edit requires a
+fresh preview; it cannot silently replace the text the owner confirmed. Memory
+kind changes reconcile one stable note across folders and preserve independent
+owner edits as visible conflicts. Filesystem, API and frontend tests exercise
+these cases.
+
+The separate read-only `audit_cognitive_answers.py` preserves the raw benchmark
+report and credits an answer only when the expected concepts also occur in a
+relevant ledger revision actually sent to the model, or an actually sent archive
+excerpt. Unjournalled trimmed HISTORY/checkpoints are conservatively not credited.
+On the first failed full run, two apparently correct language answers had no
+supporting memory: audited preference recall is **13/20 (65%)**, compared with the
+original keyword score 15/20 (75%). Project and per-chat recall remain 20/20 and
+200/200. This does not turn the failed run into a pass. The replacement run and
+its own audit must meet the original thresholds before merge.
+
+
+Actual Chromium acceptance verified the exact-preview protocol for memory and
+project notes: an intervening file edit returned HTTP 409 without changing the
+ledger, then a fresh browser preview and confirmation committed revision two.
+No browser exceptions or external requests occurred. The first script attempt
+stopped because it had not opened the separate vault disclosure; the corrected
+script exercised the visible controls and passed. Production was not involved.
+
+
+Six supplemental real-model cases tested Arabic residence → English paraphrase,
+unassociated “Why Mem0?” recall with a competing SQLite project, the exact Arabic
+style correction from the directive, conditional English documentation, ordinary
+Arabic chat, and current English override. The first run passed five but omitted
+the saved dialect in the broad communication question and spoke as the owner.
+Trusted question-specific guidance now asks for both remembered facets and owner
+attribution. The unchanged six checks then passed with real extraction, index,
+Qwen answers and SQLite integrity. The model can still over-qualify general
+explanations; this benchmark does not establish human-level conversational quality.
+
+The full source corpus is ingested on frozen commit c1f3910. Later credential
+quarantine, the narrower adapter path, exact-preview imports and recall guidance
+are separately tested. A current-code answer replay clones only the 1,000 source
+fixture turns, removes previous generated answers, rebuilds a fresh index from
+SQLite, and reruns all 240 held-out questions plus deletion/rebuild and unknown-fact
+probes. It records its own reviewed source SHA and resource measurements; it does
+not claim to be a second extraction run or silently relabel the frozen run.
+
+
+The privacy review expanded conservative Arabic/English sensitive-category guards
+for common medical conditions/medication and financial/identity identifiers.
+Automatic extraction rejects the tested canaries even if a model proposes them;
+manual saving requires the explicit sensitive-memory confirmation. Project notes
+reject these categories and direct the owner to that controlled editor. These
+heuristics are not a universal multilingual DLP classifier. The complete private
+conversation archive follows the selected retention policy, separately from
+selective semantic learning. Credential categories remain forbidden even with
+sensitive consent.
+
+Network evidence is bounded: benchmark counters observe the parent runner's
+Python socket attempts; the adapter independently denies non-Ollama Python
+connections before importing Mem0. Neither counter is a native-code packet
+capture. Explicit local providers, disabled telemetry/proxies/redirects and the
+reviewed dependency boundary prevent routine cloud-provider use. The audit hooks
+are defense in depth, not a claim of an OS sandbox against compromised native
+code. The optional Obsidian launcher does use a separate network namespace.
+
+
+A long-lived project no longer disappears from name lookup after 200 newer
+projects. Catalog matching streams names independently of paged UI results;
+association and project descriptions resolve by stable ID. The selector pages
+older projects and includes the active conversation's project. A real isolated
+Chromium/HTTP process with 201 synthetic projects verified older-project selection,
+Enter-operated disclosures/paging, labelled keyboard input, a visible 3px focus
+indicator, and no horizontal overflow at 390/768px. Its initial harness attempts
+used an empty-chat status assumption and then encountered socket TIME_WAIT; the
+corrected fixture and safe reusable-port preflight passed. No existing service
+was killed or reused. This is focused keyboard/responsiveness evidence, not a
+complete screen-reader or WCAG certification.
+
+The vault overview links only curated note kinds. A kind correction preserves
+independent edits before moving/removing an old note. The editor now explains
+that optional memory expiry uses forgetting semantics, including source-span
+redaction and invalidation of dependent replies, while other owner text remains.
+
+A machine-readable policy comparison checked all 1,000 corpus source messages
+against the frozen and later sensitive/credential prescreens: zero acceptance
+outcomes changed. Runtime privacy changes are still covered by targeted negative
+and on-device tests; this comparison does not substitute for real extraction.
+
+
+The expanded personalization check added all 20 held-out profile questions to the
+six transfer/conditional-language cases. Two intermediate runs each passed
+25/26: one confused dialect with length, then another interpreted “introductions”
+as personal introductions. Query-specific guidance now distinguishes remembered
+names, language/dialect, and response style without supplying expected facts or
+changing source authority. The unchanged **26/26 real-model checks passed** on
+the revised implementation, including all six owner-name spellings and the exact
+Arabic correction. This focused result does not replace the 200-chat benchmark
+or its final-code answer replay. Historical failures remain recorded.

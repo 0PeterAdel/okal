@@ -146,7 +146,7 @@ def lifecycle_probe(chat, adapter):
     except Conflict:fenced=True
     assert fenced,'cached_context_not_fenced'
     rejected=False
-    try:vault.import_revision(record['id'],record['revision'])
+    try:vault.import_revision(record['id'],record['revision'],'0'*64)
     except Conflict:rejected=True
     assert rejected,'stale_vault_import'
     chosen,context=Retrieval(ledger).select(cid,'amber canoe 672')
@@ -155,7 +155,7 @@ def lifecycle_probe(chat, adapter):
     hits=adapter.call('search',{'query':'amber canoe 672','limit':16})
     assert record['id'] not in {r['id'] for r in hits},'physical_vector_not_deleted'
     path.write_text(stale)
-    try:vault.import_revision(record['id'],record['revision'])
+    try:vault.import_revision(record['id'],record['revision'],'0'*64)
     except Conflict:pass
     else:raise AssertionError('rediscovered_note_resurrection')
     vault.delete(record['id'])
