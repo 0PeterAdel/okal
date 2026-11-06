@@ -59,6 +59,19 @@ class CognitiveLedgerTests(unittest.TestCase):
         for secret in ['My password is synthetic-value.','كلمة المرور هي قيمة تجريبية']:
             with self.assertRaises(ValueError):self.say(secret)
 
+    def test_medical_and_financial_candidates_need_explicit_sensitive_editor(self):
+        quotes=['I have diabetes.','My allergies include peanuts.','My prescription is private.',
+                'My card number is a synthetic identifier.','My passport is a synthetic identifier.',
+                'أنا عندي سكري.','أنا عندي حساسية.','أنا باخد دواء يوميا.',
+                'رقم حساب بنكي يخصني.','راتبي معلومة خاصة.']
+        for quote in quotes:
+            with self.subTest(quote=quote):
+                self.assertEqual(validate_candidates(quote,[candidate(quote,key='profile.private',kind='semantic')]),[])
+                with self.assertRaises(ValueError):self.chat.save_memory('private',quote)
+                with self.assertRaises(ValueError):self.ledger.save_project('Private fixture',quote)
+        saved=self.chat.save_memory('health','I have diabetes.',sensitive_confirmed=True)
+        self.assertEqual(saved['content'],'I have diabetes.')
+
     def test_correction_preserves_source_history_and_versions(self):
         first = self.say('I prefer detailed answers. My project is a garden.')
         memory = self.chat.save_memory('communication.style', 'I prefer detailed answers.',

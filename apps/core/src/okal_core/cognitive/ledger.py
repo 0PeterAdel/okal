@@ -14,9 +14,13 @@ from ..store import Conflict
 
 KINDS = {'semantic', 'episodic', 'task', 'instruction', 'decision', 'goal', 'constraint', 'lesson'}
 SENSITIVE = re.compile(
-    r'\b(?:password|passwd|token|secret|medical|diagnos\w*|blood pressure|'
-    r'bank account|credit card|iban|salary|social security)\b|'
-    r'كلمة السر|كلمة المرور|حساب بنكي|بطاقة ائتمان|تشخيص|مرض|راتبي|مرتبي', re.I)
+    r'\b(?:password|passwd|token|secret|medical|my health|mental health|diagnos\w*|blood pressure|'
+    r'diabet\w*|cancer|hiv|allerg\w*|pregnan\w*|medicat\w*|prescription|'
+    r'psychiatr\w*|depress\w*|bank account|credit card|card number|account number|'
+    r'routing number|iban|salary|income|social security|tax id|passport|national id)\b|'
+    r'كلمة السر|كلمة المرور|حساب بنكي|بطاقة ائتمان|رقم (?:حساب|بطاقة|قومي)|'
+    r'تشخيص|مرض|سكري|السكر|سرطان|حساسية|حامل|علاج|دواء|أدوية|اكتئاب|'
+    r'صحة نفسية|جواز سفر|راتبي|مرتبي', re.I)
 CREDENTIAL_CATEGORY = re.compile(
     r'\b(?:password|passwd|passphrase|credentials?|api[_ -]?keys?|access[_ -]?tokens?|'
     r'refresh[_ -]?tokens?|client[_ -]?secrets?|private[_ -]?keys?)\b|'
@@ -515,6 +519,8 @@ class Ledger:
         description = text(description, 600) if description else ''
         if CREDENTIAL_CATEGORY.search(name+' '+description):
             raise ValueError('credential_project_note_forbidden')
+        if SENSITIVE.search(name+' '+description):
+            raise ValueError('sensitive_project_note_use_confirmed_memory_editor')
         if type(revision) is not int or revision < 0:
             raise ValueError('invalid_project_revision')
         if project_id:
