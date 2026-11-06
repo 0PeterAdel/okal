@@ -1,0 +1,10 @@
+{
+  "synthetic_only": true,
+  "real_chromium": true,
+  "memory_changed_after_preview_rejected_409": true,
+  "project_changed_after_preview_rejected_409": true,
+  "ledger_unchanged_on_rejection": true,
+  "fresh_previews_imported_revision_2": true,
+  "page_exceptions": [],
+  "external_requests": []
+}

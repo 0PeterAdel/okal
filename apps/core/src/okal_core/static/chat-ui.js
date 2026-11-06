@@ -586,7 +586,7 @@ function clearChatUI() {
   }));
   get("chat-vault-import").addEventListener("click",()=>guarded(async()=>{
     if(!vaultPreview || !confirm("اعتماد النص الظاهر كتعديل منك على المعلومة؟"))return;
-    await post("vault-import",{memory_id:vaultPreview.memory_id,revision:vaultPreview.revision});
+    await post("vault-import",{memory_id:vaultPreview.memory_id,revision:vaultPreview.revision,content_sha256:vaultPreview.content_sha256});
     resetMemoryEditor();await memoryDashboard();
   }));
   get("chat-vault-project-preview").addEventListener("click",()=>guarded(async()=>{
@@ -598,7 +598,7 @@ function clearChatUI() {
   }));
   get("chat-vault-project-import").addEventListener("click",()=>guarded(async()=>{
     if(!projectVaultPreview || !confirm("اعتماد وصف المشروع الظاهر كتعديل منك؟"))return;
-    await post("vault-project-import",{project_id:projectVaultPreview.project_id,revision:projectVaultPreview.revision});
+    await post("vault-project-import",{project_id:projectVaultPreview.project_id,revision:projectVaultPreview.revision,content_sha256:projectVaultPreview.content_sha256});
     resetMemoryEditor();await memoryDashboard();
   }));
 

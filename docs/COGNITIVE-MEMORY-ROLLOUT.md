@@ -183,3 +183,10 @@ Offline backups, filesystem snapshots, unmanaged vault copies and the rollback
 archive have their own retention. Forgetting live memory cannot erase those
 independent copies. Follow the existing archive/local-preflight governance
 before any later disposal.
+
+
+Vault import requests must include the preview's `content_sha256` and revision.
+An HTTP 409 after an Obsidian edit means preview again and review the new text;
+do not retry with a manufactured hash. Moving a note after changing its memory
+kind preserves independent file edits as a sync conflict rather than discarding
+them. Explicit forgetting still removes all managed projections of that ID.

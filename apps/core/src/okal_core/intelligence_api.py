@@ -92,6 +92,7 @@ class Archive(Memories):
 
 class VaultImport(Forget):
     revision: int = Field(ge=1)
+    content_sha256: str = Field(pattern='^[a-f0-9]{64}$')
 
 
 class ProjectReference(Payload):
@@ -100,6 +101,7 @@ class ProjectReference(Payload):
 
 class ProjectImport(ProjectReference):
     revision: int = Field(ge=1)
+    content_sha256: str = Field(pattern='^[a-f0-9]{64}$')
 
 
 def register(app, store, authorized):

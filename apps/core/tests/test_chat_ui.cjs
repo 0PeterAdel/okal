@@ -111,7 +111,7 @@ test("archive excerpts remain inert and opening a source returns to fullscreen c
 test("vault edits require preview and explicit confirmation with its exact revision",async()=>{
   let confirmed=false;
   const h=harness({}, {confirm:()=>confirmed,routes:{
-    "/api/v1/chat/vault-preview":()=>({memory_id:"b".repeat(32),revision:7,content:"Edited preference",changed:true}),
+    "/api/v1/chat/vault-preview":()=>({memory_id:"b".repeat(32),revision:7,content:"Edited preference",content_sha256:"c".repeat(64),changed:true}),
     "/api/v1/chat/vault-import":()=>({changed:true,revision:8}),
     "/api/v1/chat/memory-health":()=>({configured:true,worker:"idle"}),
     "/api/v1/chat/projects":()=>({items:[]}),
@@ -124,6 +124,7 @@ test("vault edits require preview and explicit confirmation with its exact revis
   confirmed=true;h.get("chat-vault-import").handlers.click();await flush();
   const call=h.calls.find(c=>c.url.endsWith("vault-import"));
   assert.equal(JSON.parse(call.options.body).revision,7);
+  assert.equal(JSON.parse(call.options.body).content_sha256,"c".repeat(64));
   assert.equal(h.get("chat-vault-import").hidden,true);
 });
 

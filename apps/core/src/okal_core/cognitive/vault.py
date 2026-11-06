@@ -145,11 +145,13 @@ class Vault:
         from ..intelligence import text
         content=text(content,600) if content else ''
         return {'project_id':project_id,'revision':record['revision'],'content':content,
+                'content_sha256':digest(content),
                 'changed':content!=record['description']}
 
-    def import_project(self, project_id, revision):
+    def import_project(self, project_id, revision, content_sha256):
         preview=self.preview_project(project_id)
-        if type(revision) is not int or revision!=preview['revision']:
+        if (type(revision) is not int or revision!=preview['revision']
+                or content_sha256!=preview['content_sha256']):
             raise Conflict('vault_revision_conflict')
         with self.ledger.store.connect() as db:
             record=self._project(db,project_id)
@@ -166,18 +168,19 @@ class Vault:
             return self._export(record)
 
     def _export(self, record):
-        if not self.curated(record):
-            self.delete(record['id'])
-            return {'memory_id':record['id'],'revision':record['revision'],'status':'not_curated'}
-        path = self._path(record)
-        if path.exists() or path.is_symlink():
-            metadata, content = self._read(path)
+        prior_paths=self._locate(record['id'])
+        for prior_path in prior_paths:
+            metadata, content = self._read(prior_path)
             if metadata['memory_id'] != record['id']:
                 raise Conflict('vault_identity_conflict')
             if digest(content) != metadata['base_sha256'] and content != record['content']:
                 raise Conflict('vault_owner_edit_requires_import_or_discard')
             if metadata['revision'] > record['revision']:
                 raise Conflict('vault_newer_revision_conflict')
+        if not self.curated(record):
+            self.delete(record['id'])
+            return {'memory_id':record['id'],'revision':record['revision'],'status':'not_curated'}
+        path = self._path(record)
         metadata = {'okal': 2, 'memory_id': record['id'], 'revision': record['revision'],
                     'scope': record['scope'], 'base_sha256': digest(record['content']),
                     'source_turn': record.get('source_turn')}
@@ -188,6 +191,11 @@ class Vault:
         # Literal text fences prevent an automatically extracted remote image,
         # HTML tag or link from making Obsidian fetch private URLs on open.
         self._write(path,metadata,title,record['content'],link)
+        # A kind correction can move the same stable ID between folders.
+        # Validate every previous note before removing an obsolete projection;
+        # an independently edited note requires owner conflict resolution.
+        for prior_path in prior_paths:
+            if prior_path!=path:prior_path.unlink()
         return {'memory_id': record['id'], 'revision': record['revision'], 'status': 'current'}
 
     def _locate(self, memory_id):
@@ -223,11 +231,13 @@ class Vault:
         from ..intelligence import text
         content = text(content, 600)
         return {'memory_id': memory_id, 'revision': metadata['revision'],
+                'content_sha256':digest(content),
                 'content': content, 'changed': content != records[0]['content']}
 
-    def import_revision(self, memory_id, revision):
+    def import_revision(self, memory_id, revision, content_sha256):
         preview = self.preview(memory_id)
-        if type(revision) is not int or preview['revision'] != revision:
+        if (type(revision) is not int or preview['revision'] != revision
+                or content_sha256!=preview['content_sha256']):
             raise Conflict('vault_revision_conflict')
         current = self.ledger.active([{'id': memory_id, 'revision': revision}])[0]
         if not preview['changed']:
