@@ -79,7 +79,7 @@ def save_json(path: Path, value: object) -> None:
     path.chmod(0o600)
 
 
-def snapshot(state: Path, output: Path) -> dict:
+def snapshot(state: Path, output: Path, *, quiesced: bool = False) -> dict:
     if not state.is_absolute() or state.is_symlink() or not state.is_dir():
         raise ValueError('explicit_owner_state_required')
     info = state.stat()
@@ -127,8 +127,8 @@ def snapshot(state: Path, output: Path) -> dict:
                     raise ValueError('archived_hardlink_mismatch')
     if inventory(state) != before:
         raise ValueError('live_state_changed_during_backup_retry_with_fresh_destination')
-    report = {'created_utc': datetime.now(timezone.utc).isoformat(), 'online_snapshot': True,
-              'quiesced_cutover_backup_still_required': True,
+    report = {'created_utc': datetime.now(timezone.utc).isoformat(), 'online_snapshot': not quiesced,
+              'quiesced_cutover_backup_still_required': not quiesced,
               'source_state': str(state), 'root_mode': root_mode,
               'sqlite_integrity': 'ok', 'foreign_key_violations': 0,
               'table_fingerprints': actual, 'files': before,
@@ -139,22 +139,36 @@ def snapshot(state: Path, output: Path) -> dict:
     return report
 
 
+def service_state(service: str, quiesced: bool) -> tuple[str, int]:
+    state = subprocess.check_output(['systemctl', '--user', 'show', service,
+                                    '-p', 'ActiveState', '--value'], text=True).strip()
+    pid = int(subprocess.check_output(['systemctl', '--user', 'show', service,
+                                      '-p', 'MainPID', '--value']))
+    if (quiesced and (state != 'inactive' or pid != 0)
+            or not quiesced and (state != 'active' or pid <= 0)):
+        raise ValueError('service_state_does_not_match_requested_backup_mode')
+    return state, pid
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--service', required=True)
     parser.add_argument('--production-repo', type=Path, required=True)
+    parser.add_argument('--quiesced', action='store_true',
+                        help='Require an already inactive service; never stops it itself.')
     args = parser.parse_args()
     if not re.fullmatch(r'[a-zA-Z0-9_-]+\.service', args.service):
         parser.error('explicit_local_service_required')
     os.umask(0o077)
-    report = snapshot(args.state, args.output)
+    active_state, pid = service_state(args.service, args.quiesced)
+    report = snapshot(args.state, args.output, quiesced=args.quiesced)
     unit = subprocess.check_output(['systemctl', '--user', 'cat', args.service])
     (args.output / 'effective-unit-private.txt').write_bytes(unit)
-    pid = int(subprocess.check_output(['systemctl', '--user', 'show', args.service, '-p', 'MainPID', '--value']))
-    proc = Path('/proc') / str(pid)
-    (args.output / 'process-environment-private.bin').write_bytes((proc / 'environ').read_bytes())
+    proc = Path('/proc') / str(pid) if pid else None
+    if proc is not None:
+        (args.output / 'process-environment-private.bin').write_bytes((proc / 'environ').read_bytes())
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=args.production_repo, text=True).strip()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=args.production_repo).strip():
         raise ValueError('production_checkout_not_clean')
@@ -165,9 +179,11 @@ def main() -> None:
     save_json(args.output / 'installed-units-private.json',
               [{'path': value, 'mode': stat.S_IMODE(Path(value).stat().st_mode),
                 'content': Path(value).read_text(), 'sha256': sha(Path(value))} for value in unit_files])
-    report.update(baseline_head=head, service_pid=pid,
-                  process_argv=(proc / 'cmdline').read_bytes().decode().split('\0'),
-                  process_cwd=str((proc / 'cwd').resolve()))
+    if service_state(args.service, args.quiesced) != (active_state, pid):
+        raise ValueError('service_changed_during_backup')
+    report.update(baseline_head=head, service_pid=pid, service_state=active_state,
+                  process_argv=(proc / 'cmdline').read_bytes().decode().split('\0') if proc else [],
+                  process_cwd=str((proc / 'cwd').resolve()) if proc else None)
     for path in args.output.iterdir():
         path.chmod(0o600)
         if path.name != 'manifest-private.json':

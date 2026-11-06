@@ -104,6 +104,16 @@ class ReadinessSnapshotTests(unittest.TestCase):
         with closing(sqlite3.connect(self.database)) as db, db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM example').fetchone()[0], 2)
 
+    def test_quiesced_mode_requires_inactive_service_and_never_stops_it(self):
+        with patch.object(snapshot.subprocess, 'check_output', side_effect=['inactive\n', b'0\n']) as commands:
+            self.assertEqual(snapshot.service_state('fixture.service', True), ('inactive', 0))
+            self.assertTrue(all('show' in call.args[0] for call in commands.call_args_list))
+        for state, pid, quiesced in [('active', 123, True), ('inactive', 0, False), ('deactivating', 123, True)]:
+            with self.subTest(state=state, quiesced=quiesced):
+                with patch.object(snapshot.subprocess, 'check_output', side_effect=[state+'\n', str(pid).encode()]):
+                    with self.assertRaises(ValueError):
+                        snapshot.service_state('fixture.service', quiesced)
+
 
 if __name__ == '__main__':
     unittest.main()
