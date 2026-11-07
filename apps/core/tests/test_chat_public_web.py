@@ -53,7 +53,8 @@ class BrowserChatTests(unittest.TestCase):
         self.assertEqual(WEB_OPEN.search("افتح https://example.org/").group(1), "https://example.org/")
         self.assertIsNone(WEB_OPEN.search("افتح الإيميل"))
 
-    def test_colloquial_live_riyal_rate_routes_to_real_web_tool(self):
+    @patch("okal_core.computer.browser.network", return_value="PINNED")
+    def test_colloquial_live_riyal_rate_routes_to_real_web_tool(self, network):
         query = "بروس كدا وشوف سعر الريال كام النهاردة"
         self.assertIsNotNone(LIVE_RATE.search(query))
         self.assertIsNone(LIVE_RATE.search("اشرح معنى سعر الصرف"))
