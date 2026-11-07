@@ -8,7 +8,7 @@ from unittest.mock import patch
 from okal_core.computer.live_intent import live_intent, public_search_query
 from okal_core.computer.chat import propose_for_chat
 from okal_core.computer.engine import Engine
-from okal_core.intelligence import Intelligence
+from okal_core.intelligence import Intelligence, respond
 from okal_core.store import Store
 
 
@@ -131,6 +131,19 @@ class ChatLiveRouteTests(unittest.TestCase):
         self.assertEqual(result["source"], "action_permission_policy")
         self.assertIn("browser.search", result["answer"])
         self.assertNotIn("action_run", result)
+
+    def test_durable_turn_weather_city_followup_never_calls_text_model(self):
+        first = respond(self.store, self.conversation, uuid.uuid4().hex,
+                        "درجة الحرارة كام النهارده؟")
+        self.assertEqual(first["source"], "location_clarification")
+        self.grant("browser.search")
+        with patch("okal_core.computer.browser.network", return_value="PINNED"):
+            second = respond(self.store, self.conversation, uuid.uuid4().hex,
+                             "القاهرة")
+        self.assertEqual(second["source"], "proposed_action_plan")
+        plan = self.engine.get(second["action_run"])["plan"]
+        self.assertIn("القاهرة", plan["steps"][0]["arguments"]["query"])
+        self.assertEqual(plan["steps"][0]["tool"], "browser.search")
 
     def test_existing_device_routing_unchanged(self):
         self.grant("system.status")
