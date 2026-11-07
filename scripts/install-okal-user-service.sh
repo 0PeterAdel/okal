@@ -43,7 +43,7 @@ if [[ -L "$unit_dir" || -L "$unit" ]]; then
   echo "Refusing symlinked systemd target; inspect it manually." >&2
   exit 1
 fi
-mkdir -p -m 700 -- "$unit_dir"
+# umask 077 secures directories created here without altering an existing user unit tree.\nmkdir -p -- "$unit_dir"
 if [[ -e "$unit" ]]; then
   if [[ ! -f "$unit" ]] || ! cmp -s "$unit" <(printf '%s\n' "$generated"); then
     echo "Existing okal-core.service differs; refusing to overwrite it." >&2
