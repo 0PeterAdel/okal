@@ -94,7 +94,11 @@ function clearChatUI() {
   }
 
   const toolOpener=get("chat-open-actions");
+  const permissionPanel=get("computer-settings");
   if(toolOpener) toolOpener.addEventListener("click",openComputerPermissions);
+  if(toolOpener && permissionPanel) permissionPanel.addEventListener("toggle",()=>{
+    toolOpener.setAttribute("aria-expanded",permissionPanel.open ? "true" : "false");
+  });
 
   function bubble(role, content) {
     const box = document.createElement("article");
