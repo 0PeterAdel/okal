@@ -139,7 +139,17 @@ function clearChatUI() {
     more.textContent="عرض 50 ذكرى تالية";more.hidden=true;
     const refresh=document.createElement("button");refresh.type="button";
     refresh.textContent="تحديث الذاكرة الآن";
-    panel.append(title,note,list,feedback,more,refresh);
+    const manage=document.createElement("button");manage.type="button";
+    manage.textContent="مراجعة/تصحيح/نسيان من إدارة الذاكرة";
+    manage.addEventListener("click",()=>{
+      const manager=get("chat-memory-manager");
+      if(manager){
+        manager.open=true;
+        if(typeof manager.scrollIntoView==="function")
+          manager.scrollIntoView({behavior:"smooth",block:"start"});
+      }
+    });
+    panel.append(title,note,list,feedback,more,refresh,manage);
     parent.append(panel);
     let next=0, loading=false, generation=0;
     async function load(reset=false) {
