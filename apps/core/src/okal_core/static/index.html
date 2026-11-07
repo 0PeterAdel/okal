@@ -97,6 +97,7 @@
             </div>
             <div class="chat-heading-actions">
               <span class="chat-mode-pill"><span class="chat-status-dot" aria-hidden="true"></span> LOCAL · PRIVATE</span>
+              <button id="chat-open-actions" type="button" class="chat-new" aria-controls="computer-settings" aria-expanded="false">⚙ صلاحيات الأدوات</button>
               <button id="chat-new" type="button" class="chat-new">+ محادثة جديدة</button>
             </div>
           </div>
@@ -231,12 +232,15 @@
                 </div>
                 <p class="chat-eyebrow">ANCIENT MATERIAL / FUTURE LOGIC</p>
                 <h2>كيف أقدر أساعدك النهارده؟</h2>
-                <p class="chat-greeting-copy">اسأل عن يومك، استعرض تفاصيل المواعيد المحفوظة، أو جهّز موعد جديد للمراجعة. من غير إجراءات تلقائية.</p>
+                <p class="chat-greeting-copy">اسأل عن يومك أو جهازك، ابحث في الويب، أو اطلب إجراء واضح. الأدوات تحتاج صلاحيات، والأوامر المؤثرة تحتاج موافقتك.</p>
                 <div class="chat-suggestions" aria-label="ابدأ المحادثة">
                   <button type="button" data-chat-prompt="إيه المواعيد اللي عندي النهارده؟"><span aria-hidden="true">◷</span> مواعيدي النهارده</button>
                   <button type="button" data-chat-prompt="إيه أهم المهام اللي عندي؟"><span aria-hidden="true">☑</span> مهامي المفتوحة</button>
                   <button type="button" data-chat-prompt="إيه آخر وضع Gmail عندي؟"><span aria-hidden="true">✉</span> ملخص بريدي</button>
                   <button type="button" data-chat-prompt="عايز أضيف موعد جديد، ساعدني أحدد التفاصيل"><span aria-hidden="true">✦</span> جهّز موعد</button>
+                  <button type="button" data-chat-prompt="عندي كام هارد متوصل بالجهاز ومساحة التخزين كام؟"><span aria-hidden="true">◫</span> مساحة الجهاز</button>
+                  <button type="button" data-chat-prompt="ابحث في النت عن أحدث أخبار الذكاء الاصطناعي"><span aria-hidden="true">◎</span> بحث في الويب</button>
+                  <button type="button" data-chat-prompt="نفذ في الترمينال: df -h"><span aria-hidden="true">⌘</span> أمر Terminal</button>
                 </div>
               </div>
               <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="سجل المحادثة"></div>
@@ -260,6 +264,7 @@
               </section>
               <section class="chat-glass-card" aria-label="أدوات OKAL المتاحة">
                 <div class="chat-card-title"><span class="chat-card-symbol" aria-hidden="true">◇</span><strong>Tools / الأدوات</strong></div>
+                <p id="chat-action-readiness" class="chat-context-hint">افتح صلاحيات الأدوات لتعرف المتاح فعليًا على جهازك.</p>
                 <div class="chat-tool-links">
                   <a href="#inbox-panel"><svg class="icon" aria-hidden="true"><use href="#ico-mail"></use></svg>Gmail</a>
                   <a href="#calendar-section"><svg class="icon" aria-hidden="true"><use href="#ico-clock"></use></svg>Calendar</a>

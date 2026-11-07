@@ -41,3 +41,11 @@ test("terminal plans show exact argv before owner approval and bounded stdout re
   assert.match(source,/approval_digest:run\.approval_digest/);
   assert.doesNotMatch(source,/\.innerHTML\s*=/);
 });
+
+test("owner API controls tool readiness summary instead of fake static capability badges",()=>{
+  assert.match(source,/get\("chat-action-readiness"\)/);
+  assert.match(source,/data\.readiness\?\.browser/);
+  assert.match(source,/data\.readiness\?\.command_sandbox/);
+  assert.match(source,/tools\.has\(name\)/);
+  assert.doesNotMatch(source,/localStorage|sessionStorage/);
+});

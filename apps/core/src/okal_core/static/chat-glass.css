@@ -472,3 +472,27 @@ body[data-sidebar="collapsed"] .sidebar-toggle .icon{transform:rotate(180deg)}
 @media(prefers-reduced-motion:reduce){
   body[data-view="chat"] .chat-glass-card{transition:none}
 }
+
+
+/* Functional Actions access: quiet ice-glass button, no fabricated tool status. */
+body[data-view="chat"] #chat-open-actions{
+  min-height:44px;background:rgba(28,48,63,.56);
+  border:1px solid rgba(185,219,246,.34);color:#d9e9f4;
+  box-shadow:inset 0 1px rgba(255,255,255,.11);
+}
+body[data-view="chat"] #chat-open-actions:hover,
+body[data-view="chat"] #chat-open-actions:focus-visible{
+  border-color:#b9dbf6;background:rgba(42,69,87,.67);
+}
+body[data-view="chat"] .chat-action-permissions{
+  display:inline-flex;margin-top:12px;padding:9px 13px;
+  border:1px solid rgba(185,219,246,.48);border-radius:12px;
+  background:rgba(28,49,65,.78);color:#e1f1fb;
+  font:inherit;cursor:pointer;
+}
+body[data-view="chat"] .chat-action-permissions:focus-visible{
+  outline:2px solid #b9dbf6;outline-offset:3px;
+}
+@media(max-width:620px){
+  body[data-view="chat"] #chat-open-actions{min-height:40px;padding:8px 11px}
+}

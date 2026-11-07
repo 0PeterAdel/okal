@@ -13,6 +13,7 @@ function harness(reply, fixtures={}) {
     setAttribute(k,v){this.attributes[k]=v;},
     getAttribute(k){return this.attributes[k];},
     addEventListener(type,fn){this.handlers[type]=fn;},
+    click(){if(this.handlers.click)this.handlers.click();},
     append(...values){this.children.push(...values);},
     prepend(...values){this.children.unshift(...values);},
     replaceChildren(...values){this.children=[...values];},
@@ -238,4 +239,44 @@ test("displayed message count reflects persisted turns and clears on new convers
   h.get("chat-new").handlers.click();
   assert.equal(h.get("chat-memory-count").textContent,"0 رسائل");
   assert.equal(h.get("chat-messages").children.length,0);
+});
+
+test("denied computer actions show an actionable owner permission path",async()=>{
+  const h=harness({answer:"system.status محتاجة تتفعل",mode:"action_plan",
+    source:"action_permission_policy",proposal:null});
+  let loads=0;
+  h.get("computer-load").addEventListener("click",()=>{loads++;});
+  h.prompts[0].handlers.click();await flush();
+  const assistant=h.get("chat-messages").children[1];
+  const action=assistant.children.find(x=>x.tag==="button" &&
+    x.textContent.includes("Open Actions"));
+  assert.ok(action);
+  assert.equal(h.get("computer-settings").open,undefined);
+  action.handlers.click();
+  assert.equal(h.get("computer-settings").open,true);
+  assert.equal(h.get("chat-open-actions").attributes["aria-expanded"],"true");
+  assert.equal(loads,1);
+  assert.equal(h.calls.filter(c=>c.url==="/api/v1/actions/policy").length,0);
+  assert.equal(h.calls.filter(c=>c.url==="/api/v1/chat/turn").length,1);
+});
+
+test("tool access heading opens the existing Actions settings without granting anything",()=>{
+  const h=harness({answer:"ok"});
+  let loads=0;
+  h.get("computer-load").addEventListener("click",()=>{loads++;});
+  h.get("chat-open-actions").handlers.click();
+  assert.equal(h.get("computer-settings").open,true);
+  assert.equal(loads,1);
+  assert.equal(h.calls.length,0);
+});
+
+test("Chat starting prompts use real governed tool routes and explicit literal commands",()=>{
+  const html=fs.readFileSync(path.join(__dirname,
+    "../src/okal_core/static/index.html"),"utf8");
+  assert.match(html,/data-chat-prompt="عندي كام هارد متوصل/);
+  assert.match(html,/data-chat-prompt="ابحث في النت عن/);
+  assert.match(html,/data-chat-prompt="نفذ في الترمينال: df -h"/);
+  assert.match(html,/id="chat-open-actions"/);
+  assert.match(html,/aria-controls="computer-settings"/);
+  assert.doesNotMatch(html,/data-chat-prompt="sudo /);
 });

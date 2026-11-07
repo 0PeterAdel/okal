@@ -135,6 +135,21 @@ function renderComputerRun(parent,id){
     try{
       const data=await computerPost("capabilities"),policy=data.policy.policy;
       computerPolicyRevision=data.policy.revision;
+      const readiness=get("chat-action-readiness");
+      if(readiness){
+        const tools=new Set(policy.tools);
+        const groups=[
+          ["system.status","الجهاز"],
+          ["browser.search","البحث"],
+          ["browser.public_read","قراءة الويب"],
+          ["system.terminal","الترمينال"]
+        ];
+        readiness.textContent="أدوات مفعلة: "+
+          (groups.filter(([name])=>tools.has(name)).map(([,label])=>label).join(" · ") || "لا توجد من الأدوات الجديدة")+
+          " · الوضع: "+policy.mode+
+          " · جاهزية المتصفح: "+(data.readiness?.browser ? "متاحة":"غير متاحة")+
+          " · عزل الأوامر: "+(data.readiness?.command_sandbox ? "متاح":"غير متاح");
+      }
       get("computer-policy-form").hidden=false;
       get("computer-mode").value=policy.mode;
       get("computer-roots").value=policy.roots.map(g=>(g.write ? "write " : "read ")+g.root).join("\n");
@@ -164,6 +179,8 @@ function renderComputerRun(parent,id){
         browser_origins:lines("computer-origins"),accounts:lines("computer-accounts"),applications:lines("computer-apps"),
         commands:JSON.parse(get("computer-commands").value)}});
       computerPolicyRevision=data.revision;get("computer-status").textContent="الصلاحيات اتحفظت. إلغاء علامة أداة أو مجلد وسيلة لسحب الصلاحية فورًا.";
+      const readiness=get("chat-action-readiness");
+      if(readiness)readiness.textContent="الصلاحيات اتحدثت؛ افتح إعدادات Actions لعرض الجاهزية الحالية.";
     }catch(error){get("computer-status").textContent=error.message;}
   });
 })();
