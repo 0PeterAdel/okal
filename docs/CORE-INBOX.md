@@ -1,5 +1,14 @@
 # Core inbox: R1a
 
+> **Historical reference only.** This page describes the original Core
+> R1a experiment and its original fixed-path systemd template, not the
+> complete current OKAL product or recommended fresh-install sequence.
+> New users should use [Getting started](GETTING-STARTED.md),
+> [Feature status](FEATURE-STATUS.md) and the opt-in portable
+> `scripts/install-okal-user-service.sh` installer instead. Gmail, Chat,
+> Memory and governed Actions were added in later reviewed stages.
+
+
 Tracking: [#38](https://github.com/0PeterAdel/okal/issues/38), under
 [#36](https://github.com/0PeterAdel/okal/issues/36). Experimental, read-only,
 loopback-only foundation. This is not the full R1 release or a deployed assistant.
