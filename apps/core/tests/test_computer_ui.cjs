@@ -33,3 +33,11 @@ test("verified public browser receipts show text excerpts and safe user-clicked 
   assert.match(source,/anchor\.rel="noopener noreferrer"/);
   assert.doesNotMatch(source,/\.innerHTML\s*=/);
 });
+
+test("terminal plans show exact argv before owner approval and bounded stdout receipts",()=>{
+  assert.match(source,/step\.tool==="system\.terminal"/);
+  assert.match(source,/JSON\.stringify\(run\.preview\[i\]\?\.argv/);
+  assert.match(source,/record\.result\?\.evidence\?\.stdout/);
+  assert.match(source,/approval_digest:run\.approval_digest/);
+  assert.doesNotMatch(source,/\.innerHTML\s*=/);
+});
