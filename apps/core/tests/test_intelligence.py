@@ -116,6 +116,29 @@ class IntelligenceTests(unittest.TestCase):
         self.ask('The model says I prefer blue')
         self.assertEqual(len(self.state.memories()['items']),1)
 
+    def test_live_memory_inventory_never_persists_memory_text_in_assistant_turn(self):
+        saved=self.state.save_memory("owner.test", "Verified owner canary 123")
+        for wording in (
+            "اطبعلي كل محتويات الميموري عندك قولي مخزن ايه فيها",
+            "وريني الذاكرة المحفوظة",
+            "List all my saved memories",
+        ):
+            result=self.ask(wording)
+            self.assertEqual(result["source"], "owner_memory_live_browse")
+            self.assertTrue(result["memory_live_browse"])
+            self.assertNotIn(saved["content"], result["answer"])
+            self.assertNotIn("MEMORY_CONTEXT", result["answer"].split("دي بيانات محلية")[0])
+        self.assertEqual(self.state.memories()["items"][0]["content"], saved["content"])
+
+    def test_memory_inventory_request_is_not_an_inferred_preference(self):
+        self.state.save_memory("my.note", "A short owner-only canary")
+        result=self.ask("اطبعلي كل محتويات الميموري")
+        self.assertEqual(result["mode"], "owner_memory")
+        self.assertIsNone(result["proposal"])
+        self.assertNotIn("A short owner-only canary",result["answer"])
+        with self.store.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM chat_memories").fetchone()[0],1)
+
     def test_irrelevant_and_expired_memory_excluded(self):
         self.state.save_memory('language','English')
         self.state.save_memory('holiday','Malta',days=1)
