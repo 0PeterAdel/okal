@@ -23,3 +23,13 @@ test("system diagnostics are rendered as observed receipts, never model guesses"
   assert.match(source,/record\.status==="verified"/);
   assert.doesNotMatch(source,/\.innerHTML\s*=/);
 });
+
+test("verified public browser receipts show text excerpts and safe user-clicked source links",()=>{
+  assert.match(source,/browser\.search/);
+  assert.match(source,/browser\.public_read/);
+  assert.match(source,/record\.status==="verified"/);
+  assert.match(source,/new URL\(url\)/);
+  assert.match(source,/parsed\.protocol!=="https:"/);
+  assert.match(source,/anchor\.rel="noopener noreferrer"/);
+  assert.doesNotMatch(source,/\.innerHTML\s*=/);
+});
