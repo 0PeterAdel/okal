@@ -59,6 +59,22 @@ function renderComputerRun(parent,id){
         const pre=document.createElement("pre");pre.textContent=JSON.stringify({arguments:step.arguments,
           preview:run.preview[i],receipt:record.result,error:record.error},null,2);details.append(pre);card.append(details);
         if(record.result?.summary)line("p",record.result.summary);
+        // Show observed disk receipts directly; never ask the LLM to invent sizes.
+        if(record.status==="verified" && step.tool==="system.status" && record.result?.evidence){
+          const evidence=record.result.evidence;
+          const prettyBytes=value=>Number.isFinite(value) && value>=0
+            ? (value/1073741824).toFixed(1)+" GiB" : "غير متاح";
+          const disks=Array.isArray(evidence.block_devices)?evidence.block_devices:[];
+          const mounted=Array.isArray(evidence.mounted_space)?evidence.mounted_space:[];
+          line("p","الأقراص المكتشفة / Block devices: "+String(evidence.block_device_count ?? disks.length)
+            +(evidence.inventory_limited?" · عرض جزئي":""));
+          for(const disk of disks.slice(0,32))
+            line("p","• "+disk.name+" · "+prettyBytes(disk.size_bytes)
+              +(disk.removable===true?" · قابل للإزالة":""));
+          for(const mount of mounted.slice(0,16))
+            line("p","مساحة "+mount.mountpoint+": "+prettyBytes(mount.available_bytes)
+              +" متاحة من "+prettyBytes(mount.total_bytes));
+        }
       }
       if(run.status==="awaiting_approval")button("أوافق على هذه الخطة بالضبط / Execute exact plan",()=>
         computerPost("execute",{run_id:id,approval_digest:run.approval_digest}));
