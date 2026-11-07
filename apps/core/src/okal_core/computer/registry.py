@@ -85,6 +85,10 @@ class Named(Strict):
     name: str = Field(min_length=1, max_length=100)
 
 
+class TerminalArgs(Strict):
+    argv: list[str] = Field(min_length=1, max_length=20)
+
+
 class Focus(Strict):
     address: str = Field(pattern=r"^0x[a-fA-F0-9]+$")
 
@@ -721,6 +725,16 @@ def command(ctx, args):
     )
 
 
+def _owner_terminal_preview(ctx, args):
+    from .terminal import preview
+    return preview(ctx, args)
+
+
+def _owner_terminal(ctx, args):
+    from .terminal import execute
+    return execute(ctx, args)
+
+
 def desktop(ctx, args):
     name = ctx.tool.name
     if name == "desktop.windows":
@@ -1050,6 +1064,15 @@ def registry():
             "consequential",
             command,
             command_preview,
+        ),
+        Tool(
+            "system.terminal",
+            "Run exact owner-requested /usr/bin argv under explicit approval, inside a no-network terminal sandbox with only narrow roots.",
+            TerminalArgs,
+            "consequential",
+            _owner_terminal,
+            _owner_terminal_preview,
+            30,
         ),
         Tool(
             "desktop.windows",
