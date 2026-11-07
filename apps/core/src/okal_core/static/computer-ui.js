@@ -26,10 +26,17 @@ function clearComputerUI(){
 function renderComputerRun(parent,id){
   const card=document.createElement("section");card.className="computer-run";
   card.setAttribute("aria-label","خطة وإيصالات التنفيذ");parent.append(card);
-  let timer=null,starting=false,generation=0;
+  // An action receipt needs actual reading room, even for a short chat reply.
+  parent.className += " chat-bubble--action";
+  let timer=null,starting=false,generation=0,controls=null;
   const line=(tag,value)=>{const n=document.createElement(tag);n.textContent=value;card.append(n);return n;};
   const button=(label,action)=>{
-    const n=line("button",label);n.type="button";
+    if(!controls){
+      controls=document.createElement("div");controls.className="computer-run-actions";
+      card.append(controls);
+    }
+    const n=document.createElement("button");
+    n.textContent=label;controls.append(n);n.type="button";
     n.addEventListener("click",async()=>{
       n.disabled=true;
       try{await action();await refresh();}catch(error){line("p",error.message);n.disabled=false;}
@@ -42,11 +49,23 @@ function renderComputerRun(parent,id){
     try{
       const run=await computerPost("get",{run_id:id});
       if(card.isConnected===false || active!==generation)return;
-      card.replaceChildren();line("strong","خطة التنفيذ وإيصالاتها / Action plan & receipts");
-      line("p","الحالة / Status: "+run.status+" · "+run.steps.filter(s=>s.status==="verified").length+" خطوات متحققة من "+run.steps.length);
+      card.replaceChildren();controls=null;
+      const shortTools={
+        "system.status":"الأقراص ومساحة التخزين",
+        "browser.search":"نتائج البحث على الإنترنت",
+        "browser.public_read":"قراءة صفحة ويب",
+        "system.terminal":"نتيجة أمر Terminal"
+      };
+      const single=run.plan.steps.length===1 ? run.plan.steps[0].tool : null;
+      line("strong",shortTools[single] || "خطة التنفيذ وإيصالاتها / Action plan & receipts");
+      const verified=run.steps.filter(s=>s.status==="verified").length;
+      line("p","الحالة: "+(run.status==="succeeded" ? "تم التنفيذ بنجاح" : run.status)
+        +" · "+verified+" من "+run.steps.length+" خطوات موثقة").className="computer-run-status";
       for(let i=0;i<run.plan.steps.length;i++){
         const step=run.plan.steps[i],record=run.steps[i];
-        line("h4",String(i+1)+". "+step.tool+" · "+record.status);
+        const name=shortTools[step.tool] || step.tool;
+        if(run.plan.steps.length>1 || record.status!=="verified")
+          line("h4",String(i+1)+". "+name+" · "+record.status);
         if(run.status==="awaiting_approval"){
           if(step.tool==="system.terminal"){
             line("p","أمر Terminal يحتاج موافقتك على كل argv بالضبط. لا توجد صلاحيات root أو شبكة.");
@@ -118,7 +137,10 @@ function renderComputerRun(parent,id){
         button("تحديث الإيصال / Refresh",async()=>{});
         if(["failed","cancelled"].includes(run.status))
           button("استكمال الخطة / Resume",()=>computerPost("resume",{run_id:id,approval_digest:run.approval_digest}));
-        if(["succeeded","needs_reconciliation","failed","cancelled"].includes(run.status))
+        // A read-only receipt has no rollback. Showing Recover on a disk
+        // inventory misleadingly suggests the system changed files.
+        const hasReversibleChanges=run.steps.some(s=>Array.isArray(s.result?.recovery) && s.result.recovery.length>0);
+        if(hasReversibleChanges && ["succeeded","needs_reconciliation","failed","cancelled"].includes(run.status))
           button("استرجاع التغييرات المدعومة / Recover",async()=>{
             if(!confirm("استرجاع التغييرات الموجودة في إيصالات هذه الخطة؟ لن يتم استبدال أي ملف اتغيّر."))return;
             await computerPost("recover",{run_id:id,approval_digest:run.approval_digest});
