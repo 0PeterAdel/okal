@@ -66,7 +66,10 @@ class BrowserChatTests(unittest.TestCase):
         self.assertEqual(answer["source"], "proposed_action_plan")
         plan = self.engine.get(answer["action_run"])["plan"]
         self.assertEqual(plan["steps"][0]["tool"], "browser.search")
-        self.assertEqual(plan["steps"][0]["arguments"], {"query": query})
+        self.assertEqual(plan["steps"][0]["arguments"], {
+            "query": "سعر الريال السعودي مقابل الجنيه المصري اليوم SAR EGP",
+        })
+        self.assertNotIn("بروس", plan["steps"][0]["arguments"]["query"])
 
     def test_public_https_origin_is_restricted(self):
         self.assertEqual(public_origin("https://example.org/path?q=a"), "https://example.org")
