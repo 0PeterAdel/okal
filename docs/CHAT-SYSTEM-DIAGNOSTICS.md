@@ -3,6 +3,7 @@
 Issue #130. Scoped to computer diagnostics; this PR is not a Production deployment.
 
 ## Behavior
+
 - Explicit owner questions about attached hard drives, number of block devices,
   `lsblk`, `df -h` and disk/free storage in Arabic or English route to a
   **deterministic `system.status` plan**, not a speculative conversational reply.
@@ -19,6 +20,7 @@ Issue #130. Scoped to computer diagnostics; this PR is not a Production deployme
   which permission must be enabled. No implicit permission migration.
 
 ## Verification
+
 Run local full Python/Node suites and governance checks. Focused commands:
 
 ```bash
@@ -35,6 +37,7 @@ namespace mount views may differ. No change to live SQLite schema or action
 grants is authorized by this PR.
 
 ## Remaining
+
 - General web discovery/search and arbitrary URL reading remain a separate
   reviewed browser extension. The present browser adapter requires grants
   for exact origins.
