@@ -48,6 +48,12 @@ function renderComputerRun(parent,id){
         const step=run.plan.steps[i],record=run.steps[i];
         line("h4",String(i+1)+". "+step.tool+" · "+record.status);
         if(run.status==="awaiting_approval"){
+          if(step.tool==="system.terminal"){
+            line("p","أمر Terminal يحتاج موافقتك على كل argv بالضبط. لا توجد صلاحيات root أو شبكة.");
+            line("pre",JSON.stringify(run.preview[i]?.argv || step.arguments.argv,null,2));
+            line("p","المجلدات المتاحة للأمر: "+
+              JSON.stringify(run.preview[i]?.mounted_roots || []));
+          }
           const changes=run.preview[i]?.moves;
           if(changes)line("p",changes.slice(0,12).map(v=>v.source+" → "+v.destination).join("\n")+
             (changes.length>12 ? "\n… "+changes.length+" تغييرات؛ افتح التفاصيل لمراجعتها" : ""));
@@ -59,6 +65,10 @@ function renderComputerRun(parent,id){
         const pre=document.createElement("pre");pre.textContent=JSON.stringify({arguments:step.arguments,
           preview:run.preview[i],receipt:record.result,error:record.error},null,2);details.append(pre);card.append(details);
         if(record.result?.summary)line("p",record.result.summary);
+        if(record.status==="verified" && step.tool==="system.terminal"){
+          line("p","Terminal output / نتيجة الأمر (داخل sandbox):");
+          line("pre",String(record.result?.evidence?.stdout || "").slice(0,10000));
+        }
         // Public search/read receipts are evidence, not invented model claims.
         if(record.status==="verified"
             && ["browser.search","browser.public_read","browser.read"].includes(step.tool)
