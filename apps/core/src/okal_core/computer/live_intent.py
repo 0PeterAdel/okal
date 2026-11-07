@@ -85,6 +85,14 @@ def live_intent(message, *, weather_followup=False):
     if not isinstance(message, str) or not message.strip() or len(message) > 900:
         return None
     text = message.strip()
+    # Only a city noun may fill a pending city slot; unrelated owner commands
+    # or questions must remain new turns and can never become search locations.
+    if weather_followup and re.match(
+        r"^\s*(?:نفذ|نفّذ|شغل|شغّل|احذف|امسح|افتح|ابحث|بروس|براوز|"
+        r"run|execute|open|delete|search)\b",
+        text, re.I
+    ):
+        return None
     weather = bool(WEATHER.search(text)) and not HARDWARE_TEMP.search(text)
     if weather or (weather_followup and len(text) <= 70):
         city = _place(text, followup=not weather)
