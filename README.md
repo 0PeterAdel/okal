@@ -1,71 +1,77 @@
-# Okal
+# OKAL — Local Personal AI Assistant
 
-Backend-first mail trial: [Gmail runbook](docs/MAIL-BACKEND.md) and
-[upstream/dependency review](docs/MAIL-UPSTREAM-REVIEW.md), tracked in
-[issue #40](https://github.com/0PeterAdel/okal/issues/40). Optional local CLI
-onboarding; no account or sending is enabled by installing this branch.
+**Private, local-first AI chat with governed computer workflows, memory, Gmail,
+Calendar and daily planning.** This is the active implementation repository,
+not merely the older R1a inbox prototype.
 
-**One local personal assistant for mail, planning, social content and freelance opportunities.**
+OKAL runs one owner-controlled Python Core with a private SQLite state store,
+local Ollama inference and a responsive Chat-first web interface. Model output
+is not permission to act. User-granted capabilities, exact-action approvals,
+verified receipts and recovery govern real computer operations. The historical
+reset/pilot plan remains in [the Wiki](wiki/Personal-Assistant-Plan.md), but
+later reviewed stages supersede its original feature deferrals.
 
-Okal is being refocused around daily routines, not a general-purpose AI operating
-system or a collection of coding/research agents. One small center will own task
-state, summaries, schedules and approvals. Desktop, mobile and later voice will
-use the same authenticated API.
+## Current code scope
 
-## Status: repository transition
+| Area | Merged capability | Boundary / outstanding acceptance |
+| --- | --- | --- |
+| Chat | Fullscreen bilingual conversation, saved history, resume and local-context responses | Local model availability and browser session required |
+| Cognitive Memory V2 | Source-grounded cross-chat/project memories, correction/forget, local Mem0/Qdrant and optional Obsidian-compatible vault | **Production acceptance remains open in [#128](https://github.com/0PeterAdel/okal/issues/128)** |
+| Computer | Scoped files/documents, desktop windows, local task/calendar adapters, bounded command profiles and verified execution receipts | Owner Actions grants; consequential actions require exact approvals |
+| Storage diagnostic | Read-only connected block-device and mount-space receipts using Linux sysfs | Enable `system.status`; verify against actual owner host |
+| Web | Read-only public HTTPS search and page reading with isolated Chromium and non-public network denial | Enable `browser.search` / `browser.public_read`; actual browser acceptance and external website behavior vary |
+| Terminal | Explicit, owner-typed `/usr/bin` argv in a restricted no-network Bubblewrap sandbox | Enable `system.terminal`; always explicitly approve; **not an unrestricted host/root shell** |
+| Daily | Gmail inbox/digest and reviewed actions, local appointments/goals, Calendar/Google Tasks read integrations and morning brief | Provider OAuth/sync freshness needs actual owner account checks |
+| UI | Approved high-resolution OKAL logo, restrained Liquid Glass, spatial/HUD accents, Chat-first navigation and Actions panel | Browser/owner usability acceptance remains separate from code tests |
+| Later | Social/freelance submission, mature voice and paired mobile workflows | Historic pilots and plans are not complete daily-product delivery |
 
-Existing voice, Studio and agent pilots remain experimental. R1a adds a small
-[local read-only core inbox](docs/CORE-INBOX.md): persistent summaries, token
-authentication and a responsive screen. Its demo data is explicitly synthetic.
-It does not connect Gmail, run models, send messages or pair a phone. Automatic
-startup is an opt-in unit awaiting owner-device acceptance; full R1 is not done.
-Existing voice installation commands do not install this core. Do not enable
-competing schedulers.
-
-Tracking: [issue #36](https://github.com/0PeterAdel/okal/issues/36).
-The architecture proposal requires review before adoption.
+**Repository merges are not deployments.** In the latest owner-reported read-only
+audit (November 7, 2026), the real `okal-core.service` was active with HTTP
+health 200, and live SQLite `chat_schema=2` passed integrity/foreign-key
+checks, but the running production checkout was still at
+`f7762b65eb12f580d054dcdb6dabe0e89c53cf17`. Later code on `main`
+was **not** confirmed installed on that host. Do not migrate schema 2 again,
+replace the live DB with an older snapshot, stop writes merely for a new
+quiesced backup, or claim owner-device acceptance from GitHub CI.
 
 ## Start here
 
-- [Personal assistant plan and delivery gates](wiki/Personal-Assistant-Plan.md)
-- [Core inbox trial, API and recovery](docs/CORE-INBOX.md)
-- [Preserved branches and local safety checks](docs/REPOSITORY-RESET.md)
-- [Proposed ADR-013](wiki/Architecture-Decision-Records.md#adr-013--daily-personal-assistant-reset)
-- [Wiki navigation](wiki/Home.md)
+- [Cognitive Memory V2](docs/COGNITIVE-MEMORY.md), [Production readiness](docs/COGNITIVE-MEMORY-READINESS.md), [rollout and recovery](docs/COGNITIVE-MEMORY-ROLLOUT.md)
+- [Intelligence Core](docs/INTELLIGENCE-CORE.md) and [Computer Actions](docs/COMPUTER-ACTIONS.md)
+- [Owner-device Stage 3 release evidence](docs/STAGE3-RELEASE.md)
+- [Storage diagnostics](docs/CHAT-SYSTEM-DIAGNOSTICS.md), [public web](docs/CHAT-PUBLIC-WEB.md), [terminal](docs/CHAT-OWNER-TERMINAL.md)
+- [Gmail backend](docs/MAIL-BACKEND.md), [unified calendar](docs/UNIFIED-CALENDAR-ARCHITECTURE.md) and [morning brief](docs/LOCAL-CALENDAR-BRIEF.md)
+- [Personal assistant plan (historical reset + later decisions)](wiki/Personal-Assistant-Plan.md)
 
-## Product scope
+## Run and permission boundaries
 
-| Area | Intended outcome | First delivery |
-|---|---|---|
-| Mail | Digest, reply drafts and controlled sending | Read-only Gmail digest |
-| Planning | Tasks, availability and a realistic day plan | Read calendar, propose changes |
-| Social | Approved topics and source-grounded content | One external publisher adapter |
-| Freelance | Opportunities, proposals and follow-up | One reviewed Khamsat adapter |
-| Mobile | Unified summaries and task status | Read-only paired client |
-| Voice | Optional input to the same boundary | Deferred |
+- Local AI through approved Ollama pins; no paid/cloud language-model fallback.
+- A live internet connection and proper OAuth are required for online accounts
+  and web search; cached provider summaries must disclose their freshness.
+- Owner Chat and Actions are protected by the existing owner-browser boundary;
+  read-device tokens **cannot** authorize computer actions or personal memory.
+- The assistant cannot obtain tool grants, approve its own plans or fabricate
+  results. Revoke individual tools/resources from Actions to remove authority.
+- Browser discovery uses an ephemeral isolated profile and public-network rules,
+  not your signed-in personal browser. Search queries leave the laptop.
+- Terminal is explicit-owner-command, no network, no root and no broad/private
+  home mount. A more powerful interactive host shell is a **separate**
+  high-risk product/security design, not enabled by this repository update.
+- The laptop cannot run background jobs while powered off. Unverified recovery
+  and stalled provider sync must be surfaced rather than silently retried.
+- No complete cold-boot, voice, remote phone or external publisher acceptance
+  should be inferred from isolated feature CI.
 
-## Boundaries
+## Governance, security and licensing
 
-- Local inference through Ollama; no paid or cloud model fallback.
-- Online accounts still require internet access and provider permission.
-- Reuse upstream libraries/services through adapters; no wholesale forks.
-- Code-first modular Python center, not microservices or an agent swarm.
-- One durable task store and scheduling authority.
-- Scoped approvals, duplicate guards and native verification for external writes.
-- No generic shell execution or coding agent in the current product scope.
-- A powered-off laptop cannot run jobs; recovery must be explicit.
+Changes use issue-linked feature branches, tested PRs, current-head CI,
+reviewed scope/security and expected-head squash merges. Never push directly
+to `main`. See [CONTRIBUTING](CONTRIBUTING.md),
+[GOVERNANCE](GOVERNANCE.md), [AGENTS](AGENTS.md) and
+[SECURITY](SECURITY.md). Do not commit owner SQLite, OAuth tokens, private
+settings, historical raw prompts or local backups.
 
-## Documentation and contribution
-
-The canonical Wiki lives in `wiki/`. Older designs and pilot runbooks are retained
-as historical reference, not a second active backlog. Governance/security rules
-remain binding; proposed ADR-013 does not silently override accepted decisions.
-
-All changes use task branches and reviewed PRs; never push directly to main.
-Read [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md),
-[AGENTS.md](AGENTS.md) and [SECURITY.md](SECURITY.md).
-
-## License
-
-Okal is MIT licensed. Dependencies, weights and platform services retain their
-own terms. See [Dependency Selection](wiki/Dependency-Selection-and-Licensing.md).
+OKAL is MIT-licensed. Dependencies, models and provider services retain
+their own terms; see
+[Dependency Selection](wiki/Dependency-Selection-and-Licensing.md) and
+[third-party notices](THIRD_PARTY_NOTICES.md).
