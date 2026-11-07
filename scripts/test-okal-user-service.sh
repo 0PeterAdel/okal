@@ -15,12 +15,16 @@ printf '#!/bin/sh\nexit 0\n' > "$repo/scripts/run-okal-core.sh"
 chmod +x "$repo/.venv-okal-core/bin/python" "$repo/scripts/run-okal-core.sh"
 
 # Pretend the user manager is absent. The script may inspect, never start it.
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$HOME/systemctl.calls"\nexit 1\n' > "$root/bin/systemctl"
+cat > "$root/bin/systemctl" <<'FAKE_SYSTEMCTL'
+#!/bin/sh
+printf "%s\\n" "$*" >> "$HOME/systemctl.calls"
+exit 1
+FAKE_SYSTEMCTL
 chmod +x "$root/bin/systemctl"
 
 run_installer(){
   env -u XDG_CONFIG_HOME HOME="$home" PATH="$root/bin:$PATH" \
-    bash "$repo/scripts/install-okal-user-service.sh" "$@"
+    bash "$repo/scripts/install-okal-user-service.sh"
 }
 unit="$home/.config/systemd/user/okal-core.service"
 run_installer
