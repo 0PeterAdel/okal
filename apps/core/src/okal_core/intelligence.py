@@ -367,6 +367,17 @@ class Intelligence:
         return response
 
 
+# Requests to inspect CURRENT stored memories must use the authoritative owner
+# browser endpoint, never a sampled LLM MEMORY_CONTEXT or persisted assistant echo.
+MEMORY_INVENTORY = re.compile(
+    r"^\s*(?:اطبع(?:لي)?|اعرض(?:لي)?|وريني|هات(?:لي)?|قولي|اظهر(?:لي)?|شوف(?:لي)?)"
+    r".{0,110}(?:الميموري|الذاكرة|ذاكرتك|ذكرياتك|محفوظات|المحفوظة)|"
+    r"^\s*(?:list|show|print|display)\s+(?:all\s+)?(?:my\s+|the\s+)?"
+    r"(?:saved\s+|stored\s+)?(?:memories|memory)\b",
+    re.I,
+)
+
+
 def remember_request(message):
     """Only an explicit, structured owner request can propose a memory save."""
     match = re.fullmatch(r'(?:remember|افتكر|احفظ|تذكر)\s*:?\s*([^:\n]{1,80}):\s*(.{1,600})',
@@ -431,6 +442,17 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
                 response = {'answer': 'Saved your statement / اتحفظت المعلومة: ' + saved['content'],
                             'proposal': None, 'mode': 'owner_memory', 'saved': False,
                             'source': 'owner_memory_policy', 'voice_enabled': False}
+        elif MEMORY_INVENTORY.search(message):
+            # Do not copy current memory contents into a durable assistant turn:
+            # subsequent corrections/forgetting must not leave stale replies.
+            # The UI reads current, paginated records through its existing
+            # owner-only memory-browse endpoint and credential quarantine.
+            response = {
+                'answer': 'هعرض لك الذكريات المحفوظة حاليًا من سجل OKAL الحقيقي تحت الرسالة، مع عرض المزيد عند الحاجة. دي بيانات محلية مش مجرد MEMORY_CONTEXT اتبعت للموديل.',
+                'proposal': None, 'mode': 'owner_memory', 'saved': False,
+                'source': 'owner_memory_live_browse', 'memory_live_browse': True,
+                'voice_enabled': False,
+            }
         else:
             from .computer.chat import propose_for_chat
             action = propose_for_chat(store, conversation_id, request_id, message) if infer is None else None

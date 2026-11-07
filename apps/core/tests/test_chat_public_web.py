@@ -8,7 +8,7 @@ import uuid
 from unittest.mock import patch
 
 from okal_core.computer.browser import browse
-from okal_core.computer.chat import WEB_SEARCH, WEB_OPEN, propose_for_chat
+from okal_core.computer.chat import WEB_SEARCH, WEB_OPEN, LIVE_RATE, propose_for_chat
 from okal_core.computer.contracts import Denied
 from okal_core.computer.engine import Engine
 from okal_core.computer.registry import Browser, SearchWeb, public_origin, search_url
@@ -52,6 +52,21 @@ class BrowserChatTests(unittest.TestCase):
         self.assertIsNone(WEB_SEARCH.search("كام هارد في جهازي؟"))
         self.assertEqual(WEB_OPEN.search("افتح https://example.org/").group(1), "https://example.org/")
         self.assertIsNone(WEB_OPEN.search("افتح الإيميل"))
+
+    @patch("okal_core.computer.browser.network", return_value="PINNED")
+    def test_colloquial_live_riyal_rate_routes_to_real_web_tool(self, network):
+        query = "بروس كدا وشوف سعر الريال كام النهاردة"
+        self.assertIsNotNone(LIVE_RATE.search(query))
+        self.assertIsNone(LIVE_RATE.search("اشرح معنى سعر الصرف"))
+        denied = propose_for_chat(self.store, self.conversation, uuid.uuid4().hex, query)
+        self.assertEqual(denied["source"], "action_permission_policy")
+        self.assertIn("browser.search", denied["answer"])
+        self.configure(["browser.search"])
+        answer = propose_for_chat(self.store, self.conversation, uuid.uuid4().hex, query)
+        self.assertEqual(answer["source"], "proposed_action_plan")
+        plan = self.engine.get(answer["action_run"])["plan"]
+        self.assertEqual(plan["steps"][0]["tool"], "browser.search")
+        self.assertEqual(plan["steps"][0]["arguments"], {"query": query})
 
     def test_public_https_origin_is_restricted(self):
         self.assertEqual(public_origin("https://example.org/path?q=a"), "https://example.org")

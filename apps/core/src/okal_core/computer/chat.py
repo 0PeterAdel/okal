@@ -25,6 +25,19 @@ WEB_SEARCH = re.compile(
     r"(?:آخر|اخر|أحدث|احدث).{0,45}(?:الأخبار|الاخبار|أخبار|اخبار|تحديثات|تحديث)",
     re.I,
 )
+# Current prices and currency rates are inherently live external facts. Route
+# common Egyptian Arabic phrasing without requiring the words "search web".
+LIVE_RATE = re.compile(
+    r"(?:سعر|أسعار|اسعار|صرف|تحويل).{0,90}"
+    r"(?:ريال|دولار|يورو|دينار|جنيه|ذهب|عملة|العملات|SAR\b|USD\b|EGP\b|EUR\b)"
+    r".{0,75}(?:النهاردة|النهارده|اليوم|دلوقتي|حالي(?:ا|ًا)|الآن|الان)|"
+    r"\b(?:current|today(?:'s)?|latest|live)\b.{0,60}"
+    r"\b(?:exchange rate|currency rates?|price of|price|fx rate)\b|"
+    r"\b(?:exchange rate|currency rate|fx rate|price)\b.{0,70}"
+    r"\b(?:today|now|current)\b",
+    re.I,
+)
+
 WEB_OPEN = re.compile(
     r"(?:\b(?:open|browse|read)\b|(?:افتح|تصفح|اقرأ|اقرا)).{0,80}(https://[^\s<>]+)",
     re.I,
@@ -62,7 +75,7 @@ def propose_for_chat(store, conversation_id, request_id, message):
                 "source": "durable_action_receipt",
             }
     terminal = OWNER_TERMINAL.match(message)
-    web_search = None if terminal else WEB_SEARCH.search(message)
+    web_search = None if terminal else (WEB_SEARCH.search(message) or LIVE_RATE.search(message))
     web_open = None if terminal else WEB_OPEN.search(message)
     device_status = bool(DEVICE_STATUS.search(message)) and not (web_search or web_open or terminal)
     if not (terminal or device_status or web_search or web_open or ACTION.search(message)):

@@ -122,6 +122,73 @@ function clearChatUI() {
     return box;
   }
 
+  function liveMemoryInventory(parent) {
+    // No memory content is persisted in the assistant answer. Always use the
+    // existing owner-only API, which quarantines legacy credentials.
+    const panel=document.createElement("section");
+    panel.className="chat-live-memories";
+    panel.setAttribute("aria-label","الذاكرة الحقيقية المحفوظة");
+    const title=document.createElement("strong");
+    title.textContent="الذاكرة الحالية / Saved memory";
+    const note=document.createElement("p");
+    note.textContent="سجل حيّ من OKAL، مش تلخيص من الموديل. صفحات محدودة، وقد تكون بعض القيم محجوبة لحمايتها.";
+    const list=document.createElement("div");
+    const feedback=document.createElement("p");
+    feedback.setAttribute("role","status");
+    const more=document.createElement("button");more.type="button";
+    more.textContent="عرض 50 ذكرى تالية";more.hidden=true;
+    const refresh=document.createElement("button");refresh.type="button";
+    refresh.textContent="تحديث الذاكرة الآن";
+    const manage=document.createElement("button");manage.type="button";
+    manage.textContent="مراجعة/تصحيح/نسيان من إدارة الذاكرة";
+    manage.addEventListener("click",()=>{
+      const manager=get("chat-memory-manager");
+      if(manager){
+        manager.open=true;
+        if(typeof manager.scrollIntoView==="function")
+          manager.scrollIntoView({behavior:"smooth",block:"start"});
+      }
+    });
+    panel.append(title,note,list,feedback,more,refresh,manage);
+    parent.append(panel);
+    let next=0, loading=false, generation=0;
+    async function load(reset=false) {
+      if(loading)return;
+      if(reset){generation++;next=0;list.replaceChildren();}
+      if(next===null)return;
+      const current=generation;
+      loading=true;more.disabled=true;refresh.disabled=true;
+      feedback.textContent="بقرأ سجل الذاكرة الحالي...";
+      try {
+        const data=await post("memory-browse",{status:"current",offset:next});
+        if(current!==generation || panel.isConnected===false)return;
+        for(const record of (Array.isArray(data.items)?data.items:[])){
+          const row=document.createElement("article");
+          const key=document.createElement("strong");
+          key.textContent=String(record.key || "Memory").slice(0,100);
+          const content=document.createElement("p");
+          content.textContent=String(record.content || "").slice(0,600);
+          const meta=document.createElement("small");
+          meta.textContent=String(record.kind || "")+" · "+String(record.scope || "unknown")+
+            " · v"+String(record.revision || 0)+
+            (record.quarantined ? " · محجوبة للمراجعة" : "");
+          row.append(key,content,meta);list.append(row);
+        }
+        next=Number.isInteger(data.next_offset)?data.next_offset:null;
+        more.hidden=next===null;
+        feedback.textContent="المعروض: "+String(list.children.length)+
+          (next===null ? " · نهاية السجل الحالي" : " · فيه صفحات أخرى");
+      }catch(error){
+        feedback.textContent=error.message || "تعذر قراءة الذاكرة. افتح إدارة الذاكرة للمراجعة.";
+      }finally{
+        loading=false;more.disabled=false;refresh.disabled=false;
+      }
+    }
+    more.addEventListener("click",()=>load());
+    refresh.addEventListener("click",()=>load(true));
+    load(true);
+  }
+
   function cairoISO(localValue) {
     // datetime-local has no zone. Resolve explicitly in Africa/Cairo instead
     // of assuming the browser's timezone (especially remote owner devices).
@@ -420,6 +487,8 @@ function clearChatUI() {
         chatTurns.push({role:"assistant",content:turn.response.answer});
         if (turn.response.action_run && typeof renderComputerRun === "function")
           renderComputerRun(box,turn.response.action_run);
+        if (turn.response.source === "owner_memory_live_browse" && turn.response.memory_live_browse)
+          liveMemoryInventory(box);
         if (turn.response.source === "action_permission_policy") {
           const grant=document.createElement("button");
           grant.type="button";
