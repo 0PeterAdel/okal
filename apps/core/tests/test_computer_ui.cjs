@@ -14,3 +14,12 @@ test("computer UI renders untrusted plan, preview and receipts as text",()=>{
   assert.match(source,/approval_digest:run\.approval_digest/);
   assert.doesNotMatch(source,/localStorage|sessionStorage/);
 });
+
+test("system diagnostics are rendered as observed receipts, never model guesses",()=>{
+  assert.match(source,/step\.tool==="system\.status"/);
+  assert.match(source,/evidence\.block_devices/);
+  assert.match(source,/evidence\.mounted_space/);
+  assert.match(source,/prettyBytes/);
+  assert.match(source,/record\.status==="verified"/);
+  assert.doesNotMatch(source,/\.innerHTML\s*=/);
+});
