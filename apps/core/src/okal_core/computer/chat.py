@@ -20,7 +20,7 @@ DEVICE_STATUS = re.compile(
 # Explicit web requests only: source content/assistant quotes never dispatch.
 WEB_SEARCH = re.compile(
     r"\b(?:search (?:the )?web|search online|look up online|browse (?:the )?(?:web|internet)|google for|research online)\b|"
-    r"(?:ابحث|إبحث|دور|دوّر|شوف|هات).{0,70}(?:النت|الإنترنت|الانترنت|الويب|جوجل|اونلاين|أونلاين)|"
+    r"(?:ابحث|إبحث|دور|دوّر|شوف|هات|تصفح|اتصفح).{0,70}(?:النت|الإنترنت|الانترنت|الويب|جوجل|اونلاين|أونلاين)|"
     r"(?:آخر|اخر|أحدث|احدث).{0,45}(?:الأخبار|الاخبار|أخبار|اخبار|تحديثات|تحديث)",
     re.I,
 )
