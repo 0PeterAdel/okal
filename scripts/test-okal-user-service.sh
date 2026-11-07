@@ -17,7 +17,7 @@ chmod +x "$repo/.venv-okal-core/bin/python" "$repo/scripts/run-okal-core.sh"
 # Pretend the user manager is absent. The script may inspect, never start it.
 cat > "$root/bin/systemctl" <<'FAKE_SYSTEMCTL'
 #!/bin/sh
-printf "%s\\n" "$*" >> "$HOME/systemctl.calls"
+printf "%s\n" "$*" >> "$HOME/systemctl.calls"
 exit 1
 FAKE_SYSTEMCTL
 chmod +x "$root/bin/systemctl"
