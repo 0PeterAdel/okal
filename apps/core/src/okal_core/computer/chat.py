@@ -8,9 +8,9 @@ from .contracts import Plan, Step
 # Only explicit owner-directed machine questions use a deterministic read-only
 # status plan. Casual uses of "space" or "disk" in unrelated topics do not.
 DEVICE_STATUS = re.compile(
-    r"\\b(?:how many|number of|list|show|check|what(?:'s| is)?|free|available)\\b"
-    r".{0,65}\\b(?:disks?|drives?|storage|disk space|hard drives?|mounted drives?)\\b|"
-    r"\\b(?:lsblk|df -h|disk usage|storage capacity|disk capacity)\\b|"
+    r"\b(?:how many|number of|list|show|check|what(?:'s| is)?|free|available)\b"
+    r".{0,65}\b(?:disks?|drives?|storage|disk space|hard drives?|mounted drives?)\b|"
+    r"\b(?:lsblk|df -h|disk usage|storage capacity|disk capacity)\b|"
     r"(?:كام|كم|عدد|اعرض|وريني|شوف|المساحة|مساحة|متوصل|متوصلة).{0,65}"
     r"(?:هارد|هاردات|الهارد|الأقراص|الاقراص|ديسك|ديسكات|مساحة التخزين|مساحة الجهاز)|"
     r"(?:مساحة|سعة).{0,35}(?:هارد|تخزين|الهارد|القرص|الهاردات)",
