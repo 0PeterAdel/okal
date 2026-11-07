@@ -1,5 +1,7 @@
 [Unit]
-Description=Okal local read-only inbox (R1a)
+# Baseline hardened legacy-path template. Use scripts/install-okal-user-service.sh
+# to install a portable checkout-specific unit; this file is NOT enabled by Git.
+Description=OKAL local personal AI assistant
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
