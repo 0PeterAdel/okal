@@ -1,6 +1,7 @@
 """Natural owner requests can propose actions; quoted documents never dispatch."""
 
 import re
+import shlex
 
 from .engine import Engine
 from .contracts import Plan, Step
@@ -29,6 +30,14 @@ WEB_OPEN = re.compile(
     re.I,
 )
 
+# Direct literal owner command only; no free-form model-generated shell text.
+OWNER_TERMINAL = re.compile(
+    r"^\s*(?:run|execute|نفذ|نفّذ|شغل|شغّل)\s*"
+    r"(?:command|الأمر|الامر)?\s*"
+    r"(?:in (?:the )?terminal|في الترمينال|على الترمينال)?\s*[:：]\s*(.+)$",
+    re.I | re.S,
+)
+
 ACTION = re.compile(
     r"\b(?:organize|move|rename|copy|delete|trash|download|browse|research|open|launch|focus)\b|"
     r"\b(?:read|compare|summarize|find|search|create|write|prepare|draft)\b.{0,100}\b(?:files?|folders?|documents?|reports?|tasks?|workspace|directory|emails?|repl(?:y|ies))\b|"
@@ -52,14 +61,16 @@ def propose_for_chat(store, conversation_id, request_id, message):
                 "voice_enabled": False,
                 "source": "durable_action_receipt",
             }
-    web_search = WEB_SEARCH.search(message)
-    web_open = WEB_OPEN.search(message)
-    device_status = bool(DEVICE_STATUS.search(message)) and not (web_search or web_open)
-    if not (device_status or web_search or web_open or ACTION.search(message)):
+    terminal = OWNER_TERMINAL.match(message)
+    web_search = None if terminal else WEB_SEARCH.search(message)
+    web_open = None if terminal else WEB_OPEN.search(message)
+    device_status = bool(DEVICE_STATUS.search(message)) and not (web_search or web_open or terminal)
+    if not (terminal or device_status or web_search or web_open or ACTION.search(message)):
         return None
     engine = Engine(store)
     enabled = engine.policy()["policy"]["tools"]
     required = (
+        "system.terminal" if terminal else
         "browser.public_read" if web_open else
         "browser.search" if web_search else
         "system.status" if device_status else None
@@ -84,7 +95,19 @@ def propose_for_chat(store, conversation_id, request_id, message):
         }
     try:
         explicit_plan = None
-        if device_status:
+        if terminal:
+            parts = shlex.split(terminal.group(1).strip().strip("`"))
+            if not parts or len(parts) > 20:
+                raise ValueError("invalid_owner_terminal_command")
+            if not parts[0].startswith("/"):
+                if not re.fullmatch(r"[a-zA-Z0-9_.+\-]{1,100}", parts[0]):
+                    raise ValueError("absolute_usr_bin_command_required")
+                parts[0] = "/usr/bin/" + parts[0]
+            explicit_plan = Plan(
+                understanding="الأمر اللي كتبته جاهز لمراجعتك؛ مش هيتنفذ إلا بعد موافقتك على argv بالضبط.",
+                steps=[Step(tool="system.terminal", arguments={"argv": parts})],
+            )
+        elif device_status:
             explicit_plan = Plan(
                 understanding="هفحص الأقراص ومساحة التخزين من الجهاز نفسه، وأعرض نتيجة موثقة بدون تغيير أي ملف.",
                 steps=[Step(tool="system.status", arguments={})],
