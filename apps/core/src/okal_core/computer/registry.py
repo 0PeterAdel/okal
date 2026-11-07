@@ -562,16 +562,19 @@ def browser_preview(ctx, args):
 
 
 def status(ctx, args):
-    return result(
-        "Read non-secret system status.",
-        {
-            "load_average": list(os.getloadavg()),
-            "cpu_count": os.cpu_count(),
-            "desktop_session_available": bool(
-                os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-            ),
-        },
+    from .system_status import disk_status
+
+    ctx.check()
+    evidence = disk_status()
+    evidence.update(
+        load_average=list(os.getloadavg()),
+        cpu_count=os.cpu_count(),
+        desktop_session_available=bool(
+            os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        ),
     )
+    ctx.check()
+    return result("Read verified local device and storage information.", evidence)
 
 
 def command_scope(ctx):
@@ -941,7 +944,7 @@ def registry():
         ),
         Tool(
             "system.status",
-            "Read load average, CPU count and desktop session availability.",
+            "Read CPU, load, attached block disk count/sizes and mounted free/total storage without terminal or root.",
             Empty,
             "read",
             status,
