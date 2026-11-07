@@ -78,11 +78,14 @@ class OwnerTerminalTests(unittest.TestCase):
     def test_refuse_root_or_privilege_commands_and_read_only_mode(self, which):
         self.configure()
         for command in ("sudo ls", "/usr/bin/pkexec ls", "../../bin/bash -c ls"):
-            with self.subTest(command=command), self.assertRaises((Denied, ValueError)):
-                self.request("Run command: " + command)
+            with self.subTest(command=command):
+                outcome = self.request("Run command: " + command)
+                self.assertEqual(outcome["source"], "action_plan_unavailable")
+                self.assertNotIn("action_run", outcome)
         self.configure(mode="read_only")
-        with self.assertRaises(Denied):
-            self.request("Run command: uname -a")
+        outcome = self.request("Run command: uname -a")
+        self.assertEqual(outcome["source"], "action_plan_unavailable")
+        self.assertNotIn("action_run", outcome)
 
     def test_broad_home_and_private_state_are_not_terminal_mounts(self):
         home = Path.home()
