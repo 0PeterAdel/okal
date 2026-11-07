@@ -81,6 +81,21 @@ function clearChatUI() {
   const status = get("chat-status");
   if (!log || !entry || !send || !status) return;
 
+  function openComputerPermissions() {
+    const panel=get("computer-settings");
+    if (!panel) return;
+    panel.open=true;
+    const opener=get("chat-open-actions");
+    if(opener) opener.setAttribute("aria-expanded","true");
+    const load=get("computer-load");
+    if(load) load.click();
+    if(typeof panel.scrollIntoView==="function")
+      panel.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  const toolOpener=get("chat-open-actions");
+  if(toolOpener) toolOpener.addEventListener("click",openComputerPermissions);
+
   function bubble(role, content) {
     const box = document.createElement("article");
     box.className = "chat-bubble";
@@ -401,6 +416,15 @@ function clearChatUI() {
         chatTurns.push({role:"assistant",content:turn.response.answer});
         if (turn.response.action_run && typeof renderComputerRun === "function")
           renderComputerRun(box,turn.response.action_run);
+        if (turn.response.source === "action_permission_policy") {
+          const grant=document.createElement("button");
+          grant.type="button";
+          grant.className="chat-action-permissions";
+          grant.textContent="افتح صلاحيات الأدوات / Open Actions";
+          grant.setAttribute("aria-controls","computer-settings");
+          grant.addEventListener("click",openComputerPermissions);
+          box.append(grant);
+        }
         // Old appointment proposals are historical, never new save buttons.
         if (turn.response.context_sources?.length) {
           const note=document.createElement("small");
