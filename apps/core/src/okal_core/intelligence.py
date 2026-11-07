@@ -455,7 +455,16 @@ def respond(store, conversation_id, request_id, message, retry=False, infer=None
             }
         else:
             from .computer.chat import propose_for_chat
-            action = propose_for_chat(store, conversation_id, request_id, message) if infer is None else None
+            prior_source = None
+            if prior and prior[0]:
+                try:
+                    prior_source = json.loads(prior[0]).get("source")
+                except (ValueError, TypeError):
+                    pass
+            action = (propose_for_chat(
+                store, conversation_id, request_id, message,
+                previous_source=prior_source
+            ) if infer is None else None)
             response = action or ask(store, message, history, infer=infer, memory_context=context)
         response.setdefault('context_sources', [])
         response.setdefault('history_limited', context['history_limited'])

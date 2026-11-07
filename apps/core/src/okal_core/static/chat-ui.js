@@ -580,7 +580,8 @@ function clearChatUI() {
         const box=log.children[log.children.length-1];
         if (box) proposalForm(data.proposal,box);
       }
-      status.textContent=data.mode === "action_plan" ? "خطة أدوات محلية؛ راجع الحالة والإيصالات في الرسالة"
+      status.textContent=data.source === "location_clarification" ? "محتاج المدينة المطلوبة علشان أجيب نتيجة ويب موثقة"
+        : data.mode === "action_plan" ? "خطة أدوات محلية؛ راجع الحالة والإيصالات في الرسالة"
         : data.mode === "pinned_local_ollama"
         ? "Ollama المحلي · المحادثة محفوظة" + (data.history_limited ? " · السياق مختصر" : "")
         : data.mode === "owner_memory" ? "تمت معالجة طلب الذاكرة محليًا"

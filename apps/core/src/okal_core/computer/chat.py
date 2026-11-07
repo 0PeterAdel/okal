@@ -5,6 +5,7 @@ import shlex
 
 from .engine import Engine
 from .contracts import Plan, Step
+from .live_intent import BROWSE_VERB, live_intent, public_search_query
 
 # Only explicit owner-directed machine questions use a deterministic read-only
 # status plan. Casual uses of "space" or "disk" in unrelated topics do not.
@@ -60,7 +61,7 @@ ACTION = re.compile(
 )
 
 
-def propose_for_chat(store, conversation_id, request_id, message):
+def propose_for_chat(store, conversation_id, request_id, message, previous_source=None):
     if re.search(r"^(?:continue|resume|كمل|كمّل|استكمل)\b", message.strip(), re.I):
         engine = Engine(store)
         previous = engine.history(conversation_id)["items"]
@@ -75,8 +76,22 @@ def propose_for_chat(store, conversation_id, request_id, message):
                 "source": "durable_action_receipt",
             }
     terminal = OWNER_TERMINAL.match(message)
-    web_search = None if terminal else (WEB_SEARCH.search(message) or LIVE_RATE.search(message))
     web_open = None if terminal else WEB_OPEN.search(message)
+    live = None if (terminal or web_open) else live_intent(
+        message, weather_followup=previous_source == "location_clarification"
+    )
+    # Ask for the missing city before any external network I/O. The Cairo
+    # timezone does not establish the owner's physical location.
+    if live and live.kind == "location_required":
+        return {
+            "answer": live.answer, "proposal": None, "mode": "action_plan",
+            "saved": False, "voice_enabled": False,
+            "source": "location_clarification",
+        }
+    web_search = None if terminal or web_open else (
+        live is not None or WEB_SEARCH.search(message) or
+        LIVE_RATE.search(message) or BROWSE_VERB.match(message)
+    )
     device_status = bool(DEVICE_STATUS.search(message)) and not (web_search or web_open or terminal)
     if not (terminal or device_status or web_search or web_open or ACTION.search(message)):
         return None
@@ -132,10 +147,13 @@ def propose_for_chat(store, conversation_id, request_id, message):
                 steps=[Step(tool="browser.public_read", arguments={"url": url})],
             )
         elif web_search:
-            query = message[:180]
+            query = live.query if live and live.query else public_search_query(message)
+            explanation = (
+                live.answer + " " if live and live.answer else ""
+            ) + "هبحث في مصدر ويب عام وأعرض نتيجة فعلية موثقة، مش سعر أو طقس من ذاكرتي."
             explicit_plan = Plan(
-                understanding="هبحث على الإنترنت عن طلبك وأعرض مصادر فعلية؛ الاستعلام بيُرسل لمحرك بحث خارجي.",
-                steps=[Step(tool="browser.search", arguments={"query": query})],
+                understanding=explanation,
+                steps=[Step(tool="browser.search", arguments={"query": query[:180]})],
             )
         run = engine.propose(conversation_id, request_id, message, plan=explicit_plan)
         return {
