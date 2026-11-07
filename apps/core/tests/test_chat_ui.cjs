@@ -280,3 +280,42 @@ test("Chat starting prompts use real governed tool routes and explicit literal c
   assert.match(html,/aria-controls="computer-settings"/);
   assert.doesNotMatch(html,/data-chat-prompt="sudo /);
 });
+
+
+test("owner memory inventory is fetched live, paged and never copied to saved chat response",async()=>{
+  const reply={answer:"هعرض لك السجل الحقيقي",source:"owner_memory_live_browse",
+    memory_live_browse:true,mode:"owner_memory",proposal:null};
+  const h=harness(reply,{routes:{
+    "/api/v1/chat/memory-browse":body=>body.offset===0
+      ? {items:[{key:"owner.favorite",content:"Owner canary one",kind:"semantic",
+          scope:"owner",revision:2,quarantined:false}],next_offset:50}
+      : {items:[{key:"legacy.credentials",content:"[Legacy credential-related memory excluded; forget to remove it.]",
+          kind:"semantic",scope:"owner",revision:1,quarantined:true}],next_offset:null},
+  }});
+  h.prompts[0].handlers.click();await flush();await flush();
+  const assistant=h.get("chat-messages").children[1];
+  const inventory=assistant.children.find(x=>x.className==="chat-live-memories");
+  assert.ok(inventory);
+  const list=inventory.children[2];
+  assert.equal(list.children.length,1);
+  assert.equal(list.children[0].children[1].textContent,"Owner canary one");
+  const more=inventory.children[4];
+  assert.equal(more.hidden,false);
+  more.handlers.click();await flush();
+  assert.equal(list.children.length,2);
+  assert.match(list.children[1].children[2].textContent,/محجوبة/);
+  assert.equal(more.hidden,true);
+  const turns=h.calls.filter(c=>c.url==="/api/v1/chat/turn");
+  assert.equal(turns.length,1);
+  assert.equal(turns[0].options.body.includes("Owner canary one"),false);
+  assert.equal(inventory.children[5].tag,"button");
+  assert.equal(h.calls.filter(c=>c.url==="/api/v1/chat/memory-browse").length,2);
+});
+
+test("explicit memory source is required for live-memory UI; no accidental list from saved context",async()=>{
+  const h=harness({answer:"Regular response",source:"pinned_local_ollama",mode:"pinned_local_ollama"});
+  h.prompts[0].handlers.click();await flush();
+  const assistant=h.get("chat-messages").children[1];
+  assert.equal(assistant.children.some(n=>n.className==="chat-live-memories"),false);
+  assert.equal(h.calls.filter(c=>c.url.includes("memory-browse")).length,0);
+});
