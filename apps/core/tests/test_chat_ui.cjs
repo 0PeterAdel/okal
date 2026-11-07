@@ -269,3 +269,14 @@ test("tool access heading opens the existing Actions settings without granting a
   assert.equal(loads,1);
   assert.equal(h.calls.length,0);
 });
+
+test("Chat starting prompts use real governed tool routes and explicit literal commands",()=>{
+  const html=fs.readFileSync(path.join(__dirname,
+    "../src/okal_core/static/index.html"),"utf8");
+  assert.match(html,/data-chat-prompt="عندي كام هارد متوصل/);
+  assert.match(html,/data-chat-prompt="ابحث في النت عن/);
+  assert.match(html,/data-chat-prompt="نفذ في الترمينال: df -h"/);
+  assert.match(html,/id="chat-open-actions"/);
+  assert.match(html,/aria-controls="computer-settings"/);
+  assert.doesNotMatch(html,/data-chat-prompt="sudo /);
+});
