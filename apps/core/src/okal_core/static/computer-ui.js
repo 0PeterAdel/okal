@@ -71,7 +71,10 @@ function renderComputerRun(parent,id){
             ...(Array.isArray(page.links)?page.links.slice(0,8):[])];
           for(const source of sources){
             const url=String(source.url || "");
-            if(!/^https:\/\/[a-z0-9.-]+(?:[:/]|$)/i.test(url))continue;
+            if(url.length>2000)continue;
+            let parsed;
+            try{parsed=new URL(url);}catch{continue;}
+            if(parsed.protocol!=="https:" || parsed.username || parsed.password || !parsed.hostname.includes("."))continue;
             const anchor=document.createElement("a");
             anchor.href=url;anchor.target="_blank";anchor.rel="noopener noreferrer";
             anchor.textContent=String(source.text || url).slice(0,120)+" · "+url.slice(0,180);
