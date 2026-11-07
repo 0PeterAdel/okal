@@ -14,7 +14,7 @@ WEATHER = re.compile(
 )
 HARDWARE_TEMP = re.compile(
     r"(?:cpu|gpu|المعالج|البروسيسور|كارت\s*الشاشة|الهارد|البطارية|"
-    r"درجة\s+حرارة\s+الجهاز)",
+    r"درجة\s+حرارة\s+الجهاز|جهازي|اللابتوب|laptop)",
     re.I,
 )
 DAY = re.compile(r"(?:بكرة|بكره|غد(?:ا|ً)?|tomorrow)", re.I)
@@ -51,6 +51,7 @@ PLACE_STOP = re.compile(
 UNSPECIFIED = {
     "المكان", "المدينة", "مدينتي", "الموقع", "عندي", "هنا", "الجو",
     "مصر", "egypt", "my city", "here", "my location", "البلد",
+    "تمام", "خلاص", "لأ", "لا", "cancel", "شكرا", "شكرًا",
 }
 
 
@@ -86,6 +87,9 @@ def live_intent(message, *, weather_followup=False):
     weather = bool(WEATHER.search(text)) and not HARDWARE_TEMP.search(text)
     if weather or (weather_followup and len(text) <= 70):
         city = _place(text, followup=not weather)
+        if not city and not weather:
+            # A new, unrelated short owner turn cancels the pending city slot.
+            return None
         if not city:
             return LiveIntent(
                 kind="location_required",
