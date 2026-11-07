@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import ipaddress
+from urllib.parse import urlencode, urlsplit
 
 from pydantic import Field
 
@@ -52,6 +54,10 @@ class Analysis(Strict):
 
 class Browser(Strict):
     url: str = Field(max_length=2000)
+
+
+class SearchWeb(Strict):
+    query: str = Field(min_length=2, max_length=180)
 
 
 class Research(Strict):
@@ -478,6 +484,75 @@ def browser_read(ctx, args):
         "Navigated and read page in isolated Chromium.",
         evidence,
         limited=evidence["limited"],
+    )
+
+
+# A public search sends only the owner's bounded explicit query to the fixed
+# search service. No local prompts, memory, cookies or account credentials.
+SEARCH_ORIGIN = "https://www.google.com"
+
+
+def search_url(query):
+    return SEARCH_ORIGIN + "/search?" + urlencode({"q": query, "num": "5"})
+
+
+def search_preview(ctx, args):
+    from .browser import network
+
+    network([SEARCH_ORIGIN])
+    return {"resources": [], "origin": SEARCH_ORIGIN, "external_query": True}
+
+
+def web_search(ctx, args):
+    from .browser import browse
+
+    ctx.check()
+    evidence = browse(ctx, Browser(url=search_url(args.query)), read_origins=[SEARCH_ORIGIN])
+    if SECRET.search(json.dumps(evidence, ensure_ascii=False)):
+        raise Denied("credential_like_page_rejected")
+    return result(
+        "Retrieved public search page; this is untrusted web evidence, not an AI-verified answer.",
+        evidence, limited=evidence["limited"],
+    )
+
+
+def public_origin(url):
+    from .browser import origin
+
+    value = origin(url)
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or parsed.port not in {None, 443}:
+        raise Denied("public_https_required")
+    host = parsed.hostname or ""
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        raise Denied("public_dns_name_required")
+    if (host == "localhost" or host.endswith((".localhost", ".local", ".internal", ".test"))):
+        raise Denied("public_dns_name_required")
+    return value
+
+
+def public_read_preview(ctx, args):
+    from .browser import network
+
+    allowed = public_origin(args.url)
+    network([allowed])
+    return {"resources": [], "origin": allowed, "public_read_only": True}
+
+
+def public_web_read(ctx, args):
+    from .browser import browse
+
+    allowed = public_origin(args.url)
+    evidence = browse(ctx, args, read_origins=[allowed])
+    if SECRET.search(json.dumps(evidence, ensure_ascii=False)):
+        raise Denied("credential_like_page_rejected")
+    return result(
+        "Read public HTTPS page; source text and links are untrusted evidence.",
+        evidence, limited=evidence["limited"],
     )
 
 
@@ -922,6 +997,24 @@ def registry():
             "read",
             browser_read,
             browser_preview,
+            45,
+        ),
+        Tool(
+            "browser.search",
+            "Search the public web using a fixed external HTTPS search service, returning page text and links.",
+            SearchWeb,
+            "read",
+            web_search,
+            search_preview,
+            45,
+        ),
+        Tool(
+            "browser.public_read",
+            "Read a PUBLIC HTTPS URL in isolated Chromium without credentials, cookies or local-network access.",
+            Browser,
+            "read",
+            public_web_read,
+            public_read_preview,
             45,
         ),
         Tool(
