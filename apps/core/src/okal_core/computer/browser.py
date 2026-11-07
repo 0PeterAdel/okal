@@ -68,13 +68,18 @@ def network(origins):
     return ",".join(rules) + ",MAP * ~NOTFOUND"
 
 
-def browse(ctx, args, interactive=False):
-    if origin(args.url) not in ctx.policy.browser_origins:
+def browse(ctx, args, interactive=False, read_origins=None):
+    # Owner-granted browser.search/public_read may supply one validated public
+    # origin for READ ONLY. Interactive workflows keep exact owner policy.
+    if read_origins is not None and interactive:
+        raise Denied("dynamic_origins_cannot_interact")
+    allowed = list(ctx.policy.browser_origins if read_origins is None else read_origins)
+    if origin(args.url) not in allowed:
         raise Denied("browser_origin_not_granted")
     payload = {
         "url": args.url,
-        "origins": ctx.policy.browser_origins,
-        "rules": network(ctx.policy.browser_origins),
+        "origins": allowed,
+        "rules": network(allowed),
         "operations": args.operations if interactive else [],
         "interactive": interactive,
     }

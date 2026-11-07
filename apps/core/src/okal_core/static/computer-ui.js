@@ -59,6 +59,28 @@ function renderComputerRun(parent,id){
         const pre=document.createElement("pre");pre.textContent=JSON.stringify({arguments:step.arguments,
           preview:run.preview[i],receipt:record.result,error:record.error},null,2);details.append(pre);card.append(details);
         if(record.result?.summary)line("p",record.result.summary);
+        // Public search/read receipts are evidence, not invented model claims.
+        if(record.status==="verified"
+            && ["browser.search","browser.public_read","browser.read"].includes(step.tool)
+            && record.result?.evidence){
+          const page=record.result.evidence;
+          line("p","مصدر الويب / Web source: "+String(page.title || "Untitled").slice(0,160));
+          line("p",String(page.text || "").slice(0,900)
+            +(page.limited ? " … (نتيجة مختصرة)" : ""));
+          const sources=[{url:page.url,text:page.title || "Open source"},
+            ...(Array.isArray(page.links)?page.links.slice(0,8):[])];
+          for(const source of sources){
+            const url=String(source.url || "");
+            if(url.length>2000)continue;
+            let parsed;
+            try{parsed=new URL(url);}catch{continue;}
+            if(parsed.protocol!=="https:" || parsed.username || parsed.password || !parsed.hostname.includes("."))continue;
+            const anchor=document.createElement("a");
+            anchor.href=url;anchor.target="_blank";anchor.rel="noopener noreferrer";
+            anchor.textContent=String(source.text || url).slice(0,120)+" · "+url.slice(0,180);
+            card.append(anchor);
+          }
+        }
         // Show observed disk receipts directly; never ask the LLM to invent sizes.
         if(record.status==="verified" && step.tool==="system.status" && record.result?.evidence){
           const evidence=record.result.evidence;
