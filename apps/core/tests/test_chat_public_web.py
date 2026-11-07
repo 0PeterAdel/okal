@@ -46,7 +46,7 @@ class BrowserChatTests(unittest.TestCase):
         }, record["revision"])
 
     def test_explicit_web_queries_and_url_open_are_distinct(self):
-        for query in ("ابحث في النت عن أخبار تقنية", "دور على جوجل عن النماذج", "Search the web for robotics"):
+        for query in ("ابحث في النت عن أخبار تقنية", "دور على جوجل عن النماذج", "Search the web for robotics", "تصفح الإنترنت عن الذكاء الاصطناعي"):
             self.assertIsNotNone(WEB_SEARCH.search(query))
         self.assertIsNone(WEB_SEARCH.search("What is an electron?"))
         self.assertIsNone(WEB_SEARCH.search("كام هارد في جهازي؟"))
@@ -109,6 +109,14 @@ class BrowserChatTests(unittest.TestCase):
             answer = propose_for_chat(self.store, self.conversation, uuid.uuid4().hex, "ابحث في النت عن حاجه")
             finished = self.engine.execute(answer["action_run"])
             self.assertNotEqual(finished["status"], "succeeded")
+
+    def test_private_dns_target_cannot_ride_public_read_grant(self):
+        from okal_core.computer.registry import public_read_preview
+        ctx = SimpleNamespace(policy=SimpleNamespace(browser_origins=[]))
+        with patch("okal_core.computer.browser.socket.getaddrinfo",
+                   return_value=[(None, None, None, None, ("10.1.2.3", 443))]):
+            with self.assertRaises(Denied):
+                public_read_preview(ctx, Browser(url="https://not-public.example.org/"))
 
     def test_browser_origin_override_never_allows_interaction(self):
         ctx = SimpleNamespace(policy=SimpleNamespace(browser_origins=[]), check=lambda: None)
