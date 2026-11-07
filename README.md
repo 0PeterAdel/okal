@@ -11,6 +11,13 @@ verified receipts and recovery govern real computer operations. The historical
 reset/pilot plan remains in [the Wiki](wiki/Personal-Assistant-Plan.md), but
 later reviewed stages supersede its original feature deferrals.
 
+## Desktop preview
+
+![OKAL chat-first personal assistant desktop UI](docs/assets/okal-chat-interface.webp)
+
+*OKAL's Liquid Glass desktop interface (screenshot supplied by the owner, November 2026).
+This is an interface preview, not a live service or model-usage status.*
+
 ## Current code scope
 
 | Area | Merged capability | Boundary / outstanding acceptance |
@@ -25,12 +32,13 @@ later reviewed stages supersede its original feature deferrals.
 | UI | Approved high-resolution OKAL logo, restrained Liquid Glass, spatial/HUD accents, Chat-first navigation and Actions panel | Browser/owner usability acceptance remains separate from code tests |
 | Later | Social/freelance submission, mature voice and paired mobile workflows | Historic pilots and plans are not complete daily-product delivery |
 
-**Repository merges are not deployments.** In the latest owner-reported read-only
-audit (November 7, 2026), the real `okal-core.service` was active with HTTP
+**Repository merges are not deployments.** An owner-reported read-only
+audit on November 7, 2026 observed `okal-core.service` active with HTTP
 health 200, and live SQLite `chat_schema=2` passed integrity/foreign-key
 checks, but the running production checkout was still at
 `f7762b65eb12f580d054dcdb6dabe0e89c53cf17`. Later code on `main`
-was **not** confirmed installed on that host. Do not migrate schema 2 again,
+was **not** confirmed installed on that host at that time. This historical
+audit is **not** a claim the service is running now. Do not migrate schema 2 again,
 replace the live DB with an older snapshot, stop writes merely for a new
 quiesced backup, or claim owner-device acceptance from GitHub CI.
 
