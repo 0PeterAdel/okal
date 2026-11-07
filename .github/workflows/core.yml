@@ -7,6 +7,12 @@ on:
       - "apps/core/**"
       - "deploy/okal-core.service"
       - "scripts/run-okal-core.sh"
+      - "scripts/install-okal-user-service.sh"
+      - "scripts/test-okal-user-service.sh"
+      - "docs/GETTING-STARTED.md"
+      - "docs/FEATURE-STATUS.md"
+      - "docs/VOICE-STATUS.md"
+      - "README.md"
       - "docs/CORE-INBOX.md"
       - "docs/CORE-DEPENDENCIES.md"
       - "docs/MAIL-BACKEND.md"
@@ -18,6 +24,12 @@ on:
       - "apps/core/**"
       - "deploy/okal-core.service"
       - "scripts/run-okal-core.sh"
+      - "scripts/install-okal-user-service.sh"
+      - "scripts/test-okal-user-service.sh"
+      - "docs/GETTING-STARTED.md"
+      - "docs/FEATURE-STATUS.md"
+      - "docs/VOICE-STATUS.md"
+      - "README.md"
       - "docs/CORE-INBOX.md"
       - "docs/CORE-DEPENDENCIES.md"
       - "docs/MAIL-BACKEND.md"
@@ -68,6 +80,9 @@ jobs:
         run: |
           bash -n scripts/run-okal-core.sh
           shellcheck scripts/run-okal-core.sh
+          bash -n scripts/install-okal-user-service.sh scripts/test-okal-user-service.sh
+          shellcheck scripts/install-okal-user-service.sh scripts/test-okal-user-service.sh
+          bash scripts/test-okal-user-service.sh
           node --check apps/core/src/okal_core/static/app.js
           node --check apps/core/src/okal_core/static/computer-ui.js
           node --test apps/core/tests/test_*.cjs
